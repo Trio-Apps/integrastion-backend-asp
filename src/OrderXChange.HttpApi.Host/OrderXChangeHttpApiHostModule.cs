@@ -55,6 +55,7 @@ using Hangfire.Storage.MySql;
 using Volo.Abp.EventBus.Kafka;
 using Volo.Abp.Kafka;
 using OrderXChange.Integrations.Foodics;
+using Volo.Abp.Settings;
 
 namespace OrderXChange;
 
@@ -128,11 +129,13 @@ public class OrderXChangeHttpApiHostModule : AbpModule
             });
         }
 
+
         ConfigureAuthentication(context);
         ConfigureUrls(configuration);
         ConfigureBundles();
         ConfigureConventionalControllers();
         ConfigureExternalProviders(context);
+        ConfigureSettings(context);
         //ConfigureImpersonation(context, configuration);
         ConfigureHealthChecks(context);
         ConfigureKafka(context, configuration);
@@ -141,6 +144,14 @@ public class OrderXChangeHttpApiHostModule : AbpModule
         ConfigureVirtualFileSystem(context);
         ConfigureCors(context, configuration);
         ConfigureFilters(context);
+    }
+
+    private void ConfigureSettings(ServiceConfigurationContext context)
+    {
+        Configure<AbpSettingOptions>(options =>
+        {
+            options.DefinitionProviders.Add<OrderXChangeSettingDefinitionProvider>();
+        });
     }
 
     private void ConfigureFilters(ServiceConfigurationContext context)

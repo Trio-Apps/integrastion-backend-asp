@@ -19,9 +19,9 @@ import { finalize } from 'rxjs/operators';
       </button>
       <a class="layout-topbar-logo" routerLink="/">
         <img
-          src="assets/images/logo/newlogo.jpg"
+          src="assets/images/logo/newlogo.png"
           alt="BEON-IT"
-          style="height: 55px; width: auto; display: block;"
+          class="layout-topbar-logo-image"
         />
       </a>
     </div>

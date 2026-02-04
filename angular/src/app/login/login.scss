@@ -39,27 +39,30 @@
   padding-bottom: 1.5rem;
   border-bottom: 1px solid var(--surface-border);
 
-  .logo-section {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
+    .logo-section {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
 
-    .logo-icon {
-      height: 55px;
-      width: auto;
-      display: block;
-      object-fit: contain;
-    }
+      .logo-icon {
+        height: 84px;
+        max-width: 220px;
+        width: auto;
+        display: block;
+        object-fit: contain;
+      }
 
-    .app-name {
-      font-size: 1.75rem;
-      font-weight: 700;
-      margin: 0;
-      color: var(--text-color);
+      .app-name {
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0;
+        color: var(--text-color);
+        letter-spacing: 0.4px;
+      }
     }
-  }
 
   .welcome-text {
     margin: 0;
@@ -188,12 +191,13 @@
   .login-header {
     .logo-section {
       .logo-icon {
-        height: 45px;
+        height: 64px;
+        max-width: 180px;
         width: auto;
       }
 
       .app-name {
-        font-size: 1.5rem;
+        font-size: 1.6rem;
       }
     }
   }

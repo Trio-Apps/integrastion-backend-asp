@@ -1,31 +1,37 @@
 services:
   web_api:
     build:
-      context: ../../src/OrderXChange.HttpApi.Host
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: src/OrderXChange.HttpApi.Host/Dockerfile
+      args:
+        OPENIDDICT_PFX_PASSPHRASE: "0ae7c713-43f1-4428-9273-ac71bd31a284"
     user: root
     image: orderxchangehttpapihost
     container_name: web_api
     depends_on:
+      db_migrator:
+        condition: service_completed_successfully
       mariadb:
         condition: service_healthy
       kafka:
         condition: service_healthy
     environment:
       - App__SelfUrl=http://localhost:8081
-      - App__AngularUrl=http://localhost:4200
+      - App__AngularUrl=http://localhost:4201
       - App__HealthCheckUrl=/health-status
       - App__DisablePII=false
       - ConnectionStrings__Hangfire=Server=mariadb;Port=3306;Database=OrderXChange;User=root;Password=P@ssw0rd;AllowUserVariables=True;UseAffectedRows=False
       - ConnectionStrings__Default=Server=mariadb;Port=3306;Database=OrderXChange;User=root;Password=P@ssw0rd;AllowUserVariables=True;UseAffectedRows=False
-      - App__CorsOrigins=http://localhost:4200,http://localhost:8081
+      - App__CorsOrigins=http://localhost:4201,http://localhost:8081
       - AuthServer__Authority=http://localhost:8081
+      - AuthServer__RequireHttpsMetadata=false
       - AuthServer__SwaggerClientId=OrderXChange_Swagger
       - OpenIddict__Applications__OrderXChange_Swagger__RootUrl=http://localhost:8081
-      - OpenIddict__Applications__OrderXChange_App__RootUrl=http://localhost:4200
+      - OpenIddict__Applications__OrderXChange_App__RootUrl=http://localhost:4201
       - OpenIddict__Applications__OrderXChange_Swagger__RedirectUris__0=http://localhost:8081/swagger/oauth2-redirect.html
       - App__RedirectAllowedUrls=http://localhost:8081
-      - ASPNETCORE_ENVIRONMENT=Development
+      - AuthServer__CertificatePassPhrase=0ae7c713-43f1-4428-9273-ac71bd31a284
+      - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
       # Hangfire Configuration
       - Hangfire__Schema=Hangfire
@@ -59,6 +65,24 @@ services:
     restart: always
     networks:
       - abp-network
+    volumes:
+      - webapi-dp-keys:/root/.aspnet/DataProtection-Keys
+
+  db_migrator:
+    build:
+      context: ../..
+      dockerfile: src/OrderXChange.DbMigrator/Dockerfile
+    image: orderxchange-dbmigrator
+    container_name: db_migrator
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      - ConnectionStrings__Default=Server=mariadb;Port=3306;Database=OrderXChange;User=root;Password=P@ssw0rd;CharSet=utf8mb4;
+      - RUN_DB_MIGRATOR=${RUN_DB_MIGRATOR:-true}
+    restart: "no"
+    networks:
+      - abp-network
 
   angular:
     build:
@@ -69,7 +93,7 @@ services:
     depends_on:
       - web_api
     ports:
-      - "4200:80"
+      - "4201:80"
     restart: always
     networks:
       - abp-network
@@ -167,6 +191,8 @@ volumes:
     name: orderxchange_zookeeper_log
   kafka-data:
     name: orderxchange_kafka_data
+  webapi-dp-keys:
+    name: orderxchange_webapi_dp_keys
 
 networks:
   abp-network:

@@ -1,13 +1,13 @@
 import { Environment } from '@abp/ng.core';
 
-const baseUrl = 'http://localhost:4200';
+const baseUrl = 'http://localhost:4201';
 
 const oAuthConfig = {
-  issuer: 'https://localhost:44325/',
+  issuer: 'http://localhost:8081/',
   redirectUri: baseUrl,
   clientId: 'OrderXChange_App',
   scope: 'offline_access OrderXChange',
-  requireHttps: true,
+  requireHttps: false,
   impersonation: {
     tenantImpersonation: true,
     userImpersonation: true,
@@ -23,7 +23,7 @@ export const environment = {
   oAuthConfig,
   apis: {
     default: {
-      url: 'https://localhost:44325',
+      url: 'http://localhost:8081',
       rootNamespace: 'OrderXChange',
     },
     AbpAccountPublic: {

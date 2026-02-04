@@ -40,8 +40,10 @@ public class OrderXChangeApplicationAutoMapperProfile : Profile
         CreateMap<MenuGroupTalabatMapping, MenuGroupTalabatMappingDto>()
             .ForMember(dest => dest.MenuGroupName, opt => opt.MapFrom(src => src.MenuGroup != null ? src.MenuGroup.Name : string.Empty))
             .ForMember(dest => dest.Configuration, opt => opt.MapFrom(src => 
-                !string.IsNullOrWhiteSpace(src.ConfigurationJson) 
-                    ? System.Text.Json.JsonSerializer.Deserialize<MenuGroupMappingConfigurationDto>(src.ConfigurationJson)
+                !string.IsNullOrWhiteSpace(src.ConfigurationJson)
+                    ? System.Text.Json.JsonSerializer.Deserialize<MenuGroupMappingConfigurationDto>(
+                        src.ConfigurationJson,
+                        (System.Text.Json.JsonSerializerOptions?)null)
                     : null));
 
         CreateMap<CreateMenuGroupTalabatMappingDto, MenuGroupTalabatMapping>()
@@ -54,8 +56,10 @@ public class OrderXChangeApplicationAutoMapperProfile : Profile
             .ForMember(dest => dest.IsTalabatValidated, opt => opt.MapFrom(src => false))
             .ForMember(dest => dest.SyncStatus, opt => opt.MapFrom(src => MenuMappingSyncStatus.Pending))
             .ForMember(dest => dest.ConfigurationJson, opt => opt.MapFrom(src => 
-                src.Configuration != null 
-                    ? System.Text.Json.JsonSerializer.Serialize(src.Configuration)
+                src.Configuration != null
+                    ? System.Text.Json.JsonSerializer.Serialize(
+                        src.Configuration,
+                        (System.Text.Json.JsonSerializerOptions?)null)
                     : null));
 
         CreateMap<UpdateMenuGroupTalabatMappingDto, MenuGroupTalabatMapping>()
@@ -71,8 +75,10 @@ public class OrderXChangeApplicationAutoMapperProfile : Profile
             .ForMember(dest => dest.LastSyncError, opt => opt.Ignore())
             .ForMember(dest => dest.LastVerifiedAt, opt => opt.MapFrom(src => DateTime.UtcNow))
             .ForMember(dest => dest.ConfigurationJson, opt => opt.MapFrom(src => 
-                src.Configuration != null 
-                    ? System.Text.Json.JsonSerializer.Serialize(src.Configuration)
+                src.Configuration != null
+                    ? System.Text.Json.JsonSerializer.Serialize(
+                        src.Configuration,
+                        (System.Text.Json.JsonSerializerOptions?)null)
                     : null));
     }
 }
