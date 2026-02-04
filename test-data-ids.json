@@ -1,0 +1,12 @@
+{
+  "category_id": "a0ebc18f-7d17-4567-a621-c1ba47f5b234",
+  "groups": {
+    "main_dishes": "a0f61694-97ae-4c85-8e50-13beea6deefa",
+    "pizzas": "a0f61696-c3e3-4798-bd67-b2c30cd912b9",
+    "healthy_options": "a0f61698-fe88-4895-8785-b2dc779197ab",
+    "salads": "a0f6169b-75d7-40e5-9f13-f9f7aa2c8638"
+  },
+  "products": {},
+  "tax_group_id": null,
+  "created_at": "2026-01-30 18:47:01"
+}

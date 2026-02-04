@@ -1,0 +1,70 @@
+{
+  "MenuSync": {
+    "Performance": {
+      "MaxConcurrency": 6,
+      "BatchSize": 15,
+      "MaxBatchSizeBytes": 8388608,
+      "MaxApiRequestBatchSize": 150,
+      "DefaultCacheTtl": "00:20:00",
+      "EnablePayloadCompression": true,
+      "EnableSmartCaching": true,
+      "EnableParallelProcessing": true,
+      "HttpConnectionPoolSize": 30,
+      "ApiRequestTimeout": "00:00:45"
+    },
+    "Retry": {
+      "MaxRetryAttempts": 3,
+      "BaseDelay": "00:00:02",
+      "MaxDelay": "00:03:00",
+      "BackoffMultiplier": 1.5,
+      "JitterFactor": 0.15,
+      "CircuitBreakerFailureThreshold": 8,
+      "CircuitBreakerDuration": "00:02:00",
+      "OperationTimeout": "00:08:00",
+      "HttpTimeout": "00:03:00"
+    },
+    "DlqBackground": {
+      "ProcessingInterval": "00:03:00",
+      "EnableAutoRetry": true,
+      "MaxRetryAge": "1.00:00:00",
+      "EnableCleanup": true,
+      "CleanupInterval": "04:00:00",
+      "CleanupRetentionDays": 45
+    }
+  },
+  "HttpClientFactory": {
+    "HttpClientConfigurations": {
+      "TalabatApi": {
+        "BaseAddress": "https://api.talabat.com/",
+        "Timeout": "00:03:00",
+        "DefaultRequestHeaders": {
+          "User-Agent": "OrderXChange/1.0"
+        }
+      }
+    }
+  },
+  "ConnectionStrings": {
+    "Redis": "localhost:6379",
+    "Default": "Server=localhost;Database=OrderXChange;Trusted_Connection=true;"
+  },
+  "Caching": {
+    "Redis": {
+      "Configuration": "localhost:6379",
+      "InstanceName": "OrderXChange"
+    }
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "OrderXChange.Application.Versioning.MenuSyncPerformanceOptimizer": "Information",
+      "OrderXChange.Application.Versioning.MenuSyncBatchProcessor": "Information",
+      "OrderXChange.Application.Versioning.MenuSyncPerformanceMonitor": "Debug",
+      "OrderXChange.Application.Versioning.MenuDeltaSyncService": "Information"
+    }
+  },
+  "Monitoring": {
+    "EnablePerformanceTracking": true,
+    "MetricsRetentionHours": 48,
+    "EnableRealTimeDashboard": true
+  }
+}

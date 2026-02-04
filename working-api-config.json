@@ -1,0 +1,6 @@
+﻿{
+    "base_url":  "https://api-sandbox.foodics.com/v5",
+    "endpoint":  "/categories",
+    "token_valid":  true,
+    "timestamp":  "2026-01-29 23:20:41"
+}

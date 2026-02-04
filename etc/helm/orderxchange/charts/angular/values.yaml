@@ -1,0 +1,4 @@
+image:
+  repository: "orderxchange/angular"
+  tag: "latest"
+  pullPolicy: IfNotPresent

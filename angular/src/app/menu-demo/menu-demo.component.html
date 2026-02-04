@@ -1,0 +1,59 @@
+<div class="card" style="margin:1rem">
+  <div class="card-header">
+    <div class="row">
+      <div class="col col-md-6">
+        <h5 class="card-title">{{ '::Menu.Title' | abpLocalization }}</h5>
+      </div>
+    </div>
+  </div>
+  <div class="card-body">
+    <!-- Error Display -->
+    <ng-container *ngIf="error">
+      <div class="alert alert-danger" role="alert" style="white-space: pre-wrap;">{{ error }}</div>
+    </ng-container>
+
+    <!-- Menu Group Analysis -->
+    <div class="mb-3">
+    </div>
+    <p-table
+      #menuGroupTable
+      [value]="stagingMenuGroups"
+      [loading]="isLoading"
+      [paginator]="true"
+      [rows]="10"
+      [rowsPerPageOptions]="[10,25,50]"
+      [responsiveLayout]="'scroll'"
+    >
+
+      <ng-template pTemplate="header">
+        <tr>
+          <th pSortableColumn="groupName">{{ '::Menu.MenuGroup' | abpLocalization }} <p-sortIcon field="groupName"></p-sortIcon></th>
+          <th pSortableColumn="totalProducts" class="text-end">{{ '::Menu.TotalProducts' | abpLocalization }} <p-sortIcon field="totalProducts"></p-sortIcon></th>
+          <th pSortableColumn="totalCategories" class="text-end">{{ '::Menu.TotalCategories' | abpLocalization }} <p-sortIcon field="totalCategories"></p-sortIcon></th>
+          <th pSortableColumn="isMappedToTalabatAccount">{{ '::Menu.Status' | abpLocalization }} <p-sortIcon field="isMappedToTalabatAccount"></p-sortIcon></th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-row>
+        <tr>
+          <td>
+            <div>
+              <strong>{{ row.groupName }}</strong>
+            </div>
+          </td>
+          <td class="text-end">{{ (row.totalProducts ?? 0) | number }}</td>
+          <td class="text-end">{{ (row.totalCategories ?? 0) | number }}</td>
+          <td>
+            <p-tag *ngIf="row.isMappedToTalabatAccount" value="{{ '::Menu.Active' | abpLocalization }}" severity="success"></p-tag>
+            <p-tag *ngIf="!row.isMappedToTalabatAccount" value="{{ '::Menu.Inactive' | abpLocalization }}" severity="secondary"></p-tag>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+
+    <!-- Empty State -->
+    <div *ngIf="!isLoading && !error && stagingMenuGroups?.length === 0" class="text-muted text-center" style="margin-top: 2rem;">
+      <i class="pi pi-info-circle" style="font-size: 2rem;"></i>
+      <p class="mt-2">{{ '::Menu.Empty' | abpLocalization }}</p>
+    </div>
+  </div>
+</div>

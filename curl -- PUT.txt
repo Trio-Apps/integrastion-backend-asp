@@ -1,0 +1,307 @@
+curl --location --request PUT 'https://integration-middleware.me.restaurant-partners.com/v2/chains/tlbt-pick/catalog' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjU5MTgyMjcsImV4cCI6MTc2NTkyNTQyNywiaXNzIjoibWlkZGxld2FyZSIsInN1YiI6Im1lLXBsdWdpbi1iZW9uLWl0LTAwMSJ9.BFo-OJreeHFGYaSJ7YUOSKK9yaw-bvOHq5I77GFzmRJfeDSds6hsK6NcDEdu5lBA' \
+--data '{
+  "catalog": {
+    "items": {
+      "topping01": {
+        "id": "topping01",   
+        "type": "Product",         
+        "title": {
+          "default": "Coca Cola(R)"
+        },
+        "description": { "default": "Regular Coke" },
+        "price": "0",
+        "active": true,
+        "isPrepackedItem": false,
+        "isExpressItem": false,
+        "excludeDishInformation": false
+      },
+      "topping02": {
+        "id": "topping02",   
+        "type": "Product",         
+        "title": {
+          "default": "Coca Cola(L)"
+        },
+        "description": { "default": "Large Coke" },
+        "price": "0",
+        "active": true,
+        "isPrepackedItem": false,
+        "isExpressItem": false,
+        "excludeDishInformation": false
+      },
+      "topping03": {
+        "id": "topping03",   
+        "type": "Product",         
+        "title": {
+          "default": "Extra Cheese"
+        },
+        "description": { "default": "Extra Cheese" },
+        "price": "1.20",
+        "active": true,
+        "isPrepackedItem": false,
+        "isExpressItem": false,
+        "excludeDishInformation": false
+      },
+      "topping04": {
+        "id": "topping04",   
+        "type": "Product",         
+        "title": {
+          "default": "Extra Tomatoes"
+        },
+        "description": { "default": "Extra Tomatoes" },
+        "price": "0.80",
+        "active": true,
+        "isPrepackedItem": false,
+        "isExpressItem": false,
+        "excludeDishInformation": false
+      },
+      "topping05": {
+        "id": "topping05",   
+        "type": "Product",         
+        "title": {
+          "default": "Extra Lettuce"
+        },
+        "description": { "default": "Extra Lettuce" },
+        "price": "0.80",
+        "active": true,
+        "isPrepackedItem": false,
+        "isExpressItem": false,
+        "excludeDishInformation": false
+      },
+      "topping06": {
+        "id": "topping06",   
+        "type": "Product",         
+        "title": {
+          "default": "Extra Onion"
+        },
+        "description": { "default": "Extra Onion" },
+        "price": "0.80",
+        "active": true,
+        "isPrepackedItem": false,
+        "isExpressItem": false,
+        "excludeDishInformation": false
+      },
+      "topping07": {
+        "id": "topping07",   
+        "type": "Product",         
+        "title": {
+          "default": "Extra Sauce"
+        },
+        "description": { "default": "Extra Sauce" },
+        "price": "0.80",
+        "active": true,
+        "isPrepackedItem": false,
+        "isExpressItem": false,
+        "excludeDishInformation": false
+      },
+      "Category#mn01": {
+        "id": "Category#mn01",
+        "type": "Category",        
+        "title": {
+          "default": "Topping"
+        },
+        "description": { "default": "Topping Item" },
+        "products": {
+          "topping01": {
+            "id": "topping01",
+            "type": "Product"
+          },
+          "topping02": {
+            "id": "topping02",
+            "type": "Product"
+          },
+          "topping03": {
+            "id": "topping03",
+            "type": "Product"
+          },
+          "topping04": {
+            "id": "topping04",
+            "type": "Product"
+          },
+          "topping05": {
+            "id": "topping05",
+            "type": "Product"
+          },
+          "topping06": {
+            "id": "topping06",
+            "type": "Product"
+          },
+          "topping07": {
+            "id": "topping07",
+            "type": "Product"
+          }
+        }
+      },
+      "pd01": {
+        "id": "pd01",   
+        "type": "Product",         
+        "title": {
+          "default": "Fillet O Fish Combo"
+        },
+        "description": { "default": "Fillet O Fish Set Combo" },
+        "price": "0",
+        "active": true,
+        "isPrepackedItem": false,
+        "isExpressItem": false,
+        "excludeDishInformation": false,
+        "variants": {
+          "var01": {
+            "id": "var01",       
+            "type": "Product"
+          }
+        },
+        "images": {
+          "image-001": {
+            "id": "image-001",        
+            "type": "Image"
+          }
+        }
+      },
+      "var01": {
+        "id": "var01",   
+        "title": {
+          "default": "Regular"
+        },
+        "type": "Product",       
+        "price": "11.00",
+        "parent": {
+            "id": "pd01",
+            "type": "Product"
+        },
+        "active": true,
+        "isPrepackedItem": false,
+        "isExpressItem": false,
+        "excludeDishInformation": false,
+        "toppings": {
+          "tt01": {
+            "id": "tt01",  
+            "type": "Topping"
+          },
+          "tt02": {
+            "id": "tt02",  
+            "type": "Topping"
+          },
+          "tt03": {
+            "id": "tt03",  
+            "type": "Topping"
+          }
+        }
+      },
+      "image-001": {
+        "url": "https://assets.grab.com/wp-content/uploads/sites/8/2019/03/12120151/mcdo-fillet-o-fish-grabfood-delivery-700x700.jpg",
+        "id": "image-001",    
+        "type": "Image"
+      },
+      "tt01": {
+        "id": "tt01",   
+        "type": "Topping",   
+        "title": { "default": "Choose Regular Drinks" },
+        "quantity": {
+          "maximum": 1,
+          "minimum": 1
+        },
+        "products": {
+          "topping01": {
+            "id": "topping01",
+            "type": "Product",
+            "price": "0"
+          }
+        }
+      },
+      "tt02": {
+        "id": "tt02",   
+        "type": "Topping",   
+        "title": { "default": "Choose Large Drinks" },
+        "quantity": {
+          "maximum": 1,
+          "minimum": 1
+        },
+        "products": {
+          "topping02": {
+            "id": "topping02",
+            "type": "Product",
+            "price": "0"
+          }
+        }
+      },
+      "tt03": {
+        "id": "tt03",   
+        "type": "Topping",   
+        "title": { "default": "Choose Extra Topping" },
+        "quantity": {
+          "maximum": 3,
+          "minimum": 0
+        },
+        "products": {
+          "topping03": {
+            "id": "topping03",
+            "type": "Product",
+            "price": "0"
+          },
+          "topping04": {
+            "id": "topping04",
+            "type": "Product",
+            "price": "0"
+          },
+          "topping05": {
+            "id": "topping05",
+            "type": "Product",
+            "price": "0"
+          },
+          "topping06": {
+            "id": "topping06",
+            "type": "Product",
+            "price": "0"
+          },
+          "topping07": {
+            "id": "topping07",
+            "type": "Product",
+            "price": "0"
+          }
+        }
+      },
+      "Category#mn02": {
+        "id": "Category#mn01",
+        "type": "Category",        
+        "title": {
+          "default": "Combo Set"
+        },
+        "description": { "default": "Combo Menu Item" },
+        "products": {
+          "pd01": {
+            "id": "pd01",
+            "type": "Product"
+          }
+        }
+      },
+      "schedule-01": {
+        "id": "schedule-01",
+        "type": "ScheduleEntry",       
+        "startTime": "08:00:00",
+        "endTime": "23:59:00"
+      },
+      "Menu_01": {
+        "id": "MN01",
+        "title": { "default": "Scenario 08" },
+        "description": { "default": "Combo menu with optional topping selection" },
+        "type": "Menu",      
+        "menuType": "DELIVERY",
+        "schedule": {
+          "schedule-01": {
+            "id": "schedule-01",
+            "type": "ScheduleEntry"   
+          }
+        },
+        "products": {
+          "pd01": {
+            "id": "pd01",
+            "type": "Product"
+          }
+        }
+      }
+    }
+  },
+  "vendors": [ "PH-SIDDIQ-002" ],
+  "callbackUrl": "https://webhook.site/3ed0611f-8a83-482b-816c-51c479c19a2e"
+}'

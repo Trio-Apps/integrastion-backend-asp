@@ -1,0 +1,261 @@
+<div class="talabat-dashboard">
+  <!-- Header -->
+  <div class="dashboard-header">
+    <div class="header-content">
+      <div class="title-section">
+        <h2 class="dashboard-title">
+          <i class="pi pi-chart-bar"></i>
+          {{ '::TalabatDashboard.Title' | abpLocalization }}
+        </h2>
+        <p class="dashboard-subtitle">
+          {{ '::TalabatDashboard.Subtitle' | abpLocalization }}
+        </p>
+      </div>
+      <div class="header-actions">
+        <div class="vendor-selector">
+          <label for="vendorCode">{{ '::TalabatDashboard.VendorCode' | abpLocalization }}:</label>
+          <select
+            id="vendorCode"
+            class="form-select vendor-input font-medium text-primary"
+            [disabled]="vendorsLoading()"
+            [ngModel]="vendorCode()"
+            (ngModelChange)="onVendorChange($event)"
+          >
+            <option value="" class="font-medium text-primary">
+              All Vendors (Host)
+            </option>
+
+            @for (v of vendors(); track v.vendorCode) {
+              <option [value]="v.vendorCode" class="font-medium text-primary">
+                {{ v.name }} ({{ v.vendorCode }})
+              </option>
+            }
+          </select>
+        </div>
+        <button 
+          class="btn btn-refresh" 
+          type="button" 
+          [disabled]="loading()" 
+          (click)="refresh()">
+          <i class="pi pi-refresh" [class.pi-spin]="loading()"></i>
+          {{ '::TalabatDashboard.Refresh' | abpLocalization }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  @if (dashboard(); as data) {
+  
+
+    <!-- Sync Metrics -->
+    <div class="metrics-section">
+      <h3 class="section-title">
+        <i class="pi pi-send"></i>
+        {{ '::TalabatDashboard.SyncStats' | abpLocalization }}
+      </h3>
+      <div class="metrics-grid">
+        @for (metric of syncMetrics(); track metric.label) {
+          <div class="metric-card" [class]="'metric-' + metric.tone">
+            <div class="metric-icon">
+              <i [class]="'pi ' + metric.icon"></i>
+            </div>
+            <div class="metric-content">
+              <span class="metric-value">{{ metric.value | number }}</span>
+              <span class="metric-label">{{ metric.label | abpLocalization }}</span>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Product Metrics -->
+    <div class="metrics-section">
+      <h3 class="section-title">
+        <i class="pi pi-box"></i>
+        {{ '::TalabatDashboard.ProductStats' | abpLocalization }}
+      </h3>
+      <div class="metrics-grid">
+        @for (metric of productMetrics(); track metric.label) {
+          <div class="metric-card" [class]="'metric-' + metric.tone">
+            <div class="metric-icon">
+              <i [class]="'pi ' + metric.icon"></i>
+            </div>
+            <div class="metric-content">
+              <span class="metric-value">{{ metric.value | number }}</span>
+              <span class="metric-label">{{ metric.label | abpLocalization }}</span>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Staging Stats -->
+    @if (stagingStats(); as stats) {
+      <div class="staging-stats-card">
+        <div class="card">
+          <div class="card-header">
+            <h4>
+              <i class="pi pi-database"></i>
+              {{ '::TalabatDashboard.DatabaseStatus' | abpLocalization }}
+            </h4>
+          </div>
+          <div class="card-body">
+            <div class="stats-grid">
+              <div class="stat-item">
+                <span class="stat-label">{{ '::TalabatDashboard.LastSync' | abpLocalization }}:</span>
+                <span class="stat-value">{{ formatDate(stats.lastSyncDate) }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">{{ '::TalabatDashboard.LastSubmission' | abpLocalization }}:</span>
+                <span class="stat-value">{{ formatDate(stats.lastSubmittedAt) }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">{{ '::TalabatDashboard.SyncStatus' | abpLocalization }}:</span>
+                <p-tag 
+                  [value]="stats.lastSyncStatus || 'Unknown'" 
+                  [severity]="getStatusSeverity(stats.lastSyncStatus)"
+                  [icon]="getStatusIcon(stats.lastSyncStatus)" />
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">{{ '::TalabatDashboard.SubmittedProducts' | abpLocalization }}:</span>
+                <span class="stat-value highlight">{{ stats.submittedProducts }} / {{ stats.totalProducts }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Recent Submissions Table with Pagination -->
+    <div class="submissions-section">
+      <div class="card">
+        <div class="card-header">
+          <h4>
+            <i class="pi pi-history"></i>
+            {{ '::TalabatDashboard.RecentSubmissions' | abpLocalization }}
+            <span class="badge bg-primary ms-2">{{ totalRecords() }}</span>
+          </h4>
+        </div>
+        <div class="card-body p-0">
+          <p-table 
+            [value]="syncLogs()"
+            [lazy]="true"
+            [paginator]="true"
+            [rows]="rows()"
+            [totalRecords]="totalRecords()"
+            [loading]="tableLoading()"
+            [first]="first()"
+            [rowsPerPageOptions]="[10, 25, 50, 100]"
+            [showCurrentPageReport]="true"
+            currentPageReportTemplate="Showing {first} to {last} of {totalRecords} submissions"
+            (onLazyLoad)="loadSyncLogs($event)"
+            [tableStyle]="{ 'min-width': '70rem' }"
+            styleClass="p-datatable-sm p-datatable-striped">
+            
+            <ng-template pTemplate="header">
+              <tr>
+                <th pSortableColumn="status" style="min-width: 8rem">
+                  <div class="flex items-center">
+                    {{ '::TalabatDashboard.Table.Status' | abpLocalization }}
+                    <p-sortIcon field="status" />
+                  </div>
+                </th>
+                <th style="min-width: 10rem">{{ '::TalabatDashboard.Table.Tenant' | abpLocalization }}</th>
+                <th style="min-width: 10rem">{{ '::VendorCode' | abpLocalization }}</th>
+                <th style="min-width: 14rem">{{ '::TalabatDashboard.Table.ImportId' | abpLocalization }}</th>
+                <th style="min-width: 6rem">{{ '::TalabatDashboard.Table.Products' | abpLocalization }}</th>
+                <th style="min-width: 6rem">{{ '::TalabatDashboard.Table.Categories' | abpLocalization }}</th>
+                <th pSortableColumn="submittedAt" style="min-width: 12rem">
+                  <div class="flex items-center">
+                    {{ '::TalabatDashboard.Table.SubmittedAt' | abpLocalization }}
+                    <p-sortIcon field="submittedAt" />
+                  </div>
+                </th>
+                <th style="min-width: 12rem">{{ '::TalabatDashboard.Table.CompletedAt' | abpLocalization }}</th>
+                <th style="min-width: 6rem">{{ '::TalabatDashboard.Table.Duration' | abpLocalization }}</th>
+              </tr>
+            </ng-template>
+
+            <ng-template pTemplate="body" let-log>
+              <tr>
+                <td>
+                  <p-tag 
+                    [value]="log.status || 'Unknown'" 
+                    [severity]="getStatusSeverity(log.status)"
+                    [icon]="getStatusIcon(log.status)" />
+                </td>
+                <td>
+                  <span class="text-sm font-medium" [class.text-primary]="log.tenantId">
+                    {{ log.tenantName || 'Host' }}
+                  </span>
+                </td>
+                <td> {{log.vendorCode}}</td>
+
+                <td>
+                  <code class="text-sm bg-surface-100 dark:bg-surface-800 px-2 py-1 rounded">
+                    {{ log.importId || '-' }}
+                  </code>
+                </td>
+                <td>
+                  <span class="font-semibold">{{ log.productsCount }}</span>
+                  @if (log.productsCreated || log.productsUpdated) {
+                    <span class="text-xs text-surface-500 block">
+                      +{{ log.productsCreated || 0 }} / ~{{ log.productsUpdated || 0 }}
+                    </span>
+                  }
+                </td>
+                <td>{{ log.categoriesCount }}</td>
+                <td>{{ formatDate(log.submittedAt) }}</td>
+                <td>{{ formatDate(log.completedAt) }}</td>
+                <td>
+                  @if (log.processingDurationSeconds) {
+                    <span class="text-primary font-medium">{{ formatDuration(log.processingDurationSeconds) }}</span>
+                  } @else {
+                    <span class="text-surface-400">-</span>
+                  }
+                </td>
+              </tr>
+            </ng-template>
+
+            <ng-template pTemplate="loadingbody">
+              @for (_ of [1,2,3,4,5]; track $index) {
+                <tr>
+                  <td><p-skeleton width="5rem" /></td>
+                  <td><p-skeleton width="8rem" /></td>
+                  <td><p-skeleton width="12rem" /></td>
+                  <td><p-skeleton width="3rem" /></td>
+                  <td><p-skeleton width="3rem" /></td>
+                  <td><p-skeleton width="10rem" /></td>
+                  <td><p-skeleton width="10rem" /></td>
+                  <td><p-skeleton width="4rem" /></td>
+                </tr>
+              }
+            </ng-template>
+
+            <ng-template pTemplate="emptymessage">
+              <tr>
+                <td colspan="8">
+                  <div class="flex flex-col items-center justify-center py-8 text-center">
+                    <i class="pi pi-inbox text-5xl text-surface-400 mb-4"></i>
+                    <p class="text-surface-600 dark:text-surface-400">
+                      {{ '::TalabatDashboard.Empty' | abpLocalization }}
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            </ng-template>
+          </p-table>
+        </div>
+      </div>
+    </div>
+  } @else {
+    <!-- Loading State -->
+    <div class="loading-state">
+      <div class="spinner-container">
+        <div class="spinner"></div>
+      </div>
+      <p>{{ '::TalabatDashboard.Loading' | abpLocalization }}</p>
+    </div>
+  }
+
+</div>

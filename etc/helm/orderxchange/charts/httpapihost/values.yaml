@@ -1,0 +1,4 @@
+image:
+  repository: "orderxchange/httpapihost"
+  tag: "latest"
+  pullPolicy: IfNotPresent

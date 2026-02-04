@@ -1,0 +1,25 @@
+{
+  "MenuVersioning": {
+    "Enabled": true,
+    "StoreCompressedData": false,
+    "ChangeDetectionEnabled": true,
+    "SnapshotRetentionDays": 90,
+    "MaxSnapshotsPerAccount": 100,
+    "EnableDetailedChangeLogging": true,
+    "OptimizationSettings": {
+      "SkipSyncOnNoChanges": true,
+      "EnableHashBasedComparison": true,
+      "CompressSnapshotData": false
+    },
+    "Performance": {
+      "BatchSize": 100,
+      "MaxConcurrentOperations": 5,
+      "TimeoutSeconds": 300
+    },
+    "Logging": {
+      "LogChangeDetails": true,
+      "LogPerformanceMetrics": true,
+      "LogOptimizationResults": true
+    }
+  }
+}

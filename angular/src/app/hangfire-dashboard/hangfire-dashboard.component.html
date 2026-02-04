@@ -1,0 +1,86 @@
+<div class="menu-sync-dashboard">
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h2 class="mb-1">{{ '::MenuSync.Title' | abpLocalization }}</h2>
+      <p class="text-body-secondary mb-0">
+        <span [innerHTML]="'::MenuSync.Subtitle' | abpLocalization"></span>
+      </p>
+    </div>
+    <button class="btn btn-outline-primary" type="button" [disabled]="loading()" (click)="refresh()">
+      <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" *ngIf="loading()"></span>
+      {{ '::MenuSync.Refresh' | abpLocalization }}
+    </button>
+  </div>
+
+  <ng-container *ngIf="dashboard() as data; else loadingState">
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-md-6 col-xl-3" *ngFor="let metric of metrics()">
+        <div class="card metric-card border-{{ metric.tone }}-subtle">
+          <div class="card-body">
+            <span class="metric-label text-{{ metric.tone }}-emphasis">{{ metric.label }}</span>
+            <div class="metric-value">{{ metric.value | number }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Time Sync Card -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="card-title mb-0">Time sync</h5>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label for="cronExpression" class="form-label">Cron expression for the time</label>
+          <input
+            type="text"
+            id="cronExpression"
+            class="form-control"
+            placeholder="e.g., 0 0 * * *"
+            [ngModel]="cronExpression()"
+            (ngModelChange)="cronExpression.set($event)"
+          />
+        </div>
+
+        <div class="footer text-end">
+          <button class="btn btn-outline-primary" type="button" [disabled]="loading()">
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" *ngIf="loading()"></span>
+            {{ '::MenuSync.Refresh' | abpLocalization }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-12 col-xl-6">
+        <app-hangfire-job-table
+          [title]="'::MenuSync.FailedJobs' | abpLocalization"
+          [jobs]="data.failedJobs"
+          [emptyState]="'::MenuSync.EmptyFailed' | abpLocalization"
+        ></app-hangfire-job-table>
+      </div>
+      <div class="col-12 col-xl-6">
+        <app-hangfire-job-table
+          [title]="'::MenuSync.ProcessingJobs' | abpLocalization"
+          [jobs]="data.processingJobs"
+          [emptyState]="'::MenuSync.EmptyProcessing' | abpLocalization"
+        ></app-hangfire-job-table>
+      </div>
+      <div class="col-12">
+        <app-hangfire-job-table
+          [title]="'::MenuSync.SucceededJobs' | abpLocalization"
+          [jobs]="data.succeededJobs"
+          [emptyState]="'::MenuSync.EmptySucceeded' | abpLocalization"
+        ></app-hangfire-job-table>
+      </div>
+    </div>
+  </ng-container>
+
+  <ng-template #loadingState>
+    <div class="text-center py-5">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="mt-3 text-body-secondary">{{ '::MenuSync.Loading' | abpLocalization }}</p>
+    </div>
+  </ng-template>
+</div>
+

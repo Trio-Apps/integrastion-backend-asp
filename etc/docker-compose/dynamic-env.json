@@ -1,0 +1,25 @@
+{
+  "production": true,
+  "application": {
+    "baseUrl":"http://localhost:4200",
+    "name": "OrderXChange",
+    "logoUrl": ""
+  },
+  "oAuthConfig": {
+    "issuer": "https://localhost:44325/",
+    "redirectUri": "http://localhost:4200",
+    "clientId": "OrderXChange_App",
+    "responseType": "code",
+    "scope": "offline_access openid profile email phone OrderXChange"
+  },
+  "apis": {
+    "default": {
+      "url": "https://localhost:44325",
+      "rootNamespace": "OrderXChange"
+    },
+    "AbpAccountPublic": {
+      "url": "https://localhost:44325",
+      "rootNamespace": "AbpAccountPublic"
+    }
+  }
+}

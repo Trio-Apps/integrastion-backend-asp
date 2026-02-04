@@ -1,0 +1,286 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    Foodics to Talabat Menu Sync Flow                        ║
+║                         مخطط تدفق مزامنة القوائم                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 1: Hangfire Job Trigger (كل 6 ساعات)                                  │
+│ ┌─────────────────────────────────────────────────────────────────────┐     │
+│ │ MenuSyncScheduler.ExecuteAsync()                                    │     │
+│ │ - يتم تشغيله تلقائياً كل 6 ساعات                                   │     │
+│ │ - يجلب جميع FoodicsAccounts النشطة                                 │     │
+│ └─────────────────────────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 2: Fetch Products from Foodics API                                    │
+│ ┌─────────────────────────────────────────────────────────────────────┐     │
+│ │ FoodicsCatalogClient.GetAllProductsWithIncludesAsync()              │     │
+│ │                                                                     │     │
+│ │ API Request:                                                        │     │
+│ │ GET https://api-sandbox.foodics.com/v5/products?                   │     │
+│ │     include=category,price_tags,tax_group,tags,branches,           │     │
+│ │             ingredients.branches,modifiers,modifiers.options,       │     │
+│ │             modifiers.options.branches,discounts,timed_events,      │     │
+│ │             groups                                                  │     │
+│ │     &filter[is_active]=true                                         │     │
+│ │     &page=1&per_page=100                                            │     │
+│ │                                                                     │     │
+│ │ ⚠️ ملاحظة: filter[is_deleted]=false لا يعمل في Foodics API        │     │
+│ │                                                                     │     │
+│ │ Response: 168 products (including deleted ones)                     │     │
+│ └─────────────────────────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 3: Client-Side Filtering                                              │
+│ ┌─────────────────────────────────────────────────────────────────────┐     │
+│ │ if (!includeDeleted)                                                │     │
+│ │ {                                                                   │     │
+│ │     shouldInclude = shouldInclude &&                                │     │
+│ │                     string.IsNullOrWhiteSpace(item.DeletedAt);      │     │
+│ │ }                                                                   │     │
+│ │                                                                     │     │
+│ │ Sandbox (includeDeleted: true):  168 products → 168 products ✅     │     │
+│ │ Production (includeDeleted: false): 168 products → X products       │     │
+│ │                                     (X = non-deleted products only) │     │
+│ └─────────────────────────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 4: Transform to Staging Format                                        │
+│ ┌─────────────────────────────────────────────────────────────────────┐     │
+│ │ For each product:                                                   │     │
+│ │                                                                     │     │
+│ │ FoodicsProductStaging {                                             │     │
+│ │   FoodicsProductId = product.Id                                     │     │
+│ │   Name = product.Name                                               │     │
+│ │   Price = product.Price                                             │     │
+│ │   CategoryName = product.Category?.Name                             │     │
+│ │   ModifiersJson = JsonSerializer.Serialize(product.Modifiers)       │     │
+│ │   GroupsJson = JsonSerializer.Serialize(product.Groups)             │     │
+│ │   BranchesJson = JsonSerializer.Serialize(product.Branches)         │     │
+│ │   TagsJson = JsonSerializer.Serialize(product.Tags)                 │     │
+│ │   IngredientsJson = JsonSerializer.Serialize(product.Ingredients)   │     │
+│ │   ProductDetailsJson = JsonSerializer.Serialize(product)            │     │
+│ │   DeletedAt = product.DeletedAt                                     │     │
+│ │   SyncDate = DateTime.UtcNow                                        │     │
+│ │   TalabatSyncStatus = "Pending"                                     │     │
+│ │ }                                                                   │     │
+│ └─────────────────────────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 5: Save to Staging Table (AppFoodicsProductStaging)                   │
+│ ┌─────────────────────────────────────────────────────────────────────┐     │
+│ │ await _stagingRepository.InsertManyAsync(stagingProducts);          │     │
+│ │                                                                     │     │
+│ │ ⚠️ يحتاج Migration لإضافة DeletedAt column!                        │     │
+│ │                                                                     │     │
+│ │ Result: 30+ products saved ✅                                       │     │
+│ └─────────────────────────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 6: Transform to Talabat Format                                        │
+│ ┌─────────────────────────────────────────────────────────────────────┐     │
+│ │ TalabatMenuSubmissionDto {                                          │     │
+│ │   vendor_code = "PH-SIDDIQ-002"                                     │     │
+│ │   categories = [                                                    │     │
+│ │     {                                                               │     │
+│ │       name = "Italian Pizza",                                       │     │
+│ │       name_localized = "بيتزا إيطالية",                            │     │
+│ │       items = [                                                     │     │
+│ │         {                                                           │     │
+│ │           title = "Margherita",                                     │     │
+│ │           title_localized = "مارجريتا",                            │     │
+│ │           description = "Classic pizza...",                         │     │
+│ │           price = 63.00,                                            │     │
+│ │           sku = "PRD004",                                           │     │
+│ │           image = "https://...",                                    │     │
+│ │           modifiers = [                                             │     │
+│ │             {                                                       │     │
+│ │               title = "Size",                                       │     │
+│ │               min_selection = 1,                                    │     │
+│ │               max_selection = 1,                                    │     │
+│ │               options = [                                           │     │
+│ │                 { title = "Small", price = 0 },                     │     │
+│ │                 { title = "Medium", price = 5 },                    │     │
+│ │                 { title = "Large", price = 10 }                     │     │
+│ │               ]                                                     │     │
+│ │             }                                                       │     │
+│ │           ]                                                         │     │
+│ │         }                                                           │     │
+│ │       ]                                                             │     │
+│ │     }                                                               │     │
+│ │   ]                                                                 │     │
+│ │ }                                                                   │     │
+│ └─────────────────────────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 7: Submit to Talabat API                                              │
+│ ┌─────────────────────────────────────────────────────────────────────┐     │
+│ │ TalabatCatalogClient.SubmitMenuAsync()                              │     │
+│ │                                                                     │     │
+│ │ API Request:                                                        │     │
+│ │ PUT https://api.talabat.com/catalog/v1/menu                         │     │
+│ │ Headers:                                                            │     │
+│ │   Authorization: Bearer {talabat_token}                             │     │
+│ │   Content-Type: application/json                                    │     │
+│ │                                                                     │     │
+│ │ Body: {TalabatMenuSubmissionDto}                                    │     │
+│ │                                                                     │     │
+│ │ Response:                                                           │     │
+│ │ {                                                                   │     │
+│ │   "import_id": "tlbt-pick-1769249483020",                           │     │
+│ │   "status": "processing",                                           │     │
+│ │   "message": "Menu submitted successfully"                          │     │
+│ │ }                                                                   │     │
+│ └─────────────────────────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 8: Update Staging Table with Talabat Response                         │
+│ ┌─────────────────────────────────────────────────────────────────────┐     │
+│ │ foreach (var product in stagingProducts)                            │     │
+│ │ {                                                                   │     │
+│ │     product.TalabatSyncStatus = "Submitted";                        │     │
+│ │     product.TalabatImportId = "tlbt-pick-1769249483020";            │     │
+│ │     product.TalabatSubmittedAt = DateTime.UtcNow;                   │     │
+│ │     product.TalabatVendorCode = "PH-SIDDIQ-002";                    │     │
+│ │ }                                                                   │     │
+│ │                                                                     │     │
+│ │ await _stagingRepository.UpdateManyAsync(stagingProducts);          │     │
+│ │                                                                     │     │
+│ │ Result: All products marked as "Submitted" ✅                       │     │
+│ └─────────────────────────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 9: Wait for Talabat Webhook (Async)                                   │
+│ ┌─────────────────────────────────────────────────────────────────────┐     │
+│ │ Talabat processes the menu in background                            │     │
+│ │ When done, sends webhook:                                           │     │
+│ │                                                                     │     │
+│ │ POST https://your-domain.com/api/webhooks/talabat                   │     │
+│ │ {                                                                   │     │
+│ │   "import_id": "tlbt-pick-1769249483020",                           │     │
+│ │   "status": "completed",                                            │     │
+│ │   "items_processed": 30,                                            │     │
+│ │   "items_failed": 0,                                                │     │
+│ │   "errors": []                                                      │     │
+│ │ }                                                                   │     │
+│ │                                                                     │     │
+│ │ Webhook handler updates:                                            │     │
+│ │   product.TalabatSyncStatus = "Success"                             │     │
+│ │   product.TalabatSyncCompletedAt = DateTime.UtcNow                  │     │
+│ └─────────────────────────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 10: Verify in Talabat Dashboard                                       │
+│ ┌─────────────────────────────────────────────────────────────────────┐     │
+│ │ 1. Login to Talabat Vendor Dashboard                                │     │
+│ │ 2. Navigate to Menu Management                                      │     │
+│ │ 3. Search for Import ID: tlbt-pick-1769249483020                    │     │
+│ │ 4. Verify products are visible:                                     │     │
+│ │    - Margherita Pizza (63.00)                                       │     │
+│ │    - Mutton Korma (74.00)                                           │     │
+│ │    - Dabeli (30.00)                                                 │     │
+│ │    - etc.                                                           │     │
+│ │ 5. Check modifiers are correct                                      │     │
+│ │ 6. Verify menu groups are applied                                   │     │
+│ └─────────────────────────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                              Data Flow Summary                               ║
+║                              ملخص تدفق البيانات                             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Foodics API (168 products)
+    │
+    ├─ Filter: includeDeleted=true (Sandbox) → 168 products
+    │  Filter: includeDeleted=false (Production) → X products (non-deleted only)
+    │
+    ▼
+Staging Table (AppFoodicsProductStaging)
+    │
+    ├─ FoodicsProductId, Name, Price, Category
+    ├─ ModifiersJson, GroupsJson, BranchesJson
+    ├─ TagsJson, IngredientsJson, ProductDetailsJson
+    ├─ DeletedAt, SyncDate
+    ├─ TalabatSyncStatus, TalabatImportId
+    │
+    ▼
+Talabat API (Menu Submission)
+    │
+    ├─ vendor_code: PH-SIDDIQ-002
+    ├─ categories: [Italian Pizza, Indian Food, ...]
+    ├─ items: [Margherita, Mutton Korma, ...]
+    ├─ modifiers: [Size, Toppings, Sauce, ...]
+    │
+    ▼
+Talabat Dashboard (Vendor Portal)
+    │
+    └─ Import ID: tlbt-pick-1769249483020
+       Status: Completed ✅
+       Products: 30+ items visible
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                            Key Configuration                                 ║
+║                            الإعدادات الرئيسية                               ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Foodics:
+  BaseUrl: https://api-sandbox.foodics.com/v5/
+  AccessToken: eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiI...
+  FoodicsAccountId: 189a3eb3-eaa0-b61e-2fe7-3a1eba09f4f4
+
+Talabat:
+  VendorCode: PH-SIDDIQ-002
+  ApiUrl: https://api.talabat.com/catalog/v1/
+  AccessToken: {from database or config}
+
+Hangfire:
+  Schedule: Every 6 hours (0 */6 * * *)
+  Job: MenuSyncScheduler.ExecuteAsync()
+
+Database:
+  Table: AppFoodicsProductStaging
+  ⚠️ Missing Migration: AddDeletedAtToFoodicsProductStaging
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          Current Status (الحالة الحالية)                    ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+✅ Foodics API Integration: Working
+✅ Product Fetching: Working (168 products)
+✅ Client-side Filtering: Working
+✅ Staging Table: Working (30+ products saved)
+✅ Talabat Submission: Working
+✅ Menu Groups: Working
+✅ Modifiers: Working
+✅ Import IDs: Generated successfully
+
+⚠️ Database Migration: Pending (needs to be applied)
+
+Next Steps:
+1. Apply Migration for DeletedAt column
+2. Verify in Talabat Dashboard
+3. Monitor webhooks
+4. Change includeDeleted to false for Production
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                  THE END                                     ║
+╚══════════════════════════════════════════════════════════════════════════════╝

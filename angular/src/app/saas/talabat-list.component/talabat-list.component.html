@@ -1,0 +1,395 @@
+<div class="card">
+  <!-- Header Section -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-3">
+    <div>
+      <h3 class="text-2xl font-bold text-surface-900 dark:text-surface-0 m-0">Talabat Accounts</h3>
+      <p class="text-surface-600 dark:text-surface-400 mt-1">Manage Talabat vendor accounts and credentials</p>
+    </div>
+    
+    <div class="flex gap-2">
+      <p-button 
+        icon="pi pi-plus" 
+        label="New Talabat Account"
+        severity="primary"
+        (onClick)="createAccount()"
+        pTooltip="Create a new Talabat vendor account"
+        tooltipPosition="bottom" />
+    </div>
+  </div>
+
+  <!-- Table Section -->
+  <p-table 
+    [value]="accounts"
+    [lazy]="true"
+    [paginator]="true"
+    [rows]="rows"
+    [totalRecords]="totalRecords"
+    [loading]="loading"
+    [first]="first"
+    [rowsPerPageOptions]="[10, 25, 50]"
+    [showCurrentPageReport]="true"
+    currentPageReportTemplate="Showing {first} to {last} of {totalRecords} accounts"
+    (onLazyLoad)="loadAccounts($event)"
+    [tableStyle]="{ 'min-width': '85rem' }"
+    styleClass="p-datatable-gridlines">
+    
+    <!-- Table Header -->
+    <ng-template pTemplate="header">
+      <tr>
+        <th pSortableColumn="name" style="min-width: 12rem">
+          <div class="flex items-center">
+            Name
+            <p-sortIcon field="name" />
+          </div>
+        </th>
+        <th pSortableColumn="vendorCode" style="min-width: 10rem">
+          <div class="flex items-center">
+            Vendor Code
+            <p-sortIcon field="vendorCode" />
+          </div>
+        </th>
+        <th style="min-width: 8rem">Chain Code</th>
+        <th style="min-width: 8rem">Platform</th>
+        <th style="min-width: 10rem">Restaurant ID</th>
+        <th style="min-width: 12rem">Linked Foodics</th>
+        <th style="min-width: 12rem">Menu Group</th>
+        <th style="min-width: 6rem">Status</th>
+        <th style="min-width: 10rem">Actions</th>
+      </tr>
+    </ng-template>
+
+    <!-- Table Body -->
+    <ng-template pTemplate="body" let-account>
+      <tr>
+        <td>
+          <div class="flex items-center gap-2">
+            <i class="pi pi-building text-primary text-xl"></i>
+            <span class="font-semibold">{{ account.name }}</span>
+          </div>
+        </td>
+        <td>
+          <code class="text-sm bg-surface-100 dark:bg-surface-800 px-2 py-1 rounded">
+            {{ account.vendorCode }}
+          </code>
+        </td>
+        <td>
+          <p-tag 
+            [value]="account.chainCode || 'N/A'"
+            [severity]="account.chainCode ? 'secondary' : 'contrast'"
+            [rounded]="true" />
+        </td>
+        <td>
+          <p-tag 
+            [value]="account.platformKey || 'TB'"
+            severity="info"
+            [rounded]="true" />
+        </td>
+        <td>
+          <code class="text-sm">{{ account.platformRestaurantId || 'N/A' }}</code>
+        </td>
+        <td>
+          @if (account.foodicsAccountName) {
+            <p-tag 
+              [value]="account.foodicsAccountName"
+              severity="success"
+              icon="pi pi-link"
+              [rounded]="true" />
+          } @else {
+            <span class="text-surface-400 text-sm">
+              <i class="pi pi-times-circle me-1"></i>Not linked
+            </span>
+          }
+        </td>
+        <td>
+          @if (account.foodicsGroupName) {
+            <p-tag 
+              [value]="account.foodicsGroupName"
+              severity="info"
+              icon="pi pi-list"
+              [rounded]="true" />
+          } @else {
+            <span class="text-surface-400 text-sm">
+              <i class="pi pi-minus me-1"></i>No group
+            </span>
+          }
+        </td>
+        <td>
+          @if (account.isActive) {
+            <p-tag 
+              value="Active"
+              severity="success"
+              icon="pi pi-check-circle"
+              [rounded]="true" />
+          } @else {
+            <p-tag 
+              value="Inactive"
+              severity="danger"
+              icon="pi pi-times-circle"
+              [rounded]="true" />
+          }
+        </td>
+        <td>
+          <div class="flex gap-2">
+            <p-button 
+              icon="pi pi-pencil" 
+              [rounded]="true"
+              [outlined]="true"
+              severity="secondary"
+              size="small"
+              (onClick)="editAccount(account)"
+              pTooltip="Edit account"
+              tooltipPosition="bottom" />
+            
+            <p-button 
+              icon="pi pi-trash" 
+              [rounded]="true"
+              [outlined]="true"
+              severity="danger"
+              size="small"
+              (onClick)="deleteAccount(account)"
+              pTooltip="Delete account"
+              tooltipPosition="bottom" />
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+
+    <!-- Loading Template -->
+    <ng-template pTemplate="loadingbody">
+      <tr>
+        <td>
+          <div class="flex items-center gap-2">
+            <p-skeleton shape="circle" size="2rem" />
+            <p-skeleton width="10rem" styleClass="mb-2" />
+          </div>
+        </td>
+        <td><p-skeleton width="8rem" styleClass="mb-2" /></td>
+        <td><p-skeleton width="6rem" styleClass="mb-2" /></td>
+        <td><p-skeleton width="4rem" styleClass="mb-2" /></td>
+        <td><p-skeleton width="8rem" styleClass="mb-2" /></td>
+        <td><p-skeleton width="10rem" styleClass="mb-2" /></td>
+        <td><p-skeleton width="10rem" styleClass="mb-2" /></td>
+        <td><p-skeleton width="6rem" styleClass="mb-2" /></td>
+        <td>
+          <div class="flex gap-2">
+            <p-skeleton shape="circle" size="2rem" />
+            <p-skeleton shape="circle" size="2rem" />
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+
+    <!-- Empty Message -->
+    <ng-template pTemplate="emptymessage">
+      <tr>
+        <td colspan="9">
+          <div class="flex flex-col items-center justify-center py-8 text-center">
+            <i class="pi pi-building text-6xl text-surface-400 mb-4"></i>
+            <h4 class="text-xl font-semibold text-surface-700 dark:text-surface-300 mb-2">
+              No Talabat Accounts
+            </h4>
+            <p class="text-surface-600 dark:text-surface-400 mb-4">
+              Create your first Talabat vendor account to start syncing menus
+            </p>
+            <p-button 
+              icon="pi pi-plus" 
+              label="Create Talabat Account"
+              (onClick)="createAccount()" />
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+  </p-table>
+</div>
+
+<!-- Create/Edit Dialog -->
+<p-dialog 
+  [(visible)]="displayDialog" 
+  [modal]="true"
+  [style]="{ width: '55vw' }"
+  [breakpoints]="{ '960px': '75vw', '640px': '90vw' }"
+  [header]="isEditMode ? 'Edit Talabat Account' : 'Create Talabat Account'"
+  [closable]="!submitting">
+  
+  <form [formGroup]="accountForm" (ngSubmit)="saveAccount()">
+    <!-- Name -->
+    <div class="field">
+      <label for="name" class="block font-semibold mb-2">Name *</label>
+      <input 
+        pInputText 
+        id="name" 
+        formControlName="name"
+        placeholder="e.g., Pick Siddiq Branch 1"
+        class="w-full" />
+      <small class="text-surface-600">Display name for this Talabat account</small>
+    </div>
+
+    <!-- Vendor Code -->
+    <div class="field mt-3">
+      <label for="vendorCode" class="block font-semibold mb-2">Vendor Code *</label>
+      <input 
+        pInputText 
+        id="vendorCode" 
+        formControlName="vendorCode"
+        placeholder="e.g., PH-SIDDIQ-001"
+        class="w-full" />
+      <p-message
+        *ngIf="accountForm.get('vendorCode')?.touched && accountForm.get('vendorCode')?.hasError('required')"
+        severity="error"
+        text="Vendor Code is required">
+      </p-message>
+      <small class="text-surface-600">Your POS vendor code (from your system)</small>
+    </div>
+
+    <!-- Chain Code -->
+    <div class="field mt-3">
+      <label for="chainCode" class="block font-semibold mb-2">Chain Code</label>
+      <input 
+        pInputText 
+        id="chainCode" 
+        formControlName="chainCode"
+        placeholder="e.g., tlbt-pick"
+        class="w-full" />
+      <small class="text-surface-600">Talabat chain identifier (provided by Talabat)</small>
+    </div>
+
+    <!-- Link to Foodics Account -->
+    <div class="field mt-3">
+      <label for="foodicsAccountId" class="block font-semibold mb-2">
+        <i class="pi pi-link me-1"></i>Linked Foodics Account
+      </label>
+      <p-select
+        id="foodicsAccountId"
+        formControlName="foodicsAccountId"
+        [options]="foodicsAccounts"
+        optionLabel="brandName"
+        optionValue="id"
+        placeholder="Select Foodics account to sync from"
+        [showClear]="true"
+        class="w-full"
+        styleClass="w-full">
+        <ng-template let-account pTemplate="item">
+          <div class="flex items-center gap-2">
+            <i class="pi pi-box text-primary"></i>
+            <span>{{ account.brandName || account.oAuthClientId }}</span>
+          </div>
+        </ng-template>
+      </p-select>
+    </div>
+
+    <!-- Link to Foodics Group (depends on Foodics Account selection) -->
+    <div class="field mt-3" *ngIf="accountForm.get('foodicsAccountId')?.value">
+      <label for="foodicsGroupId" class="block font-semibold mb-2">
+        <i class="pi pi-list me-1"></i>Menu Group
+      </label>
+      <p-select
+        id="foodicsGroupId"
+        formControlName="foodicsGroupId"
+        [options]="foodicsGroups"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="Select group to sync"
+        [showClear]="true"
+        [disabled]="groupsLoading"
+        class="w-full"
+        styleClass="w-full"
+        (onChange)="onFoodicsGroupChange($event.value)">
+        <ng-template let-g pTemplate="item">
+          <div class="flex items-center justify-between w-full">
+            <div class="flex items-center gap-2">
+              <i class="pi pi-tag text-primary"></i>
+              <span>{{ g.name || g.nameLocalized || g.id }}</span>
+            </div>
+            <span class="text-surface-500 text-sm">{{ (g.productCount ?? 0) | number }} products</span>
+          </div>
+        </ng-template>
+      </p-select>
+      <small class="text-surface-600">Select a group to enable menu syncing for this Talabat account</small>
+    </div>
+
+
+
+    <!-- Username & Password -->
+    <div class="grid mt-3">
+      <div class="col-12 md:col-6">
+        <label for="userName" class="block font-semibold mb-2">Username</label>
+        <input 
+          pInputText 
+          id="userName" 
+          formControlName="userName"
+          placeholder="e.g., me-plugin-beon-it-001"
+          class="w-full" />
+        <small class="text-surface-600">Talabat login username</small>
+      </div>
+      <div class="col-12 md:col-6">
+        <label for="password" class="block font-semibold mb-2">Password</label>
+        <p-password 
+          id="password" 
+          formControlName="password"
+          [feedback]="false"
+          [toggleMask]="true"
+          placeholder="Enter password"
+          styleClass="w-full"
+          inputStyleClass="w-full" />
+        <small class="text-surface-600">Talabat login password</small>
+      </div>
+    </div>
+
+    <!-- Platform Key & Restaurant ID -->
+    <div class="grid my-3">
+      <div class="col-12 md:col-6">
+        <label for="platformKey" class="block font-semibold mb-2">Platform Key *</label>
+        <p-select
+          id="platformKey"
+          formControlName="platformKey"
+          [options]="platformKeyOptions"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="Select platform"
+          class="w-full"
+          styleClass="w-full" />
+        <small class="text-surface-600">Talabat platform/country identifier</small>
+      </div>
+      <div class="col-12 my-3 md:col-6">
+        <label for="platformRestaurantId" class="block font-semibold mb-2">Platform Restaurant ID *</label>
+        <input 
+          pInputText 
+          id="platformRestaurantId" 
+          formControlName="platformRestaurantId"
+          placeholder="e.g., 783144"
+          class="w-full" />
+        <p-message
+          *ngIf="accountForm.get('platformRestaurantId')?.touched && accountForm.get('platformRestaurantId')?.hasError('required')"
+          severity="error"
+          text="Platform Restaurant ID is required">
+        </p-message>
+        <small class="text-surface-600">Restaurant ID from Talabat portal</small>
+      </div>
+    </div>
+
+  </form>
+
+  <!-- Dialog Footer -->
+  <ng-template pTemplate="footer">
+    <p-button 
+      label="Cancel" 
+      icon="pi pi-times"
+      severity="secondary"
+      [text]="true"
+      (onClick)="cancelDialog()"
+      [disabled]="submitting" />
+    <p-button 
+      label="Save" 
+      icon="pi pi-check"
+      severity="primary"
+      (onClick)="saveAccount()"
+      [loading]="submitting"
+      [disabled]="accountForm.invalid" />
+  </ng-template>
+</p-dialog>
+
+<!-- Toast Messages -->
+<p-toast position="top-right" />
+
+<!-- Confirmation Dialog -->
+<p-confirmDialog />

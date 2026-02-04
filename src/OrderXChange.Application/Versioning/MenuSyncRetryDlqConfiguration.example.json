@@ -1,0 +1,31 @@
+{
+  "MenuSync": {
+    "Retry": {
+      "MaxRetryAttempts": 3,
+      "BaseDelay": "00:00:01",
+      "MaxDelay": "00:05:00",
+      "BackoffMultiplier": 2.0,
+      "JitterFactor": 0.1,
+      "CircuitBreakerFailureThreshold": 5,
+      "CircuitBreakerDuration": "00:01:00",
+      "OperationTimeout": "00:10:00",
+      "HttpTimeout": "00:05:00"
+    },
+    "DlqBackground": {
+      "ProcessingInterval": "00:05:00",
+      "EnableAutoRetry": true,
+      "MaxRetryAge": "1.00:00:00",
+      "EnableCleanup": true,
+      "CleanupInterval": "06:00:00",
+      "CleanupRetentionDays": 30
+    }
+  },
+  "Logging": {
+    "LogLevel": {
+      "OrderXChange.Application.Versioning.MenuSyncRetryPolicy": "Information",
+      "OrderXChange.Application.Versioning.MenuSyncDlqService": "Information",
+      "OrderXChange.Application.Versioning.MenuSyncDlqBackgroundService": "Information",
+      "OrderXChange.Application.Versioning.MenuDeltaSyncService": "Information"
+    }
+  }
+}

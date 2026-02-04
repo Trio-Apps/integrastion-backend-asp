@@ -1,0 +1,729 @@
+================================================================================
+  STEP-BY-STEP GUIDE: TENANT SETUP FOR FOODICS-TALABAT INTEGRATION
+================================================================================
+
+This guide shows you how to create a tenant and configure Foodics and Talabat 
+accounts to enable automated menu synchronization.
+
+================================================================================
+OVERVIEW - WHAT YOU'LL CREATE
+================================================================================
+
+Tenant: "Pick Restaurant Chain"
+  ├── FoodicsAccount: "Pick Main Kitchen"
+  │   └── Products from Foodics API
+  │
+  └── TalabatAccount: "PH-SIDDIQ-001"
+      ├── Linked to: FoodicsAccount "Pick Main Kitchen"
+      ├── Platform: TB (Talabat)
+      └── Restaurant ID: 783144
+      └── When sync runs → Gets products from "Pick Main Kitchen" → Sends to Talabat "783144"
+
+================================================================================
+PREREQUISITES
+================================================================================
+
+Before starting, ensure you have:
+
+1. ✅ Database migration applied
+   cd src/OrderXChange.EntityFrameworkCore
+   dotnet ef migrations add AddFoodicsAccountIdToTalabatAccount
+   dotnet ef database update
+
+2. ✅ Backend running
+   cd src/OrderXChange.HttpApi.Host
+   dotnet run
+
+3. ✅ Frontend running
+   cd angular
+   npm start
+
+4. ✅ Login credentials (admin account)
+
+5. ✅ Foodics credentials:
+   - OAuth Client ID
+   - OAuth Client Secret
+   - Access Token (optional, can be generated)
+
+6. ✅ Talabat credentials:
+   - Chain Code (e.g., "tlbt-pick")
+   - Vendor Code (e.g., "PH-SIDDIQ-001")
+   - Username (e.g., "me-plugin-beon-it-001")
+   - Password
+   - Platform Key (e.g., "TB")
+   - Platform Restaurant ID (e.g., "783144")
+
+================================================================================
+STEP 1: CREATE A TENANT
+================================================================================
+
+Option A: Using UI (Recommended)
+---------------------------------
+
+1. Navigate to: http://localhost:4200/saas/tenants
+
+2. Click: "New Tenant" button
+
+3. Fill in the form:
+   ┌─────────────────────────────────────────────────┐
+   │ Name: Pick Restaurant Chain                     │
+   │ Admin Email: admin@pickrestaurant.com           │
+   │ Admin Password: YourSecurePassword123!          │
+   └─────────────────────────────────────────────────┘
+
+4. Click: "Save"
+
+5. ✅ Result: Tenant created with ID (e.g., "3a1f1234-5678-90ab-cdef-1234567890ab")
+
+Option B: Using API
+-------------------
+
+POST /api/app/tenant-management/tenants
+Content-Type: application/json
+Authorization: Bearer <your-token>
+
+{
+  "name": "Pick Restaurant Chain",
+  "adminEmailAddress": "admin@pickrestaurant.com",
+  "adminPassword": "YourSecurePassword123!"
+}
+
+Response: 201 Created
+{
+  "id": "3a1f1234-5678-90ab-cdef-1234567890ab",
+  "name": "Pick Restaurant Chain",
+  ...
+}
+
+================================================================================
+STEP 2: SWITCH TO THE NEW TENANT
+================================================================================
+
+1. In the top navigation bar, find the "Tenant" dropdown
+   (Usually shows current tenant or "Host")
+
+2. Click: Tenant selector dropdown
+
+3. Select: "Pick Restaurant Chain"
+
+4. ✅ Confirm: URL or page should indicate you're now in tenant context
+
+5. 🔔 IMPORTANT: All subsequent operations will be for this tenant!
+
+================================================================================
+STEP 3: CREATE FOODICS ACCOUNT
+================================================================================
+
+Option A: Using UI (Recommended)
+---------------------------------
+
+1. Navigate to: http://localhost:4200/foodics
+
+2. Click: "New Foodics Account" button (Green button with + icon)
+
+3. Fill in the Create Foodics Account dialog:
+   ┌─────────────────────────────────────────────────┐
+   │ Brand Name: Pick Main Kitchen                   │
+   │                                                  │
+   │ OAuth Client ID:                                │
+   │ ┌─────────────────────────────────────────────┐ │
+   │ │ 12345678-abcd-1234-efgh-1234567890ab        │ │
+   │ └─────────────────────────────────────────────┘ │
+   │                                                  │
+   │ OAuth Client Secret:                            │
+   │ ┌─────────────────────────────────────────────┐ │
+   │ │ your-foodics-secret-key-here                │ │
+   │ └─────────────────────────────────────────────┘ │
+   │                                                  │
+   │ Access Token (Optional):                        │
+   │ ┌─────────────────────────────────────────────┐ │
+   │ │ eyJ0eXAiOiJKV1QiLCJhbGc...                  │ │
+   │ └─────────────────────────────────────────────┘ │
+   └─────────────────────────────────────────────────┘
+
+4. Click: "Save" button
+
+5. ✅ Result: 
+   - Success toast notification appears
+   - FoodicsAccount appears in the table
+   - Note the ID (you'll need it for linking)
+
+Option B: Using API
+-------------------
+
+POST /api/app/foodics
+Content-Type: application/json
+Authorization: Bearer <your-token>
+
+{
+  "brandName": "Pick Main Kitchen",
+  "oAuthClientId": "12345678-abcd-1234-efgh-1234567890ab",
+  "oAuthClientSecret": "your-foodics-secret-key-here",
+  "accessToken": "eyJ0eXAiOiJKV1QiLCJhbGc..."
+}
+
+Response: 200 OK
+{
+  "id": "foodics-account-id-here",
+  "brandName": "Pick Main Kitchen",
+  "oAuthClientId": "12345678-abcd-1234-efgh-1234567890ab",
+  ...
+}
+
+💡 TIP: Save the FoodicsAccount ID! You'll need it in Step 4.
+
+Example ID: "4b2c5678-1234-56ab-cdef-9876543210ab"
+
+================================================================================
+STEP 4: CREATE TALABAT ACCOUNT (WITH FOODICS LINK)
+================================================================================
+
+Option A: Using UI (Recommended)
+---------------------------------
+
+1. Navigate to: http://localhost:4200/talabat
+   (This is the NEW page we just created!)
+
+2. Click: "New Talabat Account" button (Green button with + icon)
+
+3. Fill in the Create Talabat Account dialog:
+
+   ┌─────────────────────────────────────────────────────────────┐
+   │ BASIC INFORMATION                                           │
+   ├─────────────────────────────────────────────────────────────┤
+   │ Name: * (Required)                                          │
+   │ ┌─────────────────────────────────────────────────────────┐ │
+   │ │ Pick Siddiq Branch 1                                    │ │
+   │ └─────────────────────────────────────────────────────────┘ │
+   │                                                             │
+   │ Vendor Code: * (Required)                                   │
+   │ ┌─────────────────────────────────────────────────────────┐ │
+   │ │ PH-SIDDIQ-001                                           │ │
+   │ └─────────────────────────────────────────────────────────┘ │
+   │ (Your POS vendor code from your system)                     │
+   │                                                             │
+   │ Chain Code:                                                 │
+   │ ┌─────────────────────────────────────────────────────────┐ │
+   │ │ tlbt-pick                                               │ │
+   │ └─────────────────────────────────────────────────────────┘ │
+   │ (Talabat chain identifier, provided by Talabat)             │
+   ├─────────────────────────────────────────────────────────────┤
+   │ FOODICS LINK (⭐ NEW - THIS IS KEY!)                       │
+   ├─────────────────────────────────────────────────────────────┤
+   │ 🔗 Linked Foodics Account:                                  │
+   │ ┌─────────────────────────────────────────────────────────┐ │
+   │ │ [Dropdown]                                              │ │
+   │ │   -- Not linked --                                      │ │
+   │ │   Pick Main Kitchen  ✅ SELECT THIS                     │ │
+   │ │   (Other Foodics accounts if any...)                    │ │
+   │ └─────────────────────────────────────────────────────────┘ │
+   │ ℹ️ Select which Foodics account data to sync to Talabat    │
+   ├─────────────────────────────────────────────────────────────┤
+   │ TALABAT CREDENTIALS                                         │
+   ├─────────────────────────────────────────────────────────────┤
+   │ Username:                    Password:                      │
+   │ ┌───────────────────────┐    ┌───────────────────────┐     │
+   │ │ me-plugin-beon-it-001 │    │ ●●●●●●●●●●●●●●●●●●●● │     │
+   │ └───────────────────────┘    └───────────────────────┘     │
+   │                                                             │
+   ├─────────────────────────────────────────────────────────────┤
+   │ PLATFORM CONFIGURATION                                      │
+   ├─────────────────────────────────────────────────────────────┤
+   │ Platform Key: *              Platform Restaurant ID: *      │
+   │ ┌───────────────────────┐    ┌───────────────────────┐     │
+   │ │ [Dropdown]            │    │ 783144                │     │
+   │ │   TB (Global) ✅      │    └───────────────────────┘     │
+   │ │   TB_KW (Kuwait)      │    (From Talabat portal)        │
+   │ │   TB_AE (UAE)         │                                  │
+   │ │   TB_SA (Saudi)       │                                  │
+   │ │   ...                 │                                  │
+   │ └───────────────────────┘                                  │
+   ├─────────────────────────────────────────────────────────────┤
+   │ API CREDENTIALS (Optional)                                  │
+   ├─────────────────────────────────────────────────────────────┤
+   │ API Key:                     API Secret:                    │
+   │ ┌───────────────────────┐    ┌───────────────────────┐     │
+   │ │ (Optional)            │    │ ●●●●●●●●●●●●●●●●●●●● │     │
+   │ └───────────────────────┘    └───────────────────────┘     │
+   ├─────────────────────────────────────────────────────────────┤
+   │ STATUS                                                      │
+   ├─────────────────────────────────────────────────────────────┤
+   │ ☑️ Active                                                   │
+   │ (Only active accounts are used for syncing)                 │
+   └─────────────────────────────────────────────────────────────┘
+
+4. Click: "Save" button
+
+5. ✅ Result: 
+   - Success toast notification appears
+   - TalabatAccount appears in the table
+   - You should see:
+     ┌─────────────────────────────────────────────────────────────┐
+     │ Name          │ Vendor Code    │ Linked Foodics         │   │
+     ├─────────────────────────────────────────────────────────────┤
+     │ Pick Siddiq 1 │ PH-SIDDIQ-001  │ 🔗 Pick Main Kitchen  │ ✅│
+     └─────────────────────────────────────────────────────────────┘
+
+Option B: Using API
+-------------------
+
+POST /api/app/talabat-account
+Content-Type: application/json
+Authorization: Bearer <your-token>
+
+{
+  "name": "Pick Siddiq Branch 1",
+  "vendorCode": "PH-SIDDIQ-001",
+  "chainCode": "tlbt-pick",
+  "userName": "me-plugin-beon-it-001",
+  "password": "your-talabat-password",
+  "platformKey": "TB",
+  "platformRestaurantId": "783144",
+  "isActive": true,
+  "foodicsAccountId": "4b2c5678-1234-56ab-cdef-9876543210ab"  // ⭐ FROM STEP 3
+}
+
+Response: 200 OK
+{
+  "id": "talabat-account-id-here",
+  "name": "Pick Siddiq Branch 1",
+  "vendorCode": "PH-SIDDIQ-001",
+  "foodicsAccountId": "4b2c5678-1234-56ab-cdef-9876543210ab",
+  "foodicsAccountName": "Pick Main Kitchen",  // ✅ Automatically loaded
+  ...
+}
+
+================================================================================
+STEP 5: VERIFY THE CONFIGURATION
+================================================================================
+
+Using UI - Verify Table
+------------------------
+
+1. Navigate to: http://localhost:4200/talabat
+
+2. Check the table shows:
+   ┌──────────────────────────────────────────────────────────────────┐
+   │ Name                │ Vendor Code   │ Linked Foodics            │
+   ├──────────────────────────────────────────────────────────────────┤
+   │ Pick Siddiq Branch 1│ PH-SIDDIQ-001 │ 🔗 Pick Main Kitchen  ✅ │
+   │                     │               │    (Green badge with link)│
+   │ Platform: TB        │ Rest ID: 783144│ Status: Active         │
+   └──────────────────────────────────────────────────────────────────┘
+
+3. ✅ If you see the green badge with "Pick Main Kitchen", linking is successful!
+
+Using API - Verify Link
+------------------------
+
+GET /api/app/talabat-account/{talabat-account-id}
+Authorization: Bearer <your-token>
+
+Response: 200 OK
+{
+  "id": "...",
+  "name": "Pick Siddiq Branch 1",
+  "vendorCode": "PH-SIDDIQ-001",
+  "foodicsAccountId": "4b2c5678-1234-56ab-cdef-9876543210ab",  // ✅ Present
+  "foodicsAccountName": "Pick Main Kitchen",                    // ✅ Loaded
+  "platformKey": "TB",
+  "platformRestaurantId": "783144",
+  "isActive": true,
+  ...
+}
+
+================================================================================
+STEP 6: TEST TALABAT CONNECTION
+================================================================================
+
+Test Branch Availability (CLOSE)
+---------------------------------
+
+1. Navigate to: http://localhost:4200/talabat-dashboard
+
+2. In "Branch Management" section:
+   - Select Vendor: "PH-SIDDIQ-001" (from dropdown)
+   - Click: "Close Branch" button
+
+3. ✅ Expected Result:
+   - Request sent to Talabat API using credentials from TalabatAccount
+   - Status updates to "Closed"
+   - Check Talabat portal: https://www.talabat.com/kuwait/restaurant/783144/pick-test-store
+   - Restaurant should show as closed
+
+OR Using API:
+
+POST /api/app/talabat-dashboard/branch-busy?vendorCode=PH-SIDDIQ-001
+Content-Type: application/json
+Authorization: Bearer <your-token>
+
+{
+  "reason": "Testing connection",
+  "availableInMinutes": null
+}
+
+Response: 200 OK
+{
+  "vendorCode": "PH-SIDDIQ-001",
+  "isAvailable": false,
+  "status": "Busy",
+  ...
+}
+
+Test Branch Availability (OPEN)
+--------------------------------
+
+POST /api/app/talabat-dashboard/branch-available?vendorCode=PH-SIDDIQ-001
+Authorization: Bearer <your-token>
+
+Response: 200 OK
+{
+  "vendorCode": "PH-SIDDIQ-001",
+  "isAvailable": true,
+  "status": "Available",
+  ...
+}
+
+⚠️ NOTE: If you get "500 INTERNAL_ERROR" for OPEN, this means:
+- Talabat requires an active/approved menu before setting to OPEN
+- Contact Talabat support or check Partner Portal for menu approval status
+
+================================================================================
+STEP 7: VERIFY MENU SYNC (FUTURE - WHEN IMPLEMENTED)
+================================================================================
+
+Once menu sync background job runs, here's what will happen:
+
+1. System loads TalabatAccount: "PH-SIDDIQ-001"
+
+2. System finds linked FoodicsAccountId: "4b2c5678-1234-56ab-cdef-9876543210ab"
+
+3. System calls Foodics API:
+   GET https://api-sandbox.foodics.com/v5/products
+   Authorization: Bearer <token-from-foodics-account>
+   
+   📦 Gets products from: "Pick Main Kitchen"
+
+4. System transforms products to Talabat format
+
+5. System calls Talabat API:
+   POST https://integration-middleware.me.restaurant-partners.com/v2/chains/tlbt-pick/remoteVendors/PH-SIDDIQ-001/menu
+   Authorization: Bearer <token-from-talabat-account>
+   
+   📤 Sends products to: Restaurant "783144"
+
+6. ✅ Result: Products from "Pick Main Kitchen" appear on Talabat restaurant "783144"
+
+Manual Trigger (If Implemented):
+---------------------------------
+
+POST /api/app/background-jobs/menu-sync/trigger
+Content-Type: application/json
+Authorization: Bearer <your-token>
+
+{
+  "vendorCode": "PH-SIDDIQ-001"
+}
+
+Check Sync Logs:
+----------------
+
+1. Navigate to: http://localhost:4200/talabat-dashboard
+
+2. View "Recent Submissions" table
+
+3. Look for entries with VendorCode: "PH-SIDDIQ-001"
+
+4. Check Status: "Completed" / "Failed"
+
+================================================================================
+ADVANCED SCENARIOS
+================================================================================
+
+Scenario 1: Multiple Foodics Accounts → Multiple Talabat Vendors
+-----------------------------------------------------------------
+
+Tenant: "Pick Restaurant Chain"
+  ├── FoodicsAccount #1: "Pick Main Kitchen"
+  │   └── Products: Burgers, Fries, Drinks
+  │
+  ├── FoodicsAccount #2: "Pick Desserts"
+  │   └── Products: Ice Cream, Cakes, Pastries
+  │
+  ├── TalabatAccount #1: "PH-SIDDIQ-001"
+  │   ├── FoodicsAccountId → Links to "Pick Main Kitchen"
+  │   └── Restaurant ID: 783144
+  │   └── Sync Result: Burgers, Fries, Drinks → Talabat 783144
+  │
+  └── TalabatAccount #2: "PH-SIDDIQ-002"
+      ├── FoodicsAccountId → Links to "Pick Desserts"
+      └── Restaurant ID: 783216
+      └── Sync Result: Ice Cream, Cakes → Talabat 783216
+
+Steps to Create:
+
+1. Create 2 FoodicsAccounts (Step 3, repeat twice)
+2. Create 2 TalabatAccounts (Step 4, repeat twice)
+3. Link each TalabatAccount to different FoodicsAccount
+4. Each sync operation routes to correct Foodics account automatically
+
+Scenario 2: Same Foodics Account → Multiple Talabat Vendors
+------------------------------------------------------------
+
+Tenant: "Pick Restaurant Chain"
+  ├── FoodicsAccount: "Pick Main Kitchen"
+  │   └── Products: Full menu
+  │
+  ├── TalabatAccount #1: "PH-SIDDIQ-001" (Kuwait)
+  │   ├── FoodicsAccountId → "Pick Main Kitchen"
+  │   ├── PlatformKey: TB_KW
+  │   └── Restaurant ID: 783144
+  │
+  └── TalabatAccount #2: "PH-SIDDIQ-003" (Saudi Arabia)
+      ├── FoodicsAccountId → "Pick Main Kitchen"
+      ├── PlatformKey: TB_SA
+      └── Restaurant ID: 998877
+
+Result: Same Foodics menu synced to both Kuwait and Saudi Arabia Talabat
+
+Scenario 3: Testing with Sandbox
+---------------------------------
+
+For testing, you can use:
+
+1. Foodics Sandbox:
+   - Base URL: https://api-sandbox.foodics.com/v5
+   - Use test OAuth credentials
+   - Products won't affect production
+
+2. Talabat Staging (if available):
+   - Base URL: https://integration-middleware.stg.restaurant-partners.com
+   - Use test credentials
+   - Changes won't affect live restaurants
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Problem: Can't see "Talabat" menu option
+-----------------------------------------
+Solution:
+1. Check Angular routing: angular/src/app/app.routes.ts
+2. Verify route exists: path: 'talabat'
+3. Clear browser cache: Ctrl+Shift+R
+4. Check console for errors: F12 → Console tab
+
+Problem: Foodics Account dropdown is empty
+-------------------------------------------
+Solution:
+1. Make sure you created FoodicsAccount first (Step 3)
+2. Ensure you're in the correct tenant context
+3. Check: GET /api/app/foodics (should return accounts)
+4. Refresh the page
+
+Problem: TalabatAccount creation fails
+---------------------------------------
+Solution:
+1. Check all required fields are filled:
+   - Name ✅
+   - Vendor Code ✅
+   - Platform Key ✅
+   - Platform Restaurant ID ✅
+2. Check browser console (F12) for detailed error
+3. Verify migration was applied
+4. Check backend logs: src/OrderXChange.HttpApi.Host/Logs/logs.txt
+
+Problem: "The link shows but sync doesn't use it"
+--------------------------------------------------
+Solution:
+1. This is expected! The NEW linking is for FUTURE menu sync implementation
+2. Current branch availability APIs still work with fallback to appsettings.json
+3. The TalabatAccountService checks database first, then falls back
+4. To verify it's working, check logs for:
+   "Using TalabatAccount from database. VendorCode=..."
+
+Problem: Branch availability returns 404
+----------------------------------------
+Solution:
+1. Verify vendorCode matches exactly: "PH-SIDDIQ-001"
+2. Check platformKey: Should be "TB" (not "TB_KW" in most cases)
+3. Verify platformRestaurantId matches Talabat portal
+4. Check credentials (username/password) are correct
+5. Ensure restaurant exists in Talabat system
+
+Problem: Branch OPEN returns 500 error
+---------------------------------------
+Solution:
+This is a Talabat business rule rejection:
+1. Check Talabat Partner Portal for menu approval status
+2. Ensure restaurant has active approved menu
+3. Contact Talabat support if menu is approved but still failing
+4. CLOSE/CLOSE_UNTIL should work even without menu
+
+Problem: Migration fails
+------------------------
+Solution:
+1. Stop backend: Ctrl+C
+2. Delete migration: 
+   rm Migrations/*AddFoodicsAccountIdToTalabatAccount*
+3. Recreate migration:
+   cd src/OrderXChange.EntityFrameworkCore
+   dotnet ef migrations add AddFoodicsAccountIdToTalabatAccount
+4. Check migration file for errors
+5. Apply: dotnet ef database update
+
+================================================================================
+DATABASE VERIFICATION
+================================================================================
+
+After completing all steps, your database should have:
+
+Table: TalabatAccounts
+----------------------
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Id (Guid)           │ Name              │ VendorCode    │ FoodicsAccountId│
+├──────────────────────────────────────────────────────────────────────────┤
+│ abc123...           │ Pick Siddiq Br 1  │ PH-SIDDIQ-001 │ def456...     │✅
+│ TenantId            │ PlatformKey       │ PlatformRestaurantId          │
+├──────────────────────────────────────────────────────────────────────────┤
+│ tenant-guid...      │ TB                │ 783144                        │
+│ ChainCode           │ UserName                  │ IsActive              │
+├──────────────────────────────────────────────────────────────────────────┤
+│ tlbt-pick           │ me-plugin-beon-it-001     │ true (1)              │
+└──────────────────────────────────────────────────────────────────────────┘
+
+Key Points:
+- FoodicsAccountId should have a value (not NULL) ✅
+- TenantId should match your tenant ✅
+- IsActive should be true (1) ✅
+
+SQL Query to Verify:
+--------------------
+SELECT 
+    ta.Id,
+    ta.Name,
+    ta.VendorCode,
+    ta.FoodicsAccountId,
+    fa.BrandName AS LinkedFoodicsBrand,
+    ta.PlatformKey,
+    ta.PlatformRestaurantId,
+    ta.IsActive
+FROM TalabatAccounts ta
+LEFT JOIN FoodicsAccounts fa ON ta.FoodicsAccountId = fa.Id
+WHERE ta.TenantId = 'your-tenant-id-here'
+
+Expected Result:
+┌─────────────────────────────────────────────────────────────────────┐
+│ VendorCode    │ LinkedFoodicsBrand   │ PlatformRestaurantId        │
+├─────────────────────────────────────────────────────────────────────┤
+│ PH-SIDDIQ-001 │ Pick Main Kitchen    │ 783144                      │✅
+└─────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+CREDENTIALS REFERENCE
+================================================================================
+
+Where to Get Talabat Credentials:
+----------------------------------
+1. Chain Code: Provided by Talabat during onboarding
+2. Vendor Code: Your internal POS code (you define it)
+3. Username: Talabat Partner Portal or integration team
+4. Password: Talabat Partner Portal or integration team
+5. Platform Key: Usually "TB" (check documentation)
+6. Platform Restaurant ID: Talabat Partner Portal
+   URL: https://www.talabat.com/kuwait/restaurant/{ID}/...
+   Example: 783144 from https://www.talabat.com/kuwait/restaurant/783144/...
+
+Where to Get Foodics Credentials:
+----------------------------------
+1. OAuth Client ID: Foodics Console (https://console.foodics.com)
+2. OAuth Client Secret: Foodics Console
+3. Access Token: Generate via OAuth flow or Foodics Console
+
+Talabat Partner Portal:
+-----------------------
+URL: https://partner.talabat.com (or country-specific)
+Login: Use credentials provided by Talabat
+Check: Restaurant ID, menu approval status, branch settings
+
+Foodics Console:
+----------------
+URL: https://console.foodics.com
+Login: Your Foodics account
+Go to: Settings → API → OAuth Applications
+
+================================================================================
+SUMMARY - COMPLETE SETUP CHECKLIST
+================================================================================
+
+✅ Step 1: Create Tenant
+   - Navigate to /saas/tenants
+   - Click "New Tenant"
+   - Fill: Name, Email, Password
+   - Save
+
+✅ Step 2: Switch to Tenant
+   - Top menu → Tenant dropdown
+   - Select your tenant
+
+✅ Step 3: Create FoodicsAccount
+   - Navigate to /foodics
+   - Click "New Foodics Account"
+   - Fill: Brand Name, OAuth Client ID, Secret
+   - Save
+   - 📝 Note the FoodicsAccount ID
+
+✅ Step 4: Create TalabatAccount
+   - Navigate to /talabat (NEW PAGE!)
+   - Click "New Talabat Account"
+   - Fill all fields
+   - 🔗 IMPORTANT: Select Foodics Account from dropdown!
+   - Save
+
+✅ Step 5: Verify
+   - Check table shows green badge "🔗 Pick Main Kitchen"
+   - Verify API response includes foodicsAccountId
+
+✅ Step 6: Test
+   - Test branch close/open
+   - Check Talabat portal for changes
+   - Verify logs
+
+✅ Step 7: Wait for Menu Sync
+   - Sync will automatically use linked accounts
+   - Check dashboard for sync logs
+
+================================================================================
+SUPPORT & DOCUMENTATION
+================================================================================
+
+Documentation Files:
+- IMPLEMENTATION_SUMMARY.md - Technical implementation details
+- This file (SETUP_GUIDE.txt) - Step-by-step instructions
+
+Key Code Files:
+- Backend: src/OrderXChange.Application/Integrations/Talabat/TalabatAccountService.cs
+- Frontend: angular/src/app/saas/talabat-list.component/talabat-list.component.ts
+- Entity: modules/.../Talabat/TalabatAccount.cs
+
+Logs Location:
+- Backend: src/OrderXChange.HttpApi.Host/Logs/logs.txt
+- Search for: "TalabatAccount", "FoodicsAccount", "Using TalabatAccount from database"
+
+API Documentation:
+- Swagger: http://localhost:44325/swagger (when backend running)
+- Endpoints: /api/app/talabat-account, /api/app/foodics
+
+================================================================================
+END OF GUIDE
+================================================================================
+
+Need help? Check:
+1. Browser console (F12 → Console)
+2. Backend logs (Logs/logs.txt)
+3. Database (SQL query to verify data)
+4. Swagger UI for API testing
+
+Good luck! 🚀
+
+

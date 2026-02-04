@@ -1,0 +1,53 @@
+<div class="card h-100">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <h3 class="card-title h6 mb-0">{{ title }}</h3>
+    <span class="badge rounded-pill bg-secondary-subtle text-secondary-emphasis border-secondary-subtle" *ngIf="jobs?.length">
+      {{ jobs.length }}
+    </span>
+  </div>
+  <div class="card-body p-0">
+    <div *ngIf="jobs?.length; else emptyStateTpl" class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th scope="col">{{ '::MenuSync.Columns.Job' | abpLocalization }}</th>
+            <th scope="col">{{ '::MenuSync.Columns.State' | abpLocalization }}</th>
+            <th scope="col">{{ '::MenuSync.Columns.Queue' | abpLocalization }}</th>
+            <th scope="col">{{ '::MenuSync.Columns.Created' | abpLocalization }}</th>
+            <th scope="col">{{ '::MenuSync.Columns.Details' | abpLocalization }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let job of jobs; trackBy: trackByJobId">
+            <td>
+              <div class="fw-semibold">{{ job.jobName || ('::MenuSync.Table.NoValue' | abpLocalization) }}</div>
+              <div class="text-body-secondary small" *ngIf="job.arguments">{{ job.arguments }}</div>
+            </td>
+            <td>
+              <span [ngClass]="getBadgeClass(job.state)">{{ job.state || ('::MenuSync.Table.Unknown' | abpLocalization) }}</span>
+            </td>
+            <td>
+              <span class="badge text-bg-light border" *ngIf="job.queue; else noQueue">{{ job.queue }}</span>
+              <ng-template #noQueue>{{ '::MenuSync.Table.NoValue' | abpLocalization }}</ng-template>
+            </td>
+            <td class="text-nowrap">
+              <div>{{ job.createdAt | date: 'short' }}</div>
+              <div class="text-body-secondary small" *ngIf="job.scheduledAt">{{ '::MenuSync.Table.Scheduled' | abpLocalization }}: {{ job.scheduledAt | date: 'short' }}</div>
+              <div class="text-body-secondary small" *ngIf="job.startedAt">{{ '::MenuSync.Table.Started' | abpLocalization }}: {{ job.startedAt | date: 'short' }}</div>
+            </td>
+            <td>
+              <span class="text-danger small" *ngIf="job.exceptionMessage">{{ job.exceptionMessage }}</span>
+              <span class="text-body-secondary small" *ngIf="!job.exceptionMessage">{{ '::MenuSync.Table.NoValue' | abpLocalization }}</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <ng-template #emptyStateTpl>
+    <div class="empty-state text-center py-4">
+      <p class="text-body-secondary mb-0">{{ emptyState }}</p>
+    </div>
+  </ng-template>
+</div>
+

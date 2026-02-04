@@ -1,0 +1,138 @@
+{
+  "groups": {
+    "main_dishes": {
+      "name": "Main Dishes",
+      "name_localized": "الأطباق الرئيسية",
+      "image": "https://example.com/images/main-dishes.jpg",
+      "items_index": 1,
+      "is_active": true,
+      "products": []
+    },
+    "salads": {
+      "name": "Salads",
+      "name_localized": "السلطات",
+      "image": "https://example.com/images/salads.jpg",
+      "items_index": 2,
+      "is_active": true,
+      "products": []
+    },
+    "pizzas": {
+      "name": "Pizzas",
+      "name_localized": "البيتزا",
+      "image": "https://example.com/images/pizzas.jpg",
+      "items_index": 3,
+      "is_active": true,
+      "products": []
+    },
+    "healthy_options": {
+      "name": "Healthy Options",
+      "name_localized": "خيارات صحية",
+      "image": "https://example.com/images/healthy-options.jpg",
+      "items_index": 4,
+      "is_active": true,
+      "products": []
+    }
+  },
+  "products": {
+    "classic_burger": {
+      "name": "Classic Burger",
+      "name_localized": "برغر كلاسيك",
+      "description": "Juicy beef patty with lettuce, tomato, and special sauce",
+      "description_localized": "قطعة لحم بقري مع الخس والطماطم والصلصة الخاصة",
+      "image": "https://example.com/images/classic-burger.jpg",
+      "is_active": true,
+      "is_stock_product": false,
+      "pricing_method": 1,
+      "selling_method": 2,
+      "costing_method": 1,
+      "price": 3500,
+      "cost": 1800,
+      "calories": 650,
+      "preparation_time": 15,
+      "sku": "TEST-BURGER-001",
+      "barcode": "1234567890001",
+      "category_id": "REPLACE_WITH_CATEGORY_ID",
+      "tax_group_id": "REPLACE_WITH_TAX_GROUP_ID",
+      "tags": [],
+      "groups": []
+    },
+    "chicken_caesar_salad": {
+      "name": "Chicken Caesar Salad",
+      "name_localized": "سلطة سيزر بالدجاج",
+      "description": "Fresh romaine lettuce with grilled chicken, croutons, and Caesar dressing",
+      "description_localized": "خس طازج مع دجاج مشوي، خبز محمص، وصلصة السيزر",
+      "image": "https://example.com/images/chicken-caesar-salad.jpg",
+      "is_active": true,
+      "is_stock_product": false,
+      "pricing_method": 1,
+      "selling_method": 2,
+      "costing_method": 1,
+      "price": 2800,
+      "cost": 1200,
+      "calories": 420,
+      "preparation_time": 10,
+      "sku": "TEST-SALAD-001",
+      "barcode": "1234567890002",
+      "category_id": "REPLACE_WITH_CATEGORY_ID",
+      "tax_group_id": "REPLACE_WITH_TAX_GROUP_ID",
+      "tags": [],
+      "groups": []
+    },
+    "margherita_pizza": {
+      "name": "Margherita Pizza",
+      "name_localized": "بيتزا مارغريتا",
+      "description": "Classic Italian pizza with tomato sauce, mozzarella, and fresh basil",
+      "description_localized": "بيتزا إيطالية كلاسيكية مع صلصة الطماطم، موتزاريلا، والريحان الطازج",
+      "image": "https://example.com/images/margherita-pizza.jpg",
+      "is_active": true,
+      "is_stock_product": false,
+      "pricing_method": 1,
+      "selling_method": 2,
+      "costing_method": 1,
+      "price": 4200,
+      "cost": 2000,
+      "calories": 850,
+      "preparation_time": 20,
+      "sku": "TEST-PIZZA-001",
+      "barcode": "1234567890003",
+      "category_id": "REPLACE_WITH_CATEGORY_ID",
+      "tax_group_id": "REPLACE_WITH_TAX_GROUP_ID",
+      "tags": [],
+      "groups": []
+    }
+  },
+  "mapping": {
+    "classic_burger_to_main_dishes": {
+      "product": "classic_burger",
+      "group": "main_dishes"
+    },
+    "chicken_caesar_salad_to_salads": {
+      "product": "chicken_caesar_salad",
+      "group": "salads"
+    },
+    "chicken_caesar_salad_to_healthy": {
+      "product": "chicken_caesar_salad",
+      "group": "healthy_options"
+    },
+    "margherita_pizza_to_pizzas": {
+      "product": "margherita_pizza",
+      "group": "pizzas"
+    }
+  },
+  "configuration": {
+    "base_url": "https://api-sandbox.foodics.com/v5",
+    "headers": {
+      "Authorization": "Bearer {{token}}",
+      "Accept": "application/json",
+      "Content-Type": "application/json"
+    },
+    "notes": [
+      "Replace {{token}} with actual bearer token from collection",
+      "Replace REPLACE_WITH_CATEGORY_ID with actual category ID from GET /categories",
+      "Replace REPLACE_WITH_TAX_GROUP_ID with actual tax group ID from GET /tax-groups",
+      "After creating groups, update products.groups array with group IDs",
+      "Price is in cents (3500 = 35.00 SAR)"
+    ]
+  }
+}
+

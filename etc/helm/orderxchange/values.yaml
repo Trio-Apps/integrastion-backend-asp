@@ -1,0 +1,4 @@
+global:
+  tlsSecret: "orderxchange-local-tls"
+  abpStudioClient:
+    studioUrl: "http://abp-studio-proxy:38271"

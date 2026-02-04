@@ -1,0 +1,129 @@
+<div class="login-container">
+  <p-toast></p-toast>
+  
+  <div class="login-wrapper">
+    <div class="login-card card">
+      <!-- Header/Logo Section -->
+      <div class="login-header">
+        <div class="logo-section">
+          <img
+            src="assets/images/logo/newlogo.jpg"
+            alt="BEON-IT"
+            class="logo-icon"
+          />
+          <h1 class="app-name">{{ '::AppName' | abpLocalization }}</h1>
+        </div>
+        <p class="welcome-text">{{ '::Login.WelcomeText' | abpLocalization }}</p>
+      </div>
+
+      <!-- Login Form -->
+      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="login-form">
+        
+        <!-- Tenant Name Field -->
+        <div class="field">
+          <label for="tenantName" class="field-label">{{ '::Login.TenantName' | abpLocalization }}</label>
+          <span class="p-input-icon-left w-full">
+            <i class="pi pi-building"></i>
+            <input
+              id="tenantName"
+              type="text"
+              pInputText
+              formControlName="tenantName"
+              [placeholder]="'::Login.TenantNamePlaceholder' | abpLocalization"
+              class="w-full"
+              [class.ng-invalid]="submitted && f['tenantName'].errors"
+              [class.ng-dirty]="submitted && f['tenantName'].errors"
+              autocomplete="organization"
+            />
+          </span>
+          <small 
+            class="p-error" 
+            *ngIf="submitted && f['tenantName'].errors"
+          >
+            <span *ngIf="f['tenantName'].errors['required']">{{ '::Login.TenantNameRequired' | abpLocalization }}</span>
+          </small>
+        </div>
+
+        <!-- Username Field -->
+        <div class="field">
+          <label for="username" class="field-label">{{'::UserName' | abpLocalization}}</label>
+          <span class="p-input-icon-left w-full">
+            <i class="pi pi-user"></i>
+            <input
+              id="username"
+              type="text"
+              pInputText
+              formControlName="username"
+              [placeholder]="'::Login.UserNamePlaceholder' | abpLocalization"
+              class="w-full"
+              [class.ng-invalid]="submitted && f['username'].errors"
+              [class.ng-dirty]="submitted && f['username'].errors"
+              autocomplete="username"
+            />
+          </span>
+          <small 
+            class="p-error" 
+            *ngIf="submitted && f['username'].errors"
+          >
+            <span *ngIf="f['username'].errors['required']">{{'::UserNameIsRequired' | abpLocalization}}</span>
+          </small>
+        </div>
+
+        <!-- Password Field -->
+        <div class="field">
+          <label for="password" class="field-label">{{ '::Login.Password' | abpLocalization }}</label>
+          <p-password
+            id="password"
+            formControlName="password"
+            [placeholder]="'::Login.PasswordPlaceholder' | abpLocalization"
+            [toggleMask]="true"
+            [feedback]="false"
+            styleClass="w-full"
+            inputStyleClass="w-full"
+            [class.ng-invalid]="submitted && f['password'].errors"
+            [class.ng-dirty]="submitted && f['password'].errors"
+            autocomplete="current-password"
+          ></p-password>
+          <small 
+            class="p-error" 
+            *ngIf="submitted && f['password'].errors"
+          >
+            <span *ngIf="f['password'].errors['required']">{{ '::Login.PasswordRequired' | abpLocalization }}</span>
+            <span *ngIf="f['password'].errors['minlength']">{{ '::Login.PasswordMinLength' | abpLocalization }}</span>
+          </small>
+        </div>
+
+        <!-- Remember Me & Forgot Password -->
+        <div class="field-row">
+          <div class="remember-me">
+            <p-checkbox
+              formControlName="rememberMe"
+              [binary]="true"
+              inputId="rememberMe"
+            ></p-checkbox>
+            <label for="rememberMe" class="checkbox-label">{{ '::Login.RememberMe' | abpLocalization }}</label>
+          </div>
+          <a 
+            class="forgot-password-link" 
+            (click)="onForgotPassword()"
+            tabindex="0"
+          >
+            {{ '::Login.ForgotPassword' | abpLocalization }}
+          </a>
+        </div>
+
+        <!-- Login Button -->
+        <div class="field">
+          <p-button
+            type="submit"
+            [label]="'::Login.SignIn' | abpLocalization"
+            icon="pi pi-sign-in"
+            [loading]="loading"
+            styleClass="w-full"
+            [disabled]="loading"
+          ></p-button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

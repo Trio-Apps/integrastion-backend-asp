@@ -1,0 +1,22 @@
+.menu-sync-dashboard {
+  .metric-card {
+    transition: transform 0.15s ease-in-out;
+    height: 100%;
+
+    &:hover {
+      transform: translateY(-2px);
+    }
+
+    .metric-label {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .metric-value {
+      font-size: clamp(1.5rem, 2.5vw, 2rem);
+      font-weight: 600;
+    }
+  }
+}
+

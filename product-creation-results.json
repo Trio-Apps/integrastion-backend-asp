@@ -1,0 +1,40 @@
+﻿{
+    "products":  [
+                     {
+                         "price":  8500,
+                         "group_id":  "a0f61694-97ae-4c85-8e50-13beea6deefa",
+                         "name":  "Premium Ribeye Steak",
+                         "id":  "a0f8213c-ff70-44bc-a90e-08cb78e1deff",
+                         "sku":  "PROD-STEAK-001"
+                     },
+                     {
+                         "price":  7200,
+                         "group_id":  "a0f61696-c3e3-4798-bd67-b2c30cd912b9",
+                         "name":  "Gourmet Grilled Salmon",
+                         "id":  "a0f8213e-b32b-4652-b5be-56d31f63eefd",
+                         "sku":  "PROD-SALMON-001"
+                     }
+                 ],
+    "category_id":  "a0ebc18f-7d17-4567-a621-c1ba47f5b234",
+    "api_base_url":  "https://api-sandbox.foodics.com/v5",
+    "verified_groups":  [
+                            {
+                                "id":  "a0f61694-97ae-4c85-8e50-13beea6deefa",
+                                "name":  "Main Dishes Test"
+                            },
+                            {
+                                "id":  "a0f61696-c3e3-4798-bd67-b2c30cd912b9",
+                                "name":  "Pizzas Test"
+                            }
+                        ],
+    "created_at":  "2026-01-31 19:08:20",
+    "summary":  {
+                    "total_groups_verified":  2,
+                    "total_groups_targeted":  2,
+                    "total_products_created":  2
+                },
+    "target_groups":  [
+                          "a0f61694-97ae-4c85-8e50-13beea6deefa",
+                          "a0f61696-c3e3-4798-bd67-b2c30cd912b9"
+                      ]
+}

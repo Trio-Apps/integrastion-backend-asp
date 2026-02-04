@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <TargetFramework>net9.0</TargetFramework>
+    <Version>9.3.6</Version>
+    <CopyLocalLockFileAssemblies>True</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Volo.Abp.FeatureManagement.Blazor.WebAssembly" Version="9.3.6" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Volo.Abp.TenantManagement.Blazor\Volo.Abp.TenantManagement.Blazor.csproj" />
+    <ProjectReference Include="..\Volo.Abp.TenantManagement.HttpApi.Client\Volo.Abp.TenantManagement.HttpApi.Client.csproj" />
+  </ItemGroup>
+</Project>

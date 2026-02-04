@@ -1,0 +1,18 @@
+.card {
+  height: 100%;
+
+  .card-header {
+    background-color: rgba(var(--lx-primary-rgb), 0.03);
+  }
+
+  table {
+    tbody tr:hover {
+      background-color: rgba(var(--lx-primary-rgb), 0.04);
+    }
+  }
+
+  .empty-state {
+    background-color: rgba(var(--lx-neutral-900-rgb), 0.03);
+  }
+}
+

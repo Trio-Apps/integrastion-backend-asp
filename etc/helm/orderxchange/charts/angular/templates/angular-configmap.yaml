@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}-configmap
+data:
+  dynamic-env.json: |-
+    {
+        "production": "true",
+        "application": {
+            "baseUrl": "{{ include "orderxchange.hosts.angular" . }}",
+            "name": "OrderXChange",
+            "logoUrl": ""
+        },
+        "oAuthConfig": {
+            "issuer": "{{ include "orderxchange.hosts.httpapi" . }}",
+            "redirectUri": "{{ include "orderxchange.hosts.angular" . }}",
+            "requireHttps": "true",
+            "clientId": "OrderXChange_App",
+            "responseType": "code",
+            "scope": "offline_access OrderXChange",
+            "strictDiscoveryDocumentValidation": false,
+            "skipIssuerCheck": true
+        },
+        "apis": {
+            "default": {
+                "url": "{{ include "orderxchange.hosts.httpapi" . }}",
+                "rootNamespace": "OrderXChange"
+            }
+        }
+    }

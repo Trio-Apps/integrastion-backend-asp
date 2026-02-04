@@ -1,0 +1,287 @@
+<div class="card">
+  <!-- Header Section -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-3">
+    <div>
+      <h3 class="text-2xl font-bold text-surface-900 dark:text-surface-0 m-0">{{ '::Foodics.Title' | abpLocalization }}</h3>
+      <p class="text-surface-600 dark:text-surface-400 mt-1">{{ '::Foodics.Subtitle' | abpLocalization }}</p>
+    </div>
+    
+    <div class="flex gap-2">
+      <p-button 
+        icon="pi pi-plus" 
+        [label]="'::Foodics.NewAccount' | abpLocalization"
+        severity="primary"
+        (onClick)="openCreateDialog()"
+        [pTooltip]="'::Foodics.NewAccountTooltip' | abpLocalization"
+        tooltipPosition="bottom" />
+    </div>
+  </div>
+
+  <!-- Table Section -->
+  <p-table 
+    [value]="accounts"
+    [lazy]="true"
+    [paginator]="true"
+    [rows]="rows"
+    [totalRecords]="totalRecords"
+    [loading]="loading"
+    [first]="first"
+    [rowsPerPageOptions]="[10, 25, 50, 100]"
+    [showCurrentPageReport]="true"
+    [currentPageReportTemplate]="'::Foodics.Table.PageReport' | abpLocalization"
+    (onLazyLoad)="loadAccounts($event)"
+    [tableStyle]="{ 'min-width': '60rem' }"
+    styleClass="p-datatable-gridlines">
+    
+    <!-- Table Header -->
+    <ng-template pTemplate="header">
+      <tr>
+        <th pSortableColumn="brandName" style="min-width: 15rem">
+          <div class="flex items-center">
+            {{ '::Foodics.Table.BrandName' | abpLocalization }}
+            <p-sortIcon field="brandName" />
+          </div>
+        </th>
+        <th style="min-width: 15rem">{{ '::Foodics.Table.ClientId' | abpLocalization }}</th>
+        <th style="min-width: 10rem">{{ '::Foodics.Table.AccessToken' | abpLocalization }}</th>
+        <th pSortableColumn="creationTime" style="min-width: 12rem">
+          <div class="flex items-center">
+            {{ '::Foodics.Table.Created' | abpLocalization }}
+            <p-sortIcon field="creationTime" />
+          </div>
+        </th>
+        <th style="min-width: 10rem">{{ '::Foodics.Table.Actions' | abpLocalization }}</th>
+      </tr>
+    </ng-template>
+
+    <!-- Table Body -->
+    <ng-template pTemplate="body" let-account>
+      <tr>
+        <td>
+          <div class="flex items-center gap-2">
+            <i class="pi pi-box text-primary text-xl"></i>
+            <span class="font-semibold">{{ account.brandName || ('::Foodics.Table.NotAvailable' | abpLocalization) }}</span>
+          </div>
+        </td>
+        <td>
+          <code class="text-sm bg-surface-100 dark:bg-surface-800 px-2 py-1 rounded">
+            {{ account.oAuthClientId || ('::Foodics.Table.NotAvailable' | abpLocalization) }}
+          </code>
+        </td>
+        <td>
+          @if (account.accessToken) {
+            <p-tag 
+              [value]="maskSecret(account.accessToken)"
+              severity="success"
+              [rounded]="true"
+              icon="pi pi-check-circle" />
+          } @else {
+            <p-tag 
+              [value]="'::Foodics.Table.NotSet' | abpLocalization"
+              severity="secondary"
+              [rounded]="true"
+              icon="pi pi-times-circle" />
+          }
+        </td>
+        <td>
+          @if (account.creationTime) {
+            <span class="text-sm">{{ account.creationTime | date: 'short' }}</span>
+          } @else {
+            <span class="text-sm text-surface-400">{{ '::Foodics.Table.NotAvailable' | abpLocalization }}</span>
+          }
+        </td>
+        <td>
+          <div class="flex gap-2">
+            <p-button 
+              icon="pi pi-pencil" 
+              [rounded]="true"
+              [outlined]="true"
+              severity="secondary"
+              size="small"
+              (onClick)="openEditDialog(account)"
+            [pTooltip]="'::Foodics.Actions.Edit' | abpLocalization"
+              tooltipPosition="bottom" />
+            
+            <p-button 
+              icon="pi pi-trash" 
+              [rounded]="true"
+              [outlined]="true"
+              severity="danger"
+              size="small"
+              (onClick)="deleteAccount(account)"
+              [pTooltip]="'::Foodics.Actions.Delete' | abpLocalization"
+              tooltipPosition="bottom" />
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+
+    <!-- Loading Template -->
+    <ng-template pTemplate="loadingbody">
+      <tr>
+        <td>
+          <div class="flex items-center gap-2">
+            <p-skeleton shape="circle" size="2rem" />
+            <p-skeleton width="10rem" styleClass="mb-2" />
+          </div>
+        </td>
+        <td><p-skeleton width="15rem" styleClass="mb-2" /></td>
+        <td><p-skeleton width="8rem" styleClass="mb-2" /></td>
+        <td><p-skeleton width="10rem" styleClass="mb-2" /></td>
+        <td>
+          <div class="flex gap-2">
+            <p-skeleton shape="circle" size="2rem" />
+            <p-skeleton shape="circle" size="2rem" />
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+
+    <!-- Empty Message -->
+    <ng-template pTemplate="emptymessage">
+      <tr>
+        <td colspan="5">
+          <div class="flex flex-col items-center justify-center py-8 text-center">
+            <i class="pi pi-inbox text-6xl text-surface-400 mb-4"></i>
+            <h4 class="text-xl font-semibold text-surface-700 dark:text-surface-300 mb-2">
+              {{ '::Foodics.Empty.Title' | abpLocalization }}
+            </h4>
+            <p class="text-surface-600 dark:text-surface-400 mb-4">
+              {{ '::Foodics.Empty.Description' | abpLocalization }}
+            </p>
+            <p-button 
+              icon="pi pi-plus" 
+              [label]="'::Foodics.Empty.CreateButton' | abpLocalization"
+              severity="primary"
+              (onClick)="openCreateDialog()" />
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+  </p-table>
+</div>
+
+<!-- Toast for notifications -->
+<p-toast position="top-right" />
+
+<!-- Confirmation Dialog -->
+<p-confirmDialog />
+
+<!-- Create/Edit Account Dialog -->
+<p-dialog 
+  [(visible)]="displayDialog"
+  [modal]="true"
+  [style]="{ width: '650px' }"
+  [draggable]="false"
+  [resizable]="false"
+  [dismissableMask]="false"
+  [header]="(isEditMode ? '::Foodics.Dialog.EditTitle' : '::Foodics.Dialog.CreateTitle') | abpLocalization">
+  
+  <ng-template pTemplate="content">
+    <form [formGroup]="accountForm" class="flex flex-col items-center">
+      <!-- Brand Name Field -->
+      <div class="flex flex-col w-full max-w-md mb-4">
+        <label for="brandName" class="font-semibold mb-2">
+          {{ '::Foodics.Dialog.BrandNameLabel' | abpLocalization }}
+          <span class="text-red-500">*</span>
+        </label>
+        <input 
+          id="brandName"
+          type="text" 
+          pInputText 
+          formControlName="brandName"
+          [placeholder]="'::Foodics.Dialog.BrandNamePlaceholder' | abpLocalization"
+          autocomplete="off"
+          class="w-full" 
+          required />
+        @if (isFieldInvalid('brandName')) {
+          <p-message severity="error" size="small" variant="simple" class="mt-2">
+            {{ getFieldError('brandName') }}
+          </p-message>
+        }
+      </div>
+
+      <!-- OAuth Client ID Field -->
+      <div class="flex flex-col w-full max-w-md mb-4">
+        <label for="oAuthClientId" class="font-semibold mb-2">
+          {{ '::Foodics.Dialog.ClientIdLabel' | abpLocalization }}
+          <span class="text-red-500">*</span>
+        </label>
+        <input 
+          id="oAuthClientId"
+          type="text" 
+          pInputText 
+          formControlName="oAuthClientId"
+          [placeholder]="'::Foodics.Dialog.ClientIdPlaceholder' | abpLocalization"
+          autocomplete="off"
+          class="w-full"
+          required />
+        @if (isFieldInvalid('oAuthClientId')) {
+          <p-message severity="error" size="small" variant="simple" class="mt-2">
+            {{ getFieldError('oAuthClientId') }}
+          </p-message>
+        }
+      </div>
+
+      <!-- OAuth Client Secret Field -->
+      <div class="flex flex-col w-full max-w-md mb-4">
+        <label for="oAuthClientSecret" class="font-semibold mb-2">
+          {{ '::Foodics.Dialog.ClientSecretLabel' | abpLocalization }}
+          <span class="text-red-500">*</span>
+        </label>
+        <p-password 
+          id="oAuthClientSecret"
+          formControlName="oAuthClientSecret"
+          [placeholder]="'::Foodics.Dialog.ClientSecretPlaceholder' | abpLocalization"
+          [toggleMask]="true"
+          [feedback]="false"
+          styleClass="w-full"
+          inputStyleClass="w-full"
+          required />
+        @if (isFieldInvalid('oAuthClientSecret')) {
+          <p-message severity="error" size="small" variant="simple" class="mt-2">
+            {{ getFieldError('oAuthClientSecret') }}
+          </p-message>
+        }
+      </div>
+
+      <!-- Access Token Field -->
+      <div class="flex flex-col w-full max-w-md mb-4">
+        <label for="accessToken" class="font-semibold mb-2">
+          {{ '::Foodics.Dialog.AccessTokenLabel' | abpLocalization }}
+        </label>
+        <input 
+          id="accessToken"
+          type="text" 
+          pInputText 
+          formControlName="accessToken"
+          [placeholder]="'::Foodics.Dialog.AccessTokenPlaceholder' | abpLocalization"
+          autocomplete="off"
+          class="w-full" />
+      </div>
+    </form>
+  </ng-template>
+
+  <ng-template pTemplate="footer">
+    <div class="flex justify-end gap-1 ps-1">
+      <p-button 
+        [label]="'::Common.Cancel' | abpLocalization" 
+        icon="pi pi-times"
+        severity="secondary"
+        [outlined]="true"
+        (onClick)="closeDialog()"
+        [disabled]="submitting"
+        [style]="{ marginRight: '8px' }" />
+      
+      <p-button 
+        [label]="(isEditMode ? '::Foodics.Dialog.UpdateButton' : '::Foodics.Dialog.CreateButton') | abpLocalization" 
+        icon="pi pi-check"
+        severity="primary"
+        (onClick)="saveAccount()"
+        [loading]="submitting"
+        [disabled]="submitting"
+        [style]="{ marginLeft: '8px' }" />
+    </div>
+  </ng-template>
+</p-dialog>
+

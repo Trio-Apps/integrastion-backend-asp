@@ -1,0 +1,59 @@
+<div class="container">
+  <h1 class="text-center">{{ '::Cookie.Title' | abpLocalization }}</h1>
+
+  <div class="section-1 my-5">
+    <p>{{ '::Cookie.Section1.Body' | abpLocalization }}</p>
+  </div>
+
+  <div class="section-2 my-5">
+    <h2>{{ '::Cookie.Section2.Title' | abpLocalization }}</h2>
+
+    <p>{{ '::Cookie.Section2.Body1' | abpLocalization }}</p>
+
+    <p>{{ '::Cookie.Section2.Body2' | abpLocalization }}</p>
+
+    <p>{{ '::Cookie.Section2.Body3' | abpLocalization }}</p>
+
+    <p>{{ '::Cookie.Section2.Body4' | abpLocalization }}</p>
+
+    <ul>
+      <li>
+        {{ '::Cookie.Section2.Persistent' | abpLocalization }}
+      </li>
+      <li>
+        {{ '::Cookie.Section2.Session' | abpLocalization }}
+      </li>
+    </ul>
+  </div>
+
+  <div class="section-3 my-5">
+    <h2>{{ '::Cookie.Section3.Title' | abpLocalization }}</h2>
+
+    <p>{{ '::Cookie.Section3.Body' | abpLocalization }}</p>
+
+    <div>
+      <h3>{{ '::Cookie.Section3.StrictlyNecessary' | abpLocalization }}</h3>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ '::Cookie.Section3.Column.Cookie' | abpLocalization }}</th>
+            <th>{{ '::Cookie.Section3.Column.Description' | abpLocalization }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>AspNetCore.Antiforgery.*</td>
+            <td>{{ '::Cookie.Section3.Description.Antiforgery' | abpLocalization }}</td>
+          </tr>
+          <tr>
+            <td>XSRF-TOKEN</td>
+            <td>
+              {{ '::Cookie.Section3.Description.Xsrf' | abpLocalization }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
