@@ -31,4 +31,5 @@ FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 WORKDIR /app
 ENV ASPNETCORE_URLS=http://+:8080
 COPY --from=build /app/publish ./
+RUN mkdir -p /app/wwwroot/libs && echo placeholder > /app/wwwroot/libs/.keep
 ENTRYPOINT ["dotnet", "OrderXChange.HttpApi.Host.dll"]
