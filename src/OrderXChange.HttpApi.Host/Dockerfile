@@ -2,7 +2,7 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates openssl \
+    && apt-get install -y --no-install-recommends ca-certificates openssl nodejs npm \
     && rm -rf /var/lib/apt/lists/*
 
 COPY NuGet.Config common.props OrderXChange.sln ./
@@ -10,6 +10,11 @@ COPY src/ ./src/
 COPY modules/ ./modules/
 
 RUN dotnet restore ./src/OrderXChange.HttpApi.Host/OrderXChange.HttpApi.Host.csproj
+
+WORKDIR /src/OrderXChange.HttpApi.Host
+RUN dotnet tool install -g Volo.Abp.Cli --version 9.3.6 --add-source https://api.nuget.org/v3/index.json --ignore-failed-sources
+ENV PATH="${PATH}:/root/.dotnet/tools"
+RUN abp install-libs
 
 WORKDIR /src
 RUN dotnet publish ./src/OrderXChange.HttpApi.Host/OrderXChange.HttpApi.Host.csproj -c Release -o /app/publish
