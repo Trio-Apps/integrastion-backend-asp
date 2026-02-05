@@ -381,8 +381,6 @@ public class OrderXChangeHttpApiHostModule : AbpModule
         var configuration = context.ServiceProvider.GetRequiredService<IConfiguration>();
         var logger = context.ServiceProvider.GetRequiredService<ILogger<OrderXChangeHttpApiHostModule>>();
 
-        app.UseForwardedHeaders();
-
         if (env.IsDevelopment())
         {
             app.UseDeveloperExceptionPage();
