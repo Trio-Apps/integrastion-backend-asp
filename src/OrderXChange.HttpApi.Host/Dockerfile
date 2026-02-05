@@ -12,7 +12,8 @@ COPY modules/ ./modules/
 RUN dotnet restore ./src/OrderXChange.HttpApi.Host/OrderXChange.HttpApi.Host.csproj
 
 WORKDIR /src/OrderXChange.HttpApi.Host
-RUN dotnet tool install -g Volo.Abp.Cli --version 9.3.6 --source https://api.nuget.org/v3/index.json
+RUN printf '<configuration><packageSources><add key="nuget.org" value="https://api.nuget.org/v3/index.json" /></packageSources></configuration>' > /tmp/nuget.config \
+    && dotnet tool install -g Volo.Abp.Cli --version 9.3.6 --configfile /tmp/nuget.config
 ENV PATH="${PATH}:/root/.dotnet/tools"
 RUN abp install-libs
 
