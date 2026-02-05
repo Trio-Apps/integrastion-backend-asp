@@ -16,20 +16,19 @@ services:
       kafka:
         condition: service_healthy
     environment:
-      - App__SelfUrl=http://localhost:8081
-      - App__AngularUrl=http://localhost:4201
+      - App__SelfUrl=https://igwdev.beon-it.com
+      - App__AngularUrl=https://igw.beon-it.com
       - App__HealthCheckUrl=/health-status
       - App__DisablePII=false
-      - ConnectionStrings__Hangfire=Server=mariadb;Port=3306;Database=OrderXChange;User=root;Password=P@ssw0rd;AllowUserVariables=True;UseAffectedRows=False
-      - ConnectionStrings__Default=Server=mariadb;Port=3306;Database=OrderXChange;User=root;Password=P@ssw0rd;AllowUserVariables=True;UseAffectedRows=False
-      - App__CorsOrigins=http://localhost:4201,http://localhost:8081
-      - AuthServer__Authority=http://localhost:8081
-      - AuthServer__RequireHttpsMetadata=false
+      - ConnectionStrings__Hangfire=Server=mariadb;Port=3306;Database=OrderXChange;User=orderxchange_user;Password=OrderXChange@2024;AllowUserVariables=True;UseAffectedRows=False
+      - ConnectionStrings__Default=Server=mariadb;Port=3306;Database=OrderXChange;User=orderxchange_user;Password=OrderXChange@2024;AllowUserVariables=True;UseAffectedRows=False
+      - App__CorsOrigins=https://igwdev.beon-it.com,https://igw.beon-it.com,http://localhost:4200
+      - AuthServer__Authority=https://igwdev.beon-it.com
       - AuthServer__SwaggerClientId=OrderXChange_Swagger
-      - OpenIddict__Applications__OrderXChange_Swagger__RootUrl=http://localhost:8081
-      - OpenIddict__Applications__OrderXChange_App__RootUrl=http://localhost:4201
-      - OpenIddict__Applications__OrderXChange_Swagger__RedirectUris__0=http://localhost:8081/swagger/oauth2-redirect.html
-      - App__RedirectAllowedUrls=http://localhost:8081
+      - OpenIddict__Applications__OrderXChange_Swagger__RootUrl=https://igwdev.beon-it.com
+      - OpenIddict__Applications__OrderXChange_App__RootUrl=https://igw.beon-it.com
+      - OpenIddict__Applications__OrderXChange_Swagger__RedirectUris__0=https://igwdev.beon-it.com/swagger/oauth2-redirect.html
+      - App__RedirectAllowedUrls=https://igwdev.beon-it.com
       - AuthServer__CertificatePassPhrase=0ae7c713-43f1-4428-9273-ac71bd31a284
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
@@ -59,9 +58,41 @@ services:
       - Kafka__EventBus__MetadataMaxAgeMs=300000
       # Idempotency Configuration
       - Idempotency__RetentionDays=30
+      # Foodics Configuration
+      - Foodics__BaseUrl=https://api-sandbox.foodics.com/v5
+      - Foodics__ApiToken=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImp0aSI6IjQ2NjFkMTFhZDdhYzE4ZWQ0MGM5OTIxMjEzYzAzZDJjNWJiYmMwNjMzODY4ZmM2OGM5OTZhMDE3NjdiNWM1NGI0MDNjNzYyZmQwOWM1NGExIn0.eyJhdWQiOiI5NzQ1M2M3Mi03ZmI4LTQ5YmYtYmUxOC1hYjAwMWI4MWY3NzMiLCJqdGkiOiI0NjYxZDExYWQ3YWMxOGVkNDBjOTkyMTIxM2MwM2QyYzViYmJjMDYzMzg2OGZjNjhjOTk2YTAxNzY3YjVjNTRiNDAzYzc2MmZkMDljNTRhMSIsImlhdCI6MTY4Nzc1NjkzNCwibmJmIjoxNjg3NzU2OTM0LCJleHAiOjE4NDU2MDk3MzQsInN1YiI6Ijk3YmRmOWFlLTA1OWEtNGUzZC04ODIxLWM4MzgxZTQ1MmNiOSIsInNjb3BlcyI6W10sImJ1c2luZXNzIjoiOTdiZGY5YWUtMTRhZC00OTMxLWJiOWQtNWM0ODI0NjQ5NjhjIiwicmVmZXJlbmNlIjoiNjYzMzAwIn0.MRF86GIKzUlaVSWrO95kwwiji_DjML7cHQF0dU6Fh9bF5LW0IqamII_rbVba4GdluPeBrYNf-xxVIrKqyoHhNakBOYX-pT6U9_n7UMlohcy9cQ9OwInAQtQbq9JAdludK3AGd3o4R8T2sMciYhtPQxT3kLCj1VutzQLm7y8p33-_pGaksRWm76ngvkZZ4lFqe8nGHIOCLH74NO8STTIafiTJUyjPRTd2hl31Hwr7F08Vscie9vsbYAYK8QFfuRljaK7Lzx34-jHyIbamounIAqSiC8Z1LFC_r9ZOa3M8YmXiolEwPp2aVmz0z9c9vhcXcFy_56-gB-N_yJhYPtOVd9ev_Q5Ckh5fahrHFSdVaHHhbxpzbuqVJ67rm-Gn_1bPQhhIuOSt41GJAK1qOeEa97sH1qk0M6wK57JffL1UFhr9eJ7oWcz4Qc_jx_BPmrqheOXyc9hRvL9Nk35yYgJhurWyd0hEQmrJWgJcRoUAfHv5Nkgt2OAEG3MCu7vGC3uLe6Ffn7I9Qzb6yQEGj8wxZ1-KaGyhj0Giee-WHg6zedJddLMTGTPfihqrHMKPiG5-qOykPmUp1c8uC45CySFGG6pBkvcFON7rirJ9DRXf-H1xW3eyc1-hq9swSaxYO1ELwFv420QP4ZgPd-Qytli0kx1pb5kmbNnHV1-S0D-ofF4
+      # Talabat Configuration
+      - Talabat__BaseUrl=https://integration-middleware.me.restaurant-partners.com
+      - Talabat__Username=me-plugin-beon-it-001
+      - Talabat__Password=Lw5afsmkEY
+      - Talabat__Secret=SnyteunCeerhicJofI
+      - Talabat__StaticToken=eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjU3MjMyNTIsImV4cCI6MTc2NTczMDQ1MiwiaXNzIjoibWlkZGxld2FyZSIsInN1YiI6Im1lLXBsdWdpbi1iZW9uLWl0LTAwMSJ9.tNAyUgk1qnLWb5mYBE_K2r3OJBE7cths58PlaUYxLwDoGAdz749gOOqXGEgog59E
+      - Talabat__IntegrationCode=me-plugin-beon-it-001
+      - Talabat__Enabled=true
+      - Talabat__ChainCode=tlbt-pick
+      - Talabat__DefaultVendorCode=PH-SIDDIQ-002
+      - Talabat__PlatformVendorId=PH-SIDDIQ-002
+      - Talabat__PlatformKey=TB_KW
+      - Talabat__PlatformRestaurantId=783216
+      - Talabat__Vendors__0=PH-SIDDIQ-002
+      - Talabat__Vendors__1=PH-SIDDIQ-001
+      - Talabat__VendorConfig__PH-SIDDIQ-001__PlatformKey=TB_KW
+      - Talabat__VendorConfig__PH-SIDDIQ-001__PlatformRestaurantId=783144
+      - Talabat__VendorConfig__PH-SIDDIQ-002__PlatformKey=TB_KW
+      - Talabat__VendorConfig__PH-SIDDIQ-002__PlatformRestaurantId=783216
+      - Talabat__DefaultLocale=ar
+      - Talabat__CallbackBaseUrl=https://igwdev.beon-it.com/api/talabat/webhooks
+      - Talabat__AllowedIps__0=63.32.225.161
+      - Talabat__AllowedIps__1=18.202.96.85
+      - Talabat__AllowedIps__2=52.208.41.152
+      - Talabat__AllowedIps__3=34.246.34.27
+      - Talabat__AllowedIps__4=18.202.142.208
+      - Talabat__AllowedIps__5=54.72.10.41
+      - Talabat__AllowedIps__6=127.0.0.1
+      - Talabat__AllowedIps__7=::1
       - Settings__Abp__Account__EnableLocalLogin=true
     ports:
-      - "8081:8080"
+      - "8090:8080"
     restart: always
     networks:
       - abp-network
@@ -78,7 +109,7 @@ services:
       mariadb:
         condition: service_healthy
     environment:
-      - ConnectionStrings__Default=Server=mariadb;Port=3306;Database=OrderXChange;User=root;Password=P@ssw0rd;CharSet=utf8mb4;
+      - ConnectionStrings__Default=Server=mariadb;Port=3306;Database=OrderXChange;User=orderxchange_user;Password=OrderXChange@2024;CharSet=utf8mb4;
       - RUN_DB_MIGRATOR=${RUN_DB_MIGRATOR:-true}
     restart: "no"
     networks:
@@ -93,7 +124,7 @@ services:
     depends_on:
       - web_api
     ports:
-      - "4201:80"
+      - "4200:80"
     restart: always
     networks:
       - abp-network
@@ -104,10 +135,13 @@ services:
     ports:
       - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: "P@ssw0rd"
+      MARIADB_ROOT_PASSWORD: "P@ssw0rd"
       MYSQL_DATABASE: "OrderXChange"
+      MYSQL_USER: "orderxchange_user"
+      MYSQL_PASSWORD: "OrderXChange@2024"
     volumes:
-      - mariadb-data:/var/lib/mysql
+      - mariadb-data1:/var/lib/mysql
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     networks:
       - abp-network
     healthcheck:
@@ -151,13 +185,19 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_INTERNAL://kafka:29092,PLAINTEXT://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT_INTERNAL://0.0.0.0:29092,PLAINTEXT://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_NUM_NETWORK_THREADS: 3
+      KAFKA_NUM_IO_THREADS: 8
     volumes:
       - kafka-data:/var/lib/kafka/data
     networks:
@@ -172,7 +212,7 @@ services:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
     ports:
-      - "8090:8080"
+      - "8091:8080"
     depends_on:
       - kafka
     environment:
@@ -183,8 +223,8 @@ services:
       - abp-network
 
 volumes:
-  mariadb-data:
-    name: orderxchange_mariadb_data
+  mariadb-data1:
+    name: orderxchange_mariadb_data1
   zookeeper-data:
     name: orderxchange_zookeeper_data
   zookeeper-log:
