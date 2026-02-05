@@ -37,7 +37,6 @@ using Volo.Abp.Autofac;
 using Volo.Abp.Localization;
 using Volo.Abp.Modularity;
 using Volo.Abp.UI.Navigation.Urls;
-using Volo.Abp.AspNetCore.Mvc.UI;
 using Volo.Abp.VirtualFileSystem;
 using Volo.Abp.AspNetCore.Mvc.UI.Bundling;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.Shared;
@@ -134,7 +133,6 @@ public class OrderXChangeHttpApiHostModule : AbpModule
         ConfigureAuthentication(context);
         ConfigureUrls(configuration);
         ConfigureBundles();
-        ConfigureMvcLibs();
         ConfigureConventionalControllers();
         ConfigureExternalProviders(context);
         ConfigureSettings(context);
@@ -203,14 +201,6 @@ public class OrderXChangeHttpApiHostModule : AbpModule
                     bundle.AddFiles("/global-scripts.js");
                 }
             );
-        });
-    }
-
-    private void ConfigureMvcLibs()
-    {
-        Configure<AbpMvcLibsOptions>(options =>
-        {
-            options.CheckLibs = false;
         });
     }
 

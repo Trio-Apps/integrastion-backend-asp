@@ -28,8 +28,9 @@ services:
       - OpenIddict__Applications__OrderXChange_Swagger__RootUrl=https://igwdev.beon-it.com
       - OpenIddict__Applications__OrderXChange_App__RootUrl=https://igw.beon-it.com
       - OpenIddict__Applications__OrderXChange_Swagger__RedirectUris__0=https://igwdev.beon-it.com/swagger/oauth2-redirect.html
-      - App__RedirectAllowedUrls=https://igwdev.beon-it.com
-      - AuthServer__CertificatePassPhrase=0ae7c713-43f1-4428-9273-ac71bd31a284
+       - App__RedirectAllowedUrls=https://igwdev.beon-it.com
+       - AbpMvcLibsOptions__CheckLibs=false
+       - AuthServer__CertificatePassPhrase=0ae7c713-43f1-4428-9273-ac71bd31a284
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
       # Hangfire Configuration
