@@ -12,7 +12,7 @@ COPY modules/ ./modules/
 RUN dotnet restore ./src/OrderXChange.HttpApi.Host/OrderXChange.HttpApi.Host.csproj
 
 WORKDIR /src/OrderXChange.HttpApi.Host
-RUN dotnet tool install -g Volo.Abp.Cli
+RUN dotnet tool install -g Volo.Abp.Cli --version 9.3.6
 ENV PATH="${PATH}:/root/.dotnet/tools"
 RUN abp install-libs
 
