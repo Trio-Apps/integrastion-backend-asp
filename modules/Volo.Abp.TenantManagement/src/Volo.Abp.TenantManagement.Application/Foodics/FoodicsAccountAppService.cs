@@ -3,8 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
-using System.Text;
+using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
+using OrderXChange.BackgroundJobs;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
@@ -20,10 +21,16 @@ namespace Foodics
     {
         private readonly ITenantRepository _tenantRepository;
         private readonly IRepository<FoodicsAccount> _foodicsAccountRepository;
-        public FoodicsAccountAppService(ITenantRepository tenantRepository, IRepository<FoodicsAccount> foodicsAccountRepository)
+        private readonly IMenuSyncAppService _menuSyncAppService;
+
+        public FoodicsAccountAppService(
+            ITenantRepository tenantRepository,
+            IRepository<FoodicsAccount> foodicsAccountRepository,
+            IMenuSyncAppService menuSyncAppService)
         {
             _tenantRepository = tenantRepository;
             _foodicsAccountRepository = foodicsAccountRepository;
+            _menuSyncAppService = menuSyncAppService;
         }
 
         public  async Task<FoodicsAccountDto> CreateAsync(CreateUpdateFoodicsAccountDto input)
@@ -45,6 +52,8 @@ namespace Foodics
             tenant.FoodicsAccounts.Add(foodicsAccount);
             await _tenantRepository.UpdateAsync(tenant , autoSave: true);
 
+            await TriggerMenuSyncSafelyAsync(foodicsAccount.Id);
+
             return ObjectMapper.Map<FoodicsAccount,FoodicsAccountDto>(foodicsAccount);
         }
 
@@ -62,6 +71,8 @@ namespace Foodics
 
             //tenant.FoodicsAccounts.Add(foodics);
             await _tenantRepository.UpdateAsync(tenant, autoSave: true);
+
+            await TriggerMenuSyncSafelyAsync(foodics.Id);
             return ObjectMapper.Map<FoodicsAccount, FoodicsAccountDto>(foodics);
         }
 
@@ -79,6 +90,18 @@ namespace Foodics
         public async Task DeleteAsync([Required]Guid id)
         {
             await _foodicsAccountRepository.DeleteAsync(x => x.Id == id);
+        }
+
+        private async Task TriggerMenuSyncSafelyAsync(Guid foodicsAccountId)
+        {
+            try
+            {
+                await _menuSyncAppService.TriggerMenuSyncAsync(foodicsAccountId);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to trigger menu sync for FoodicsAccountId {FoodicsAccountId}.", foodicsAccountId);
+            }
         }
     }
 }

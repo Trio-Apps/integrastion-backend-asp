@@ -13,7 +13,6 @@ import { TagModule } from 'primeng/tag';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TooltipModule } from 'primeng/tooltip';
 import { DialogModule } from 'primeng/dialog';
-import { PasswordModule } from 'primeng/password';
 import { MessageModule } from 'primeng/message';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { MessageService, ConfirmationService } from 'primeng/api';
@@ -40,7 +39,6 @@ import { LocalizationModule, LocalizationService, PagedResultDto } from '@abp/ng
     SkeletonModule,
     TooltipModule,
     DialogModule,
-    PasswordModule,
     MessageModule,
     ConfirmDialogModule,
     LocalizationModule
@@ -85,8 +83,7 @@ export class TenantListComponent implements OnInit {
   private initializeForm(): void {
     this.createTenantForm = this.fb.group({
       name: ['', [Validators.required, Validators.minLength(2)]],
-      adminEmailAddress: ['', [Validators.required, Validators.email]],
-      adminPassword: ['', [Validators.required, Validators.minLength(6)]]
+      adminEmailAddress: ['', [Validators.required, Validators.email]]
     });
   }
 
@@ -213,7 +210,7 @@ export class TenantListComponent implements OnInit {
     const createDto: TenantCreateDto = {
       name: this.createTenantForm.value.name,
       adminEmailAddress: this.createTenantForm.value.adminEmailAddress,
-      adminPassword: this.createTenantForm.value.adminPassword
+      adminPassword: 'AUTO-GENERATED'
     };
 
     // Call API
@@ -274,8 +271,7 @@ export class TenantListComponent implements OnInit {
   private getFieldLabel(fieldName: string): string {
     const labels: { [key: string]: string } = {
       name: this.l('::Tenants.Dialog.NameLabel'),
-      adminEmailAddress: this.l('::Tenants.Dialog.AdminEmailLabel'),
-      adminPassword: this.l('::Tenants.Dialog.AdminPasswordLabel')
+      adminEmailAddress: this.l('::Tenants.Dialog.AdminEmailLabel')
     };
     return labels[fieldName] || fieldName;
   }

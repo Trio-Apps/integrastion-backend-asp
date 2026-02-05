@@ -5,6 +5,7 @@ import * as Domain from './domain';
 import * as Foodics from './foodics';
 import * as HttpApi from './http-api';
 import * as Microsoft from './microsoft';
+import * as SmtpConfig from './smtp-config';
 import * as Talabat from './talabat';
 import * as Volo from './volo';
-export { Application, BackgroundJobs, Controllers, Domain, Foodics, HttpApi, Microsoft, Talabat, Volo };
+export { Application, BackgroundJobs, Controllers, Domain, Foodics, HttpApi, Microsoft, SmtpConfig, Talabat, Volo };

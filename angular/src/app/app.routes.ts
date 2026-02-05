@@ -51,6 +51,11 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard, permissionGuard],
   },
   {
+    path: 'saas/smtp-config',
+    loadComponent: () => import('./saas/smtp-config/smtp-config.component').then(c => c.SmtpConfigComponent),
+    canActivate: [authGuard, permissionGuard],
+  },
+  {
     path: 'foodics',
     loadComponent: () => import('./saas/foodics-list.component/foodics-list.component').then(c => c.FoodicsListComponent),
     canActivate: [authGuard, permissionGuard],

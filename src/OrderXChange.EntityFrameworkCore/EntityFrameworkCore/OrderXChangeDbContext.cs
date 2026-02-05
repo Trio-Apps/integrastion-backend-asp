@@ -15,6 +15,7 @@ using Volo.Abp.OpenIddict.EntityFrameworkCore;
 using Volo.Abp.TenantManagement.EntityFrameworkCore;
 using Volo.Abp.TenantManagement;
 using Foodics;
+using Volo.Abp.TenantManagement.Smtp;
 using Volo.Abp.TenantManagement.Talabat;
 using OrderXChange.Domain.Staging;
 using OrderXChange.Domain.Versioning;
@@ -62,6 +63,7 @@ public class OrderXChangeDbContext :
 
     public DbSet<FoodicsAccount> FoodicsAccounts { get; set; }
     public DbSet<TalabatAccount> TalabatAccounts { get; set; }
+    public DbSet<SmtpConfig> SmtpConfigs { get; set; }
 
     // Staging tables
     public DbSet<FoodicsProductStaging> FoodicsProductStaging { get; set; }

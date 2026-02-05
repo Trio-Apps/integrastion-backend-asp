@@ -1,0 +1,81 @@
+﻿<div class="smtp-config-page">
+  <p-toast></p-toast>
+
+  <div class="card smtp-card">
+    <div class="header">
+      <div class="title">SMTP Config</div>
+      <div class="subtitle">Basic SMTP settings for email delivery (local-only for now).</div>
+    </div>
+
+    <form [formGroup]="form" class="form-grid" (ngSubmit)="save()">
+      <div class="field">
+        <label for="host">SMTP Host</label>
+        <input id="host" pInputText formControlName="host" placeholder="smtp.yourdomain.com" />
+        <small class="p-error" *ngIf="form.get('host')?.touched && form.get('host')?.invalid">Host is required.</small>
+      </div>
+
+      <div class="field">
+        <label for="port">Port</label>
+        <p-inputNumber
+          inputId="port"
+          formControlName="port"
+          [useGrouping]="false"
+          [min]="1"
+          [max]="65535"
+        ></p-inputNumber>
+        <small class="p-error" *ngIf="form.get('port')?.touched && form.get('port')?.invalid">Valid port is required.</small>
+      </div>
+
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" pInputText formControlName="userName" placeholder="user@yourdomain.com" />
+        <small class="p-error" *ngIf="form.get('userName')?.touched && form.get('userName')?.invalid">Username is required.</small>
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <p-password
+          inputId="password"
+          formControlName="password"
+          [toggleMask]="true"
+          [feedback]="false"
+        ></p-password>
+        <small class="p-error" *ngIf="form.get('password')?.touched && form.get('password')?.invalid">Password is required.</small>
+      </div>
+
+      <div class="field">
+        <label for="fromName">From Name</label>
+        <input id="fromName" pInputText formControlName="fromName" placeholder="OrderXChange" />
+        <small class="p-error" *ngIf="form.get('fromName')?.touched && form.get('fromName')?.invalid">From name is required.</small>
+      </div>
+
+      <div class="field">
+        <label for="fromEmail">From Email</label>
+        <input id="fromEmail" pInputText formControlName="fromEmail" placeholder="noreply@yourdomain.com" />
+        <small class="p-error" *ngIf="form.get('fromEmail')?.touched && form.get('fromEmail')?.invalid">Valid from email is required.</small>
+      </div>
+
+      <div class="field checkbox-field">
+        <p-checkbox inputId="enableSsl" formControlName="enableSsl" [binary]="true"></p-checkbox>
+        <label for="enableSsl">Enable SSL</label>
+      </div>
+
+      <div class="field checkbox-field">
+        <p-checkbox inputId="useStartTls" formControlName="useStartTls" [binary]="true"></p-checkbox>
+        <label for="useStartTls">Use STARTTLS</label>
+      </div>
+
+      <div class="actions">
+        <p-button
+          type="button"
+          label="Test Connection"
+          icon="pi pi-plug"
+          [loading]="testing"
+          [disabled]="saving || loading || testing"
+          (onClick)="testConnection()"
+        ></p-button>
+        <p-button type="submit" label="Save" icon="pi pi-save" [loading]="saving" [disabled]="testing || loading"></p-button>
+      </div>
+    </form>
+  </div>
+</div>

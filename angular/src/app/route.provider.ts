@@ -37,6 +37,15 @@ function configureRoutes() {
         requiredPolicy : 'OrderXChange.Dashboard.Host'
       },
       {
+        path: '/saas/smtp-config',
+        name: 'SMTP Config',
+        iconClass: 'pi pi-envelope',
+        order: 2,
+        parentName : '::Menu:Saas',
+        layout: eLayoutType.application,
+        requiredPolicy : 'OrderXChange.Dashboard.Host'
+      },
+      {
         path: '',
         name: '::Menu:Account',
         iconClass : PrimeIcons.BOX,

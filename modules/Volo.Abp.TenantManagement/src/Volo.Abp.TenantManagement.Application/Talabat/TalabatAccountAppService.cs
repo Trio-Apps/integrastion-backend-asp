@@ -5,6 +5,8 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading.Tasks;
 using Foodics;
+using Microsoft.Extensions.Logging;
+using OrderXChange.BackgroundJobs;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Entities;
@@ -23,15 +25,18 @@ namespace Volo.Abp.TenantManagement.Talabat
         private readonly ITenantRepository _tenantRepository;
         private readonly IRepository<TalabatAccount> _talabatAccountRepository;
         private readonly IRepository<FoodicsAccount, Guid> _foodicsAccountRepository;
+        private readonly IMenuSyncAppService _menuSyncAppService;
 
         public TalabatAccountAppService(
             ITenantRepository tenantRepository,
             IRepository<TalabatAccount> talabatAccountRepository,
-            IRepository<FoodicsAccount, Guid> foodicsAccountRepository)
+            IRepository<FoodicsAccount, Guid> foodicsAccountRepository,
+            IMenuSyncAppService menuSyncAppService)
         {
             _tenantRepository = tenantRepository;
             _talabatAccountRepository = talabatAccountRepository;
             _foodicsAccountRepository = foodicsAccountRepository;
+            _menuSyncAppService = menuSyncAppService;
         }
 
         public async Task<TalabatAccountDto> CreateAsync(CreateUpdateTalabatAccountDto input)
@@ -104,6 +109,8 @@ namespace Volo.Abp.TenantManagement.Talabat
             // ✅ Fixed: Insert directly using repository - more reliable than Tenant collection
             await _talabatAccountRepository.InsertAsync(talabatAccount, autoSave: true);
 
+            await TriggerMenuSyncIfLinkedAsync(talabatAccount.FoodicsAccountId);
+
             // ✅ Return the saved entity - no need to reload from database
             return await MapToDto(talabatAccount);
         }
@@ -158,6 +165,8 @@ namespace Volo.Abp.TenantManagement.Talabat
             talabatAccount.FoodicsGroupName = input.FoodicsGroupName;
 
             await _talabatAccountRepository.UpdateAsync(talabatAccount, autoSave: true);
+
+            await TriggerMenuSyncIfLinkedAsync(talabatAccount.FoodicsAccountId);
 
             return await MapToDto(talabatAccount);
         }
@@ -234,6 +243,23 @@ namespace Volo.Abp.TenantManagement.Talabat
             }
 
             return dto;
+        }
+
+        private async Task TriggerMenuSyncIfLinkedAsync(Guid? foodicsAccountId)
+        {
+            if (!foodicsAccountId.HasValue)
+            {
+                return;
+            }
+
+            try
+            {
+                await _menuSyncAppService.TriggerMenuSyncAsync(foodicsAccountId.Value);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to trigger menu sync for FoodicsAccountId {FoodicsAccountId}.", foodicsAccountId.Value);
+            }
         }
     }
 }

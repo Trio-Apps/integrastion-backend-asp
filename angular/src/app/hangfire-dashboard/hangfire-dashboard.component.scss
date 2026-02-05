@@ -18,5 +18,51 @@
       font-weight: 600;
     }
   }
+
+  .sync-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sync-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .sync-button.is-syncing {
+    box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.6);
+    animation: sync-pulse 1.6s ease-out infinite;
+  }
+
+  .sync-button.is-syncing .sync-icon i {
+    animation: sync-spin 0.9s linear infinite;
+  }
+
+  @keyframes sync-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes sync-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.5);
+    }
+    70% {
+      box-shadow: 0 0 0 12px rgba(25, 135, 84, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(25, 135, 84, 0);
+    }
+  }
 }
 

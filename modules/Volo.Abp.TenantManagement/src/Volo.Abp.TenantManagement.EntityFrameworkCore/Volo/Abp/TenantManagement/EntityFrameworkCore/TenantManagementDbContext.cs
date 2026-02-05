@@ -4,6 +4,7 @@ using Volo.Abp.Data;
 using Volo.Abp.EntityFrameworkCore;
 using Volo.Abp.EntityFrameworkCore.Modeling;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.TenantManagement.Smtp;
 
 namespace Volo.Abp.TenantManagement.EntityFrameworkCore;
 
@@ -15,6 +16,7 @@ public class TenantManagementDbContext : AbpDbContext<TenantManagementDbContext>
 
     public DbSet<TenantConnectionString> TenantConnectionStrings { get; set; }
     public DbSet<FoodicsAccount> FoodicsAccounts { get; set; }
+    public DbSet<SmtpConfig> SmtpConfigs { get; set; }
 
     public TenantManagementDbContext(DbContextOptions<TenantManagementDbContext> options)
         : base(options)

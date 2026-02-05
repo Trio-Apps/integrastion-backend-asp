@@ -6,10 +6,24 @@
         <span [innerHTML]="'::MenuSync.Subtitle' | abpLocalization"></span>
       </p>
     </div>
-    <button class="btn btn-outline-primary" type="button" [disabled]="loading()" (click)="refresh()">
-      <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" *ngIf="loading()"></span>
-      {{ '::MenuSync.Refresh' | abpLocalization }}
-    </button>
+    <div class="d-flex gap-2">
+      <button
+        class="btn btn-success sync-button"
+        type="button"
+        [class.is-syncing]="syncing()"
+        [disabled]="loading() || syncing()"
+        (click)="triggerSync()"
+      >
+        <span class="sync-icon">
+          <i class="pi pi-sync" aria-hidden="true"></i>
+        </span>
+        <span>{{ '::MenuSync.SyncNow' | abpLocalization }}</span>
+      </button>
+      <button class="btn btn-outline-primary" type="button" [disabled]="loading() || syncing()" (click)="refresh()">
+        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" *ngIf="loading()"></span>
+        {{ '::MenuSync.Refresh' | abpLocalization }}
+      </button>
+    </div>
   </div>
 
   <ng-container *ngIf="dashboard() as data; else loadingState">

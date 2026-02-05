@@ -9,15 +9,14 @@ COPY NuGet.Config common.props OrderXChange.sln ./
 COPY src/ ./src/
 COPY modules/ ./modules/
 
-RUN --mount=type=cache,target=/root/.nuget/packages \
-    dotnet restore ./src/OrderXChange.HttpApi.Host/OrderXChange.HttpApi.Host.csproj
+RUN dotnet restore ./src/OrderXChange.HttpApi.Host/OrderXChange.HttpApi.Host.csproj
 
 WORKDIR /src
-RUN --mount=type=cache,target=/root/.nuget/packages \
-    dotnet publish ./src/OrderXChange.HttpApi.Host/OrderXChange.HttpApi.Host.csproj -c Release -o /app/publish
+RUN dotnet publish ./src/OrderXChange.HttpApi.Host/OrderXChange.HttpApi.Host.csproj -c Release -o /app/publish
 
-# Ensure libs folder exists for ABP MVC libs check
-RUN mkdir -p /app/publish/wwwroot/libs
+# Ensure libs folder exists and is non-empty for ABP MVC libs check
+RUN mkdir -p /app/publish/wwwroot/libs \
+    && echo "placeholder" > /app/publish/wwwroot/libs/placeholder.txt
 
 ARG OPENIDDICT_PFX_PASSPHRASE=0ae7c713-43f1-4428-9273-ac71bd31a284
 RUN openssl req -x509 -newkey rsa:2048 -sha256 -nodes \

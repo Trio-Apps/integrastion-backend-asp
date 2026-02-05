@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { MessageService } from 'primeng/api';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { HangfireMonitoringService, HangfireDashboardDto } from '@proxy/background-jobs';
+import { HangfireMonitoringService, HangfireDashboardDto, MenuSyncService } from '@proxy/background-jobs';
 import { HangfireJobTableComponent } from './hangfire-job-table.component';
 import { LocalizationService } from '@abp/ng.core';
 import { LocalizationModule } from '@abp/ng.core';
@@ -19,6 +19,7 @@ import { LocalizationModule } from '@abp/ng.core';
 })
 export class HangfireDashboardComponent implements OnInit {
   private readonly hangfireMonitoringService = inject(HangfireMonitoringService);
+  private readonly menuSyncService = inject(MenuSyncService);
   private readonly messageService = inject(MessageService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly localization = inject(LocalizationService);
@@ -27,6 +28,7 @@ export class HangfireDashboardComponent implements OnInit {
   readonly dashboard = computed(() => this.dashboardSignal());
 
   readonly loading = signal<boolean>(false);
+  readonly syncing = signal<boolean>(false);
   readonly hangfireUrl = 'https://localhost:44325/hangfire';
   readonly cronExpression = signal<string>('');
   readonly metrics = computed(() => {
@@ -64,6 +66,35 @@ export class HangfireDashboardComponent implements OnInit {
             severity: 'error',
             summary: this.l('::MenuSync.Toast.Title'),
             detail: this.l('::MenuSync.Toast.LoadError'),
+          });
+        },
+      });
+  }
+
+  triggerSync(): void {
+    if (this.syncing()) {
+      return;
+    }
+
+    this.syncing.set(true);
+    this.menuSyncService
+      .triggerMenuSync()
+      .pipe(finalize(() => this.syncing.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.messageService.add({
+            severity: 'success',
+            summary: this.l('::MenuSync.Toast.Title'),
+            detail: this.l('::MenuSync.Toast.SyncTriggered'),
+          });
+          this.refresh();
+        },
+        error: error => {
+          console.error('Failed to trigger menu sync', error);
+          this.messageService.add({
+            severity: 'error',
+            summary: this.l('::MenuSync.Toast.Title'),
+            detail: this.l('::MenuSync.Toast.SyncError'),
           });
         },
       });

@@ -2,6 +2,7 @@ using Foodics;
 using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
 using Volo.Abp.EntityFrameworkCore.Modeling;
+using Volo.Abp.TenantManagement.Smtp;
 
 namespace Volo.Abp.TenantManagement.EntityFrameworkCore;
 
@@ -52,6 +53,25 @@ public static class AbpTenantManagementDbContextModelCreatingExtensions
         {
             b.ToTable("FoodicsAccounts");
             b.ConfigureByConvention();
+        });
+
+        builder.Entity<SmtpConfig>(b =>
+        {
+            b.ToTable("SmtpConfigs");
+            b.ConfigureByConvention();
+
+            b.HasIndex(x => x.TenantId)
+                .IsUnique()
+                .HasDatabaseName("IX_SmtpConfigs_TenantId");
+
+            b.Property(x => x.Host).IsRequired().HasMaxLength(256);
+            b.Property(x => x.UserName).IsRequired().HasMaxLength(256);
+            b.Property(x => x.Password).IsRequired().HasMaxLength(512);
+            b.Property(x => x.FromName).IsRequired().HasMaxLength(256);
+            b.Property(x => x.FromEmail).IsRequired().HasMaxLength(256);
+            b.Property(x => x.Port).IsRequired();
+            b.Property(x => x.EnableSsl).IsRequired();
+            b.Property(x => x.UseStartTls).IsRequired();
         });
 
         builder.TryConfigureObjectExtensions<TenantManagementDbContext>();

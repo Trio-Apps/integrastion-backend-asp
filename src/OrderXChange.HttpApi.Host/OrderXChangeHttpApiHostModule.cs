@@ -205,6 +205,7 @@ public class OrderXChangeHttpApiHostModule : AbpModule
     }
 
 
+
     private void ConfigureVirtualFileSystem(ServiceConfigurationContext context)
     {
         var hostingEnvironment = context.Services.GetHostingEnvironment();

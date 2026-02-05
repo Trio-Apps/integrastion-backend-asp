@@ -5,10 +5,8 @@ COPY NuGet.Config common.props OrderXChange.sln ./
 COPY src/ ./src/
 COPY modules/ ./modules/
 
-RUN --mount=type=cache,target=/root/.nuget/packages \
-    dotnet restore ./src/OrderXChange.DbMigrator/OrderXChange.DbMigrator.csproj
-RUN --mount=type=cache,target=/root/.nuget/packages \
-    dotnet publish ./src/OrderXChange.DbMigrator/OrderXChange.DbMigrator.csproj -c Release -o /app/publish
+RUN dotnet restore ./src/OrderXChange.DbMigrator/OrderXChange.DbMigrator.csproj
+RUN dotnet publish ./src/OrderXChange.DbMigrator/OrderXChange.DbMigrator.csproj -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/runtime:9.0
 WORKDIR /app

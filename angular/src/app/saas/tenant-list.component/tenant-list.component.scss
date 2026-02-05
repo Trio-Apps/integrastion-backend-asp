@@ -1,0 +1,27 @@
+.tenant-create-form {
+  .field-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .field-label {
+    width: 140px;
+    padding-top: 0.5rem;
+    font-weight: 600;
+  }
+
+  .field-control {
+    flex: 1;
+    min-width: 0;
+
+    input {
+      max-width: 420px;
+    }
+  }
+}
+
+:host ::ng-deep .tenant-create-dialog .p-dialog-content {
+  padding-top: 1.25rem;
+}

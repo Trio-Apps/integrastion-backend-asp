@@ -209,120 +209,121 @@
   [style]="{ width: '55vw' }"
   [breakpoints]="{ '960px': '75vw', '640px': '90vw' }"
   [header]="isEditMode ? 'Edit Talabat Account' : 'Create Talabat Account'"
-  [closable]="!submitting">
+  [closable]="!submitting"
+  styleClass="talabat-dialog">
   
   <form [formGroup]="accountForm" (ngSubmit)="saveAccount()">
-    <!-- Name -->
-    <div class="field">
-      <label for="name" class="block font-semibold mb-2">Name *</label>
-      <input 
-        pInputText 
-        id="name" 
-        formControlName="name"
-        placeholder="e.g., Pick Siddiq Branch 1"
-        class="w-full" />
-      <small class="text-surface-600">Display name for this Talabat account</small>
-    </div>
+    <div class="dialog-grid">
+      <!-- Name -->
+      <div class="field dialog-field">
+        <label for="name" class="field-label">Name *</label>
+        <input 
+          pInputText 
+          id="name" 
+          formControlName="name"
+          placeholder="e.g., Pick Siddiq Branch 1"
+          class="w-full" />
+        <small class="field-help">Display name for this Talabat account</small>
+      </div>
 
-    <!-- Vendor Code -->
-    <div class="field mt-3">
-      <label for="vendorCode" class="block font-semibold mb-2">Vendor Code *</label>
-      <input 
-        pInputText 
-        id="vendorCode" 
-        formControlName="vendorCode"
-        placeholder="e.g., PH-SIDDIQ-001"
-        class="w-full" />
-      <p-message
-        *ngIf="accountForm.get('vendorCode')?.touched && accountForm.get('vendorCode')?.hasError('required')"
-        severity="error"
-        text="Vendor Code is required">
-      </p-message>
-      <small class="text-surface-600">Your POS vendor code (from your system)</small>
-    </div>
+      <!-- Vendor Code -->
+      <div class="field dialog-field">
+        <label for="vendorCode" class="field-label">Vendor Code *</label>
+        <input 
+          pInputText 
+          id="vendorCode" 
+          formControlName="vendorCode"
+          placeholder="e.g., PH-SIDDIQ-001"
+          class="w-full" />
+        <p-message
+          *ngIf="accountForm.get('vendorCode')?.touched && accountForm.get('vendorCode')?.hasError('required')"
+          severity="error"
+          text="Vendor Code is required">
+        </p-message>
+        <small class="field-help">Your POS vendor code (from your system)</small>
+      </div>
 
-    <!-- Chain Code -->
-    <div class="field mt-3">
-      <label for="chainCode" class="block font-semibold mb-2">Chain Code</label>
-      <input 
-        pInputText 
-        id="chainCode" 
-        formControlName="chainCode"
-        placeholder="e.g., tlbt-pick"
-        class="w-full" />
-      <small class="text-surface-600">Talabat chain identifier (provided by Talabat)</small>
-    </div>
+      <!-- Chain Code -->
+      <div class="field dialog-field">
+        <label for="chainCode" class="field-label">Chain Code</label>
+        <input 
+          pInputText 
+          id="chainCode" 
+          formControlName="chainCode"
+          placeholder="e.g., tlbt-pick"
+          class="w-full" />
+        <small class="field-help">Talabat chain identifier (provided by Talabat)</small>
+      </div>
 
-    <!-- Link to Foodics Account -->
-    <div class="field mt-3">
-      <label for="foodicsAccountId" class="block font-semibold mb-2">
-        <i class="pi pi-link me-1"></i>Linked Foodics Account
-      </label>
-      <p-select
-        id="foodicsAccountId"
-        formControlName="foodicsAccountId"
-        [options]="foodicsAccounts"
-        optionLabel="brandName"
-        optionValue="id"
-        placeholder="Select Foodics account to sync from"
-        [showClear]="true"
-        class="w-full"
-        styleClass="w-full">
-        <ng-template let-account pTemplate="item">
-          <div class="flex items-center gap-2">
-            <i class="pi pi-box text-primary"></i>
-            <span>{{ account.brandName || account.oAuthClientId }}</span>
-          </div>
-        </ng-template>
-      </p-select>
-    </div>
-
-    <!-- Link to Foodics Group (depends on Foodics Account selection) -->
-    <div class="field mt-3" *ngIf="accountForm.get('foodicsAccountId')?.value">
-      <label for="foodicsGroupId" class="block font-semibold mb-2">
-        <i class="pi pi-list me-1"></i>Menu Group
-      </label>
-      <p-select
-        id="foodicsGroupId"
-        formControlName="foodicsGroupId"
-        [options]="foodicsGroups"
-        optionLabel="name"
-        optionValue="id"
-        placeholder="Select group to sync"
-        [showClear]="true"
-        [disabled]="groupsLoading"
-        class="w-full"
-        styleClass="w-full"
-        (onChange)="onFoodicsGroupChange($event.value)">
-        <ng-template let-g pTemplate="item">
-          <div class="flex items-center justify-between w-full">
+      <!-- Link to Foodics Account -->
+      <div class="field dialog-field">
+        <label for="foodicsAccountId" class="field-label">
+          <i class="pi pi-link me-1"></i>Linked Foodics Account
+        </label>
+        <p-select
+          id="foodicsAccountId"
+          formControlName="foodicsAccountId"
+          [options]="foodicsAccounts"
+          optionLabel="brandName"
+          optionValue="id"
+          placeholder="Select Foodics account to sync from"
+          [showClear]="true"
+          class="w-full"
+          styleClass="w-full">
+          <ng-template let-account pTemplate="item">
             <div class="flex items-center gap-2">
-              <i class="pi pi-tag text-primary"></i>
-              <span>{{ g.name || g.nameLocalized || g.id }}</span>
+              <i class="pi pi-box text-primary"></i>
+              <span>{{ account.brandName || account.oAuthClientId }}</span>
             </div>
-            <span class="text-surface-500 text-sm">{{ (g.productCount ?? 0) | number }} products</span>
-          </div>
-        </ng-template>
-      </p-select>
-      <small class="text-surface-600">Select a group to enable menu syncing for this Talabat account</small>
-    </div>
+          </ng-template>
+        </p-select>
+      </div>
 
+      <!-- Link to Foodics Group (depends on Foodics Account selection) -->
+      <div class="field dialog-field" *ngIf="accountForm.get('foodicsAccountId')?.value">
+        <label for="foodicsGroupId" class="field-label">
+          <i class="pi pi-list me-1"></i>Menu Group
+        </label>
+        <p-select
+          id="foodicsGroupId"
+          formControlName="foodicsGroupId"
+          [options]="foodicsGroups"
+          optionLabel="name"
+          optionValue="id"
+          placeholder="Select group to sync"
+          [showClear]="true"
+          [disabled]="groupsLoading"
+          class="w-full"
+          styleClass="w-full"
+          (onChange)="onFoodicsGroupChange($event.value)">
+          <ng-template let-g pTemplate="item">
+            <div class="flex items-center justify-between w-full">
+              <div class="flex items-center gap-2">
+                <i class="pi pi-tag text-primary"></i>
+                <span>{{ g.name || g.nameLocalized || g.id }}</span>
+              </div>
+              <span class="text-surface-500 text-sm">{{ (g.productCount ?? 0) | number }} products</span>
+            </div>
+          </ng-template>
+        </p-select>
+        <small class="field-help">Select a group to enable menu syncing for this Talabat account</small>
+      </div>
 
-
-    <!-- Username & Password -->
-    <div class="grid mt-3">
-      <div class="col-12 md:col-6">
-        <label for="userName" class="block font-semibold mb-2">Username</label>
+      <!-- Username -->
+      <div class="field dialog-field">
+        <label for="userName" class="field-label">Username</label>
         <input 
           pInputText 
           id="userName" 
           formControlName="userName"
           placeholder="e.g., me-plugin-beon-it-001"
           class="w-full" />
-        <small class="text-surface-600">Talabat login username</small>
+        <small class="field-help">Talabat login username</small>
       </div>
-      <div class="col-12 md:col-6">
-        <label for="password" class="block font-semibold mb-2">Password</label>
+
+      <!-- Password -->
+      <div class="field dialog-field">
+        <label for="password" class="field-label">Password</label>
         <p-password 
           id="password" 
           formControlName="password"
@@ -331,14 +332,12 @@
           placeholder="Enter password"
           styleClass="w-full"
           inputStyleClass="w-full" />
-        <small class="text-surface-600">Talabat login password</small>
+        <small class="field-help">Talabat login password</small>
       </div>
-    </div>
 
-    <!-- Platform Key & Restaurant ID -->
-    <div class="grid my-3">
-      <div class="col-12 md:col-6">
-        <label for="platformKey" class="block font-semibold mb-2">Platform Key *</label>
+      <!-- Platform Key -->
+      <div class="field dialog-field">
+        <label for="platformKey" class="field-label">Platform Key *</label>
         <p-select
           id="platformKey"
           formControlName="platformKey"
@@ -348,10 +347,12 @@
           placeholder="Select platform"
           class="w-full"
           styleClass="w-full" />
-        <small class="text-surface-600">Talabat platform/country identifier</small>
+        <small class="field-help">Talabat platform/country identifier</small>
       </div>
-      <div class="col-12 my-3 md:col-6">
-        <label for="platformRestaurantId" class="block font-semibold mb-2">Platform Restaurant ID *</label>
+
+      <!-- Platform Restaurant ID -->
+      <div class="field dialog-field">
+        <label for="platformRestaurantId" class="field-label">Platform Restaurant ID *</label>
         <input 
           pInputText 
           id="platformRestaurantId" 
@@ -363,7 +364,7 @@
           severity="error"
           text="Platform Restaurant ID is required">
         </p-message>
-        <small class="text-surface-600">Restaurant ID from Talabat portal</small>
+        <small class="field-help">Restaurant ID from Talabat portal</small>
       </div>
     </div>
 

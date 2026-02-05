@@ -1,0 +1,66 @@
+﻿.smtp-config-page {
+  .smtp-card {
+    max-width: 760px;
+    margin: 1rem auto;
+  }
+
+  .header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-bottom: 1.5rem;
+
+    .title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-color);
+    }
+
+    .subtitle {
+      color: var(--text-color-secondary);
+      font-size: 0.9rem;
+    }
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem 1.5rem;
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+
+      label {
+        font-weight: 600;
+        font-size: 0.9rem;
+      }
+    }
+
+    .checkbox-field {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+    }
+
+    .actions {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .smtp-card {
+      margin: 0.5rem;
+    }
+
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+}

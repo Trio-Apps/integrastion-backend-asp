@@ -192,16 +192,17 @@
   [draggable]="false"
   [resizable]="false"
   [dismissableMask]="false"
+  styleClass="tenant-create-dialog"
   [header]="'::Tenants.Dialog.Title' | abpLocalization">
   
   <ng-template pTemplate="content">
-    <form [formGroup]="createTenantForm">
+    <form [formGroup]="createTenantForm" class="tenant-create-form">
       <!-- Tenant Name Field -->
-      <div class="flex items-start gap-4 mb-4">
-        <label for="name" class="font-semibold w-40 pt-3">
+      <div class="field-row">
+        <label for="name" class="field-label">
           {{ '::Tenants.Dialog.NameLabel' | abpLocalization }}
         </label>
-        <div class="flex flex-col flex-auto">
+        <div class="field-control">
           <input 
             id="name"
             type="text" 
@@ -219,11 +220,11 @@
       </div>
 
       <!-- Admin Email Field -->
-      <div class="flex items-start gap-4 mb-4">
-        <label for="adminEmailAddress" class="font-semibold w-40 pt-3">
+      <div class="field-row">
+        <label for="adminEmailAddress" class="field-label">
           {{ '::Tenants.Dialog.AdminEmailLabel' | abpLocalization }}
         </label>
-        <div class="flex flex-col flex-auto">
+        <div class="field-control">
           <input 
             id="adminEmailAddress"
             type="email" 
@@ -235,28 +236,6 @@
           @if (isFieldInvalid('adminEmailAddress')) {
             <p-message severity="error" size="small" variant="simple" class="mt-2">
               {{ getFieldError('adminEmailAddress') }}
-            </p-message>
-          }
-        </div>
-      </div>
-
-      <!-- Admin Password Field -->
-      <div class="flex items-start gap-4 mb-4">
-        <label for="adminPassword" class="font-semibold w-40 pt-3">
-          {{ '::Tenants.Dialog.AdminPasswordLabel' | abpLocalization }}
-        </label>
-        <div class="flex flex-col flex-auto">
-          <p-password 
-            id="adminPassword"
-            formControlName="adminPassword"
-            [placeholder]="'::Tenants.Dialog.AdminPasswordPlaceholder' | abpLocalization"
-            [toggleMask]="true"
-            [feedback]="false"
-            styleClass="flex-auto"
-            inputStyleClass="w-full" />
-          @if (isFieldInvalid('adminPassword')) {
-            <p-message severity="error" size="small" variant="simple" class="mt-2">
-              {{ getFieldError('adminPassword') }}
             </p-message>
           }
         </div>

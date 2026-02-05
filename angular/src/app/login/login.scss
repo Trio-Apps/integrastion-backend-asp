@@ -48,9 +48,10 @@
       margin-bottom: 1rem;
 
       .logo-icon {
-        height: 84px;
-        max-width: 220px;
+        max-height: 50px;
+        max-width: 150px;
         width: auto;
+        height: auto;
         display: block;
         object-fit: contain;
       }
@@ -92,25 +93,34 @@
 
   // PrimeNG Input adjustments
   ::ng-deep {
-    .p-inputtext {
+    .p-input-icon-left {
+      display: block;
       width: 100%;
-      padding-left: 2.5rem;
+      position: relative;
+
+      > i {
+        color: var(--text-color-secondary);
+        position: absolute;
+        top: 50%;
+        left: 0.75rem;
+        transform: translateY(-50%);
+        line-height: 1;
+        margin-top: 0;
+        pointer-events: none;
+      }
+
+      .p-inputtext,
+      .p-password-input {
+        width: 100%;
+        padding-left: 2.5rem;
+      }
     }
 
     .p-password {
       width: 100%;
-      
+
       .p-password-input {
         width: 100%;
-      }
-    }
-
-    .p-input-icon-left {
-      display: block;
-      width: 100%;
-
-      > i {
-        color: var(--text-color-secondary);
       }
     }
   }
@@ -191,9 +201,10 @@
   .login-header {
     .logo-section {
       .logo-icon {
-        height: 64px;
-        max-width: 180px;
+        max-height: 52px;
+        max-width: 150px;
         width: auto;
+        height: auto;
       }
 
       .app-name {
