@@ -133,6 +133,7 @@ public class OrderXChangeHttpApiHostModule : AbpModule
         ConfigureAuthentication(context);
         ConfigureUrls(configuration);
         ConfigureBundles();
+        ConfigureMvcLibs();
         ConfigureConventionalControllers();
         ConfigureExternalProviders(context);
         ConfigureSettings(context);
@@ -201,6 +202,14 @@ public class OrderXChangeHttpApiHostModule : AbpModule
                     bundle.AddFiles("/global-scripts.js");
                 }
             );
+        });
+    }
+
+    private void ConfigureMvcLibs()
+    {
+        Configure<AbpMvcLibsOptions>(options =>
+        {
+            options.CheckLibs = false;
         });
     }
 
