@@ -77,9 +77,8 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
             }
         }
 
-        var newMapping = new MenuItemMapping
+        var newMapping = new MenuItemMapping(_guidGenerator.Create())
         {
-            Id = _guidGenerator.Create(),
             FoodicsAccountId = foodicsAccountId,
             BranchId = branchId,
             EntityType = entityType,
@@ -473,9 +472,8 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
             }
         }
 
-        var newMapping = new MenuItemMapping
+        var newMapping = new MenuItemMapping(_guidGenerator.Create())
         {
-            Id = _guidGenerator.Create(),
             FoodicsAccountId = foodicsAccountId,
             BranchId = branchId,
             EntityType = entityType,

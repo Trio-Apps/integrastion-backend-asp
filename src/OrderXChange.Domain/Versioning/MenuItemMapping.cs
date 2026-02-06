@@ -13,6 +13,13 @@ namespace OrderXChange.Domain.Versioning;
 /// </summary>
 public class MenuItemMapping : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
+    protected MenuItemMapping()
+    {
+    }
+
+    public MenuItemMapping(Guid id) : base(id)
+    {
+    }
     /// <summary>
     /// Foreign key to FoodicsAccount
     /// </summary>
