@@ -651,13 +651,13 @@ public class MenuSyncRecurringJob : ITransientDependency
                 try
                 {
                     var correlationId = syncRun?.CorrelationId ?? Guid.NewGuid().ToString();
-                    var talabatResult = await _talabatSyncService.SyncCatalogAsync(
+                    var talabatResult = await _talabatSyncService.SyncCatalogV2Async(
                         allProducts.Values,
                         talabatChainCode,
                         foodicsAccountId,
                         branchId,
-                        talabatVendorCode,
                         correlationId,
+                        talabatVendorCode,
                         cancellationToken);
 
                     if (talabatResult.Success)
