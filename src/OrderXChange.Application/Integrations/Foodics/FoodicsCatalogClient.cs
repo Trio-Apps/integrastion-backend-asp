@@ -126,7 +126,7 @@ public class FoodicsCatalogClient
         }
 
         var token = GetAccessToken(accessToken);
-        var url = $"products?filter[id]={Uri.EscapeDataString(string.Join(",", idList))}";
+        var url = $"products?filter[id]={Uri.EscapeDataString(string.Join(",", idList))}&filter[is_deleted]=false&filter[is_active]=true";
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -172,7 +172,7 @@ public class FoodicsCatalogClient
 
         var token = GetAccessToken(accessToken);
         var includes = "category,price_tags,tax_group,tags,branches,ingredients.branches,modifiers,modifiers.options,modifiers.options.branches,discounts,timed_events,groups";
-        var url = $"products?filter[id]={Uri.EscapeDataString(string.Join(",", idList))}&include={Uri.EscapeDataString(includes)}";
+        var url = $"products?filter[id]={Uri.EscapeDataString(string.Join(",", idList))}&include={Uri.EscapeDataString(includes)}&filter[is_deleted]=false&filter[is_active]=true";
 
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -253,16 +253,26 @@ public class FoodicsCatalogClient
             try
             {
                 var queryParams = new List<string>
-            {
-                $"include={Uri.EscapeDataString(includes)}",
-                $"page={currentPage}",
-                $"per_page={perPage}"
-            };
+                {
+                    $"include={Uri.EscapeDataString(includes)}",
+                    $"page={currentPage}",
+                    $"per_page={perPage}"
+                };
 
                 // Optionally filter by branch if specified
                 if (!string.IsNullOrWhiteSpace(branchId))
                 {
                     queryParams.Add($"filter[branch_id]={Uri.EscapeDataString(branchId)}");
+                }
+
+                // Filter out deleted/inactive at the API level when not requested
+                if (!includeDeleted)
+                {
+                    queryParams.Add("filter[is_deleted]=false");
+                }
+                if (!includeInactive)
+                {
+                    queryParams.Add("filter[is_active]=true");
                 }
 
                 var url = $"products?{string.Join("&", queryParams)}";
