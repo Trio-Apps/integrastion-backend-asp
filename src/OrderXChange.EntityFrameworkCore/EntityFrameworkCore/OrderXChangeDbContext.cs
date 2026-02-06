@@ -229,6 +229,9 @@ public class OrderXChangeDbContext :
             b.Property(x => x.Name).IsRequired();
             b.Property(x => x.FoodicsProductId).IsRequired().HasMaxLength(100);
             b.Property(x => x.FoodicsAccountId).IsRequired();
+
+            // Staging is a sync/overwrite table: do not enforce concurrency token checks
+            b.Property(x => x.ConcurrencyStamp).IsConcurrencyToken(false);
         });
 
         // Configure IdempotencyRecord entity

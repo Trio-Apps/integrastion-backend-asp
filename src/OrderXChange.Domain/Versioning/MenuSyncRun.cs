@@ -336,6 +336,7 @@ public class MenuSyncRun : FullAuditedAggregateRoot<Guid>, IMultiTenant
     {
         var step = new MenuSyncRunStep
         {
+            Id = Guid.NewGuid(),
             MenuSyncRunId = Id,
             StepType = stepType,
             Message = message,
