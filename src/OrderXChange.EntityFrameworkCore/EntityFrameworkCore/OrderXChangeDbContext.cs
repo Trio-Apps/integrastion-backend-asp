@@ -70,6 +70,7 @@ public class OrderXChangeDbContext :
     
     // Talabat sync tracking
     public DbSet<TalabatCatalogSyncLog> TalabatCatalogSyncLogs { get; set; }
+    public DbSet<TalabatOrderSyncLog> TalabatOrderSyncLogs { get; set; }
     
     // Dead Letter Queue
     public DbSet<DlqMessage> DlqMessages { get; set; }
@@ -299,6 +300,45 @@ public class OrderXChangeDbContext :
                 .OnDelete(DeleteBehavior.Restrict);
 
             // Property configurations
+            b.Property(x => x.VendorCode).IsRequired().HasMaxLength(100);
+            b.Property(x => x.Status).IsRequired().HasMaxLength(50);
+        });
+
+        // Configure TalabatOrderSyncLog entity
+        builder.Entity<TalabatOrderSyncLog>(b =>
+        {
+            b.ToTable(OrderXChangeConsts.DbTablePrefix + "TalabatOrderSyncLogs", OrderXChangeConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.HasIndex(x => x.FoodicsAccountId)
+                .HasDatabaseName("IX_TalabatOrderSyncLogs_FoodicsAccountId");
+
+            b.HasIndex(x => x.VendorCode)
+                .HasDatabaseName("IX_TalabatOrderSyncLogs_VendorCode");
+
+            b.HasIndex(x => x.OrderToken)
+                .HasDatabaseName("IX_TalabatOrderSyncLogs_OrderToken");
+
+            b.HasIndex(x => x.OrderCode)
+                .HasDatabaseName("IX_TalabatOrderSyncLogs_OrderCode");
+
+            b.HasIndex(x => x.Status)
+                .HasDatabaseName("IX_TalabatOrderSyncLogs_Status");
+
+            b.HasIndex(x => x.ReceivedAt)
+                .HasDatabaseName("IX_TalabatOrderSyncLogs_ReceivedAt");
+
+            b.HasIndex(x => x.CorrelationId)
+                .HasDatabaseName("IX_TalabatOrderSyncLogs_CorrelationId");
+
+            b.HasIndex(x => x.TenantId)
+                .HasDatabaseName("IX_TalabatOrderSyncLogs_TenantId");
+
+            b.HasOne(x => x.FoodicsAccount)
+                .WithMany()
+                .HasForeignKey(x => x.FoodicsAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             b.Property(x => x.VendorCode).IsRequired().HasMaxLength(100);
             b.Property(x => x.Status).IsRequired().HasMaxLength(50);
         });

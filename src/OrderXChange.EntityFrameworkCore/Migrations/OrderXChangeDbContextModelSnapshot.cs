@@ -627,6 +627,160 @@ namespace OrderXChange.Migrations
                     b.ToTable("AppTalabatCatalogSyncLogs", (string)null);
                 });
 
+            modelBuilder.Entity("OrderXChange.Domain.Staging.TalabatOrderSyncLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CategoriesCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("longtext")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("FoodicsAccountId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("FoodicsOrderId")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("FoodicsResponseJson")
+                        .HasColumnType("LONGTEXT");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<bool>("IsTestOrder")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("LastAttemptUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("OrderCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime?>("OrderCreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("OrderToken")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("PlatformRestaurantId")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("ProductsCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ShortCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("VendorCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("WebhookPayloadJson")
+                        .HasColumnType("LONGTEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CorrelationId")
+                        .HasDatabaseName("IX_TalabatOrderSyncLogs_CorrelationId");
+
+                    b.HasIndex("FoodicsAccountId")
+                        .HasDatabaseName("IX_TalabatOrderSyncLogs_FoodicsAccountId");
+
+                    b.HasIndex("OrderCode")
+                        .HasDatabaseName("IX_TalabatOrderSyncLogs_OrderCode");
+
+                    b.HasIndex("OrderToken")
+                        .HasDatabaseName("IX_TalabatOrderSyncLogs_OrderToken");
+
+                    b.HasIndex("ReceivedAt")
+                        .HasDatabaseName("IX_TalabatOrderSyncLogs_ReceivedAt");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_TalabatOrderSyncLogs_Status");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("IX_TalabatOrderSyncLogs_TenantId");
+
+                    b.HasIndex("VendorCode")
+                        .HasDatabaseName("IX_TalabatOrderSyncLogs_VendorCode");
+
+                    b.ToTable("AppTalabatOrderSyncLogs", (string)null);
+                });
+
             modelBuilder.Entity("OrderXChange.Domain.Versioning.FoodicsMenuGroup", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4742,6 +4896,17 @@ namespace OrderXChange.Migrations
                 });
 
             modelBuilder.Entity("OrderXChange.Domain.Staging.TalabatCatalogSyncLog", b =>
+                {
+                    b.HasOne("Foodics.FoodicsAccount", "FoodicsAccount")
+                        .WithMany()
+                        .HasForeignKey("FoodicsAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("FoodicsAccount");
+                });
+
+            modelBuilder.Entity("OrderXChange.Domain.Staging.TalabatOrderSyncLog", b =>
                 {
                     b.HasOne("Foodics.FoodicsAccount", "FoodicsAccount")
                         .WithMany()

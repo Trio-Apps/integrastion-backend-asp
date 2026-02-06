@@ -11,6 +11,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OrderXChange.Application.Contracts.Integrations.Talabat;
+using OrderXChange.Application.Integrations.Talabat;
+using OrderXChange.Domain.Staging;
+using OrderXChange.Integrations.Talabat;
+using Volo.Abp.Domain.Repositories;
+using Volo.Abp.EventBus.Distributed;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.AspNetCore.Mvc;
 
 namespace OrderXChange.Controllers;
@@ -29,15 +35,27 @@ public class TalabatWebhookController : AbpController
 {
     private readonly IConfiguration _configuration;
     private readonly ITalabatSyncStatusService _syncStatusService;
+    private readonly TalabatAccountService _talabatAccountService;
+    private readonly IRepository<TalabatOrderSyncLog, Guid> _orderSyncLogRepository;
+    private readonly IDistributedEventBus _eventBus;
+    private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<TalabatWebhookController> _logger;
 
     public TalabatWebhookController(
         IConfiguration configuration,
         ITalabatSyncStatusService syncStatusService,
+        TalabatAccountService talabatAccountService,
+        IRepository<TalabatOrderSyncLog, Guid> orderSyncLogRepository,
+        IDistributedEventBus eventBus,
+        ICurrentTenant currentTenant,
         ILogger<TalabatWebhookController> logger)
     {
         _configuration = configuration;
         _syncStatusService = syncStatusService;
+        _talabatAccountService = talabatAccountService;
+        _orderSyncLogRepository = orderSyncLogRepository;
+        _eventBus = eventBus;
+        _currentTenant = currentTenant;
         _logger = logger;
     }
 
@@ -229,6 +247,159 @@ public class TalabatWebhookController : AbpController
         });
     }
 
+    /// <summary>
+    /// Receives order webhook from Talabat Integration Middleware
+    /// </summary>
+    [HttpPost("order/{vendorCode?}")]
+    public async Task<IActionResult> OrderWebhookAsync(string? vendorCode, CancellationToken cancellationToken)
+    {
+        var correlationId = Guid.NewGuid().ToString();
+
+        try
+        {
+            Request.EnableBuffering();
+            Request.Body.Position = 0;
+            using var reader = new StreamReader(Request.Body, Encoding.UTF8, leaveOpen: true);
+            var rawBody = await reader.ReadToEndAsync();
+            Request.Body.Position = 0;
+
+            var clientIp = GetClientIpAddress();
+
+            _logger.LogInformation(
+                "Received Talabat order webhook. CorrelationId={CorrelationId}, ClientIP={ClientIP}, BodyLength={BodyLength}",
+                correlationId,
+                clientIp,
+                rawBody.Length);
+
+            if (!ValidateIpWhitelist(clientIp))
+            {
+                _logger.LogWarning(
+                    "Talabat order webhook rejected - IP not in whitelist. CorrelationId={CorrelationId}, ClientIP={ClientIP}",
+                    correlationId,
+                    clientIp);
+            }
+
+            var webhook = JsonSerializer.Deserialize<TalabatOrderWebhook>(rawBody, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            if (webhook == null)
+            {
+                _logger.LogWarning(
+                    "Failed to parse Talabat order webhook. CorrelationId={CorrelationId}, Body={Body}",
+                    correlationId,
+                    rawBody);
+
+                return Ok(new { success = true, message = "Webhook received but could not be parsed" });
+            }
+
+            var resolvedVendorCode = ResolveVendorCode(vendorCode, webhook);
+            if (string.IsNullOrWhiteSpace(resolvedVendorCode))
+            {
+                _logger.LogWarning(
+                    "Unable to resolve vendor code for Talabat order webhook. CorrelationId={CorrelationId}, PlatformRestaurantId={PlatformRestaurantId}",
+                    correlationId,
+                    webhook.PlatformRestaurant?.Id);
+                return Ok(new { success = true, correlationId, message = "Vendor code not resolved" });
+            }
+
+            var account = await _talabatAccountService.GetAccountByVendorCodeAsync(resolvedVendorCode, cancellationToken);
+            if (account == null && !string.IsNullOrWhiteSpace(webhook.PlatformRestaurant?.Id))
+            {
+                account = await _talabatAccountService.GetAccountByPlatformRestaurantIdAsync(webhook.PlatformRestaurant.Id, cancellationToken);
+            }
+
+            if (account == null)
+            {
+                _logger.LogWarning(
+                    "No TalabatAccount found for vendor. CorrelationId={CorrelationId}, VendorCode={VendorCode}, PlatformRestaurantId={PlatformRestaurantId}",
+                    correlationId,
+                    resolvedVendorCode,
+                    webhook.PlatformRestaurant?.Id);
+                return Ok(new { success = true, correlationId, message = "Account not configured" });
+            }
+
+            if (!account.FoodicsAccountId.HasValue)
+            {
+                _logger.LogWarning(
+                    "TalabatAccount missing FoodicsAccountId. CorrelationId={CorrelationId}, VendorCode={VendorCode}, TalabatAccountId={TalabatAccountId}",
+                    correlationId,
+                    account.VendorCode,
+                    account.Id);
+                return Ok(new { success = true, correlationId, message = "Foodics account not linked" });
+            }
+
+            var logPayload = ShouldLogOrderPayload();
+            var productsCount = webhook.Products?.Count ?? 0;
+            var categoriesCount = webhook.Products == null
+                ? 0
+                : webhook.Products
+                    .Select(x => x.CategoryName)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count();
+
+            using (_currentTenant.Change(account.TenantId))
+            {
+                var orderLog = new TalabatOrderSyncLog
+                {
+                    FoodicsAccountId = account.FoodicsAccountId.Value,
+                    VendorCode = account.VendorCode,
+                    PlatformRestaurantId = webhook.PlatformRestaurant?.Id,
+                    OrderToken = webhook.Token,
+                    OrderCode = webhook.Code,
+                    ShortCode = webhook.ShortCode,
+                    CorrelationId = correlationId,
+                    Status = "Enqueued",
+                    IsTestOrder = webhook.Test ?? false,
+                    ProductsCount = productsCount,
+                    CategoriesCount = categoriesCount,
+                    OrderCreatedAt = webhook.CreatedAt,
+                    ReceivedAt = DateTime.UtcNow,
+                    WebhookPayloadJson = logPayload ? rawBody : null,
+                    Attempts = 0
+                };
+
+                await _orderSyncLogRepository.InsertAsync(orderLog, autoSave: true, cancellationToken: cancellationToken);
+
+                var idempotencyKey = BuildOrderIdempotencyKey(account.VendorCode, webhook);
+
+                var dispatchEvent = new OrderDispatchEto
+                {
+                    CorrelationId = correlationId,
+                    AccountId = account.FoodicsAccountId.Value,
+                    FoodicsAccountId = account.FoodicsAccountId.Value,
+                    VendorCode = account.VendorCode,
+                    TenantId = account.TenantId,
+                    OrderLogId = orderLog.Id,
+                    IdempotencyKey = idempotencyKey,
+                    OccurredAt = DateTime.UtcNow
+                };
+
+                await _eventBus.PublishAsync(dispatchEvent);
+
+                _logger.LogInformation(
+                    "Talabat order webhook enqueued. CorrelationId={CorrelationId}, VendorCode={VendorCode}, OrderLogId={OrderLogId}, Products={Products}",
+                    correlationId,
+                    account.VendorCode,
+                    orderLog.Id,
+                    productsCount);
+            }
+
+            return Ok(new { success = true, correlationId, message = "Order webhook processed" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error processing Talabat order webhook. CorrelationId={CorrelationId}",
+                correlationId);
+
+            return Ok(new { success = false, correlationId, error = "Internal processing error" });
+        }
+    }
+
     #region Private Methods
 
     private async Task HandleCatalogImportCompletedAsync(
@@ -360,6 +531,56 @@ public class TalabatWebhookController : AbpController
         }
 
         return allowedIps.Contains(clientIp);
+    }
+
+    private bool ShouldLogOrderPayload()
+    {
+        return _configuration.GetValue<bool?>("Talabat:LogOrderPayload")
+               ?? _configuration.GetValue<bool?>("Talabat:LogCatalogPayload")
+               ?? true;
+    }
+
+    private string? ResolveVendorCode(string? vendorCode, TalabatOrderWebhook webhook)
+    {
+        if (!string.IsNullOrWhiteSpace(vendorCode))
+        {
+            return vendorCode;
+        }
+
+        var headerVendor = Request.Headers["X-Vendor-Code"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(headerVendor))
+        {
+            return headerVendor;
+        }
+
+        var platformRestaurantId = webhook.PlatformRestaurant?.Id;
+        if (string.IsNullOrWhiteSpace(platformRestaurantId))
+        {
+            return null;
+        }
+
+        var vendorConfig = _configuration.GetSection("Talabat:VendorConfig").GetChildren();
+        foreach (var vendorSection in vendorConfig)
+        {
+            var configuredRestaurantId = vendorSection.GetValue<string>("PlatformRestaurantId");
+            if (string.Equals(configuredRestaurantId, platformRestaurantId, StringComparison.OrdinalIgnoreCase))
+            {
+                return vendorSection.Key;
+            }
+        }
+
+        return null;
+    }
+
+    private static string BuildOrderIdempotencyKey(string vendorCode, TalabatOrderWebhook webhook)
+    {
+        var keyPart = !string.IsNullOrWhiteSpace(webhook.Token)
+            ? webhook.Token
+            : !string.IsNullOrWhiteSpace(webhook.Code)
+                ? webhook.Code
+                : Guid.NewGuid().ToString("N");
+
+        return $"order:{vendorCode}:{keyPart}";
     }
 
     #endregion

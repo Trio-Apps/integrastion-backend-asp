@@ -72,6 +72,27 @@ public class TalabatAccountService : ITransientDependency
     }
 
     /// <summary>
+    /// Gets TalabatAccount by PlatformRestaurantId (Talabat internal restaurant id).
+    /// Uses requiresNew UoW to avoid disposed DbContext issues in background jobs.
+    /// </summary>
+    public async Task<TalabatAccount?> GetAccountByPlatformRestaurantIdAsync(
+        string platformRestaurantId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(platformRestaurantId))
+        {
+            return null;
+        }
+
+        using var uow = _unitOfWorkManager.Begin(requiresNew: true);
+        var account = await _talabatAccountRepository.FirstOrDefaultAsync(
+            x => x.PlatformRestaurantId == platformRestaurantId && x.IsActive,
+            cancellationToken: cancellationToken);
+        await uow.CompleteAsync(cancellationToken);
+        return account;
+    }
+
+    /// <summary>
     /// Gets TalabatAccount by ID
     /// Uses requiresNew UoW to avoid disposed DbContext issues in background jobs.
     /// </summary>
