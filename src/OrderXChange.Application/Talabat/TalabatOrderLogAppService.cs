@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using OrderXChange.Application.Contracts.Integrations.Talabat;
 using OrderXChange.Domain.Staging;
-using Microsoft.AspNetCore.Mvc;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
@@ -12,7 +11,6 @@ using System.Linq.Dynamic.Core;
 
 namespace OrderXChange.Talabat;
 
-[Route("api/app/talabat-order-logs")]
 public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogAppService
 {
     private readonly IRepository<TalabatOrderSyncLog, Guid> _orderLogRepository;
@@ -22,7 +20,6 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
         _orderLogRepository = orderLogRepository;
     }
 
-    [HttpGet]
     public async Task<PagedResultDto<TalabatOrderLogDto>> GetListAsync(GetTalabatOrderLogsInput input)
     {
         var queryable = await _orderLogRepository.GetQueryableAsync();
