@@ -17,6 +17,7 @@ public class AbpTenantManagementApplicationAutoMapperProfile : Profile
         CreateMap<TalabatAccountDto, TalabatAccount>()
             .ForMember(dest => dest.TenantId, opt => opt.Ignore())
             .ForMember(dest => dest.FoodicsAccount, opt => opt.Ignore())
+            .ForMember(dest => dest.Password, opt => opt.Ignore())
             .ReverseMap();
 
         CreateMap<SmtpConfigDto, SmtpConfig>()
