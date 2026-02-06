@@ -217,6 +217,7 @@ public class FoodicsCatalogClient
     /// <param name="branchId">Optional branch ID to filter products by branch availability</param>
     /// <param name="perPage">Number of products per page (default: 100, max recommended: 250)</param>
     /// <param name="includeDeleted">Whether to include deleted products (useful for Sandbox testing)</param>
+    /// <param name="includeInactive">Whether to include inactive products</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Dictionary of all products keyed by product ID</returns>
     public async Task<Dictionary<string, FoodicsProductDetailDto>> GetAllProductsWithIncludesAsync(
@@ -224,6 +225,7 @@ public class FoodicsCatalogClient
     string? accessToken = null,
     int perPage = 100,
     bool includeDeleted = false,
+    bool includeInactive = false,
     CancellationToken cancellationToken = default)
     {
         var token = GetAccessToken(accessToken);
@@ -240,10 +242,11 @@ public class FoodicsCatalogClient
 
         _logger.LogInformation(
             "[Foodics GetAllProducts] Starting to fetch ALL Foodics products with full includes. " +
-            "Branch={BranchId}, PerPage={PerPage}, IncludeDeleted={IncludeDeleted}",
+            "Branch={BranchId}, PerPage={PerPage}, IncludeDeleted={IncludeDeleted}, IncludeInactive={IncludeInactive}",
             branchId ?? "<all>",
             perPage,
-            includeDeleted);
+            includeDeleted,
+            includeInactive);
 
         while (true)
         {
@@ -349,6 +352,10 @@ public class FoodicsCatalogClient
                             // Check if DeletedAt is null, empty, or whitespace (not deleted)
                             shouldInclude = shouldInclude && (item.DeletedAt == null || string.IsNullOrWhiteSpace(item.DeletedAt));
                         }
+                        if (!includeInactive)
+                        {
+                            shouldInclude = shouldInclude && (item.IsActive == true);
+                        }
 
                         if (shouldInclude)
                         {
@@ -367,7 +374,8 @@ public class FoodicsCatalogClient
                                 item.Id, item.Name, item.DeletedAt ?? "<null>",
                                 string.IsNullOrWhiteSpace(item.Id) ? "EmptyId" :
                                 result.ContainsKey(item.Id) ? "Duplicate" :
-                                !string.IsNullOrWhiteSpace(item.DeletedAt) ? "Deleted" : "Unknown");
+                                !string.IsNullOrWhiteSpace(item.DeletedAt) ? "Deleted" :
+                                item.IsActive == false ? "Inactive" : "Unknown");
                         }
                     }
 
@@ -446,6 +454,10 @@ public class FoodicsCatalogClient
                             // Check if DeletedAt is null, empty, or whitespace (not deleted)
                             shouldInclude = shouldInclude && (item.DeletedAt == null || string.IsNullOrWhiteSpace(item.DeletedAt));
                         }
+                        if (!includeInactive)
+                        {
+                            shouldInclude = shouldInclude && (item.IsActive == true);
+                        }
 
                         if (shouldInclude)
                         {
@@ -463,7 +475,8 @@ public class FoodicsCatalogClient
                                 item.Id, item.Name, item.DeletedAt ?? "<null>",
                                 string.IsNullOrWhiteSpace(item.Id) ? "EmptyId" :
                                 result.ContainsKey(item.Id) ? "Duplicate" :
-                                !string.IsNullOrWhiteSpace(item.DeletedAt) ? "Deleted" : "Unknown");
+                                !string.IsNullOrWhiteSpace(item.DeletedAt) ? "Deleted" :
+                                item.IsActive == false ? "Inactive" : "Unknown");
                         }
                     }
 
