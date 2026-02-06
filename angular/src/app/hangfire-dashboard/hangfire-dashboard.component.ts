@@ -29,6 +29,7 @@ export class HangfireDashboardComponent implements OnInit {
 
   readonly loading = signal<boolean>(false);
   readonly syncing = signal<boolean>(false);
+  readonly syncQueued = signal<boolean>(false);
   readonly hangfireUrl = 'https://localhost:44325/hangfire';
   readonly cronExpression = signal<string>('');
   readonly metrics = computed(() => {
@@ -48,6 +49,7 @@ export class HangfireDashboardComponent implements OnInit {
 
   ngOnInit(): void {
     this.refresh();
+    this.destroyRef.onDestroy(() => this.clearSyncTimers());
   }
 
   refresh(): void {
@@ -87,6 +89,7 @@ export class HangfireDashboardComponent implements OnInit {
             summary: this.l('::MenuSync.Toast.Title'),
             detail: this.l('::MenuSync.Toast.SyncTriggered'),
           });
+          this.startSyncAnimation();
           this.refresh();
         },
         error: error => {
@@ -102,6 +105,29 @@ export class HangfireDashboardComponent implements OnInit {
 
   private l(key: string, ...interpolateParams: string[]): string {
     return this.localization.instant(key, ...interpolateParams);
+  }
+
+  private syncAnimationTimers: number[] = [];
+
+  private startSyncAnimation(): void {
+    this.syncQueued.set(true);
+    this.clearSyncTimers();
+
+    this.syncAnimationTimers.push(
+      window.setTimeout(() => this.refresh(), 3000),
+      window.setTimeout(() => this.refresh(), 8000),
+      window.setTimeout(() => this.refresh(), 13000),
+      window.setTimeout(() => this.syncQueued.set(false), 15000),
+    );
+  }
+
+  private clearSyncTimers(): void {
+    while (this.syncAnimationTimers.length > 0) {
+      const timer = this.syncAnimationTimers.pop();
+      if (timer) {
+        window.clearTimeout(timer);
+      }
+    }
   }
 }
 

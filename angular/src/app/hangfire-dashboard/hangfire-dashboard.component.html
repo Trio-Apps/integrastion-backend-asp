@@ -1,4 +1,4 @@
-<div class="menu-sync-dashboard">
+<div class="menu-sync-dashboard" [class.is-sync-queued]="syncQueued()">
   <div class="d-flex align-items-center justify-content-between mb-4">
     <div>
       <h2 class="mb-1">{{ '::MenuSync.Title' | abpLocalization }}</h2>
@@ -10,20 +10,24 @@
       <button
         class="btn btn-success sync-button"
         type="button"
-        [class.is-syncing]="syncing()"
+        [class.is-syncing]="syncing() || syncQueued()"
         [disabled]="loading() || syncing()"
         (click)="triggerSync()"
       >
         <span class="sync-icon">
           <i class="pi pi-sync" aria-hidden="true"></i>
         </span>
-        <span>{{ '::MenuSync.SyncNow' | abpLocalization }}</span>
+        <span>{{ syncing() ? 'Syncing…' : ('::MenuSync.SyncNow' | abpLocalization) }}</span>
       </button>
       <button class="btn btn-outline-primary" type="button" [disabled]="loading() || syncing()" (click)="refresh()">
         <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" *ngIf="loading()"></span>
         {{ '::MenuSync.Refresh' | abpLocalization }}
       </button>
     </div>
+  </div>
+  <div class="sync-status" *ngIf="syncQueued()">
+    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+    <span>Sync queued. Waiting for Hangfire…</span>
   </div>
 
   <ng-container *ngIf="dashboard() as data; else loadingState">

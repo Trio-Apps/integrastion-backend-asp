@@ -16,6 +16,7 @@ using Volo.Abp.EntityFrameworkCore;
 using Volo.Abp;
 using Foodics;
 using Volo.Abp.TenantManagement.Talabat;
+using Hangfire;
 
 namespace OrderXChange.BackgroundJobs;
 
@@ -27,28 +28,28 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
 {
     private readonly FoodicsCatalogClient _foodicsCatalogClient;
     private readonly FoodicsAccountTokenService _tokenService;
-    private readonly MenuSyncScheduler _menuSyncScheduler;
     private readonly IRepository<FoodicsAccount, Guid> _foodicsAccountRepository;
     private readonly IRepository<TalabatAccount, Guid> _talabatAccountRepository;
     private readonly IDbContextProvider<OrderXChangeDbContext> _dbContextProvider;
     private readonly FoodicsProductStagingToFoodicsConverter _stagingConverter;
+    private readonly IBackgroundJobClient _backgroundJobClient;
 
     public MenuSyncAppService(
         FoodicsCatalogClient foodicsCatalogClient,
         FoodicsAccountTokenService tokenService,
-        MenuSyncScheduler menuSyncScheduler,
         IRepository<FoodicsAccount, Guid> foodicsAccountRepository,
         IRepository<TalabatAccount, Guid> talabatAccountRepository,
         IDbContextProvider<OrderXChangeDbContext> dbContextProvider,
-        FoodicsProductStagingToFoodicsConverter stagingConverter)
+        FoodicsProductStagingToFoodicsConverter stagingConverter,
+        IBackgroundJobClient backgroundJobClient)
     {
         _foodicsCatalogClient = foodicsCatalogClient;
         _tokenService = tokenService;
-        _menuSyncScheduler = menuSyncScheduler;
         _foodicsAccountRepository = foodicsAccountRepository;
         _talabatAccountRepository = talabatAccountRepository;
         _dbContextProvider = dbContextProvider;
         _stagingConverter = stagingConverter;
+        _backgroundJobClient = backgroundJobClient;
     }
 
     /// <summary>
@@ -59,10 +60,10 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
         string? branchId = null,
         CancellationToken cancellationToken = default)
     {
-        await _menuSyncScheduler.PublishMenuSyncEventAsync(
-            foodicsAccountId,
-            branchId,
-            cancellationToken);
+        _backgroundJobClient.Enqueue<MenuSyncRecurringJob>(job =>
+            job.ExecuteAsync(foodicsAccountId, branchId, false, default));
+
+        await Task.CompletedTask;
     }
 
     /// <summary>
