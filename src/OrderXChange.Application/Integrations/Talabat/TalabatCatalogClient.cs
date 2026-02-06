@@ -92,13 +92,25 @@ public class TalabatCatalogClient : ITransientDependency
 
         try
         {
-            using var httpRequest = new HttpRequestMessage(HttpMethod.Put, url);
-            httpRequest.Headers.Authorization = new AuthenticationHeaderValue(_authClient.GetAuthHeaderType(), accessToken);
-            httpRequest.Content = JsonContent.Create(request, options: new JsonSerializerOptions
+            var jsonOptions = new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                 DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-            });
+            };
+
+            var shouldLogPayload = _configuration.GetValue<bool>("Talabat:LogCatalogPayload", false);
+            if (shouldLogPayload)
+            {
+                var payloadJson = JsonSerializer.Serialize(request, jsonOptions);
+                _logger.LogInformation(
+                    "Talabat V2 catalog payload (bytes={PayloadBytes}): {Payload}",
+                    Encoding.UTF8.GetByteCount(payloadJson),
+                    payloadJson);
+            }
+
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Put, url);
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue(_authClient.GetAuthHeaderType(), accessToken);
+            httpRequest.Content = JsonContent.Create(request, options: jsonOptions);
 
             using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -118,11 +130,7 @@ public class TalabatCatalogClient : ITransientDependency
                 accessToken = await _authClient.GetAccessTokenAsync(vendorCode, cancellationToken);
                 using var retryRequest = new HttpRequestMessage(HttpMethod.Put, url);
                 retryRequest.Headers.Authorization = new AuthenticationHeaderValue(_authClient.GetAuthHeaderType(), accessToken);
-                retryRequest.Content = JsonContent.Create(request, options: new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-                });
+                retryRequest.Content = JsonContent.Create(request, options: jsonOptions);
 
                 using var retryResponse = await _httpClient.SendAsync(retryRequest, cancellationToken);
                 var retryResponseBody = await retryResponse.Content.ReadAsStringAsync(cancellationToken);
