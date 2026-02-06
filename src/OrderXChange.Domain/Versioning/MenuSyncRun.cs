@@ -334,9 +334,8 @@ public class MenuSyncRun : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// </summary>
     public void AddStep(string stepType, string message, string? phase = null)
     {
-        var step = new MenuSyncRunStep
+        var step = new MenuSyncRunStep(Guid.NewGuid())
         {
-            Id = Guid.NewGuid(),
             MenuSyncRunId = Id,
             StepType = stepType,
             Message = message,
@@ -506,6 +505,14 @@ public class MenuSyncRun : FullAuditedAggregateRoot<Guid>, IMultiTenant
 /// </summary>
 public class MenuSyncRunStep : CreationAuditedEntity<Guid>, IMultiTenant
 {
+    public MenuSyncRunStep()
+    {
+    }
+
+    public MenuSyncRunStep(Guid id)
+    {
+        Id = id;
+    }
     /// <summary>
     /// Foreign key to MenuSyncRun
     /// </summary>
