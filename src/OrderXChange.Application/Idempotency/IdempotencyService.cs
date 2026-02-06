@@ -2,6 +2,7 @@ using System;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -43,10 +44,14 @@ public class IdempotencyService : ITransientDependency
         string idempotencyKey,
         int retentionDays = 30,
         CancellationToken cancellationToken = default,
-        TimeSpan? staleAfter = null)
+        TimeSpan? staleAfter = null,
+        [CallerMemberName] string? callerMember = null,
+        [CallerFilePath] string? callerFile = null,
+        [CallerLineNumber] int callerLine = 0)
     {
         const int maxRetries = 3;
         var retryCount = 0;
+        var isMenuKey = IsMenuIdempotencyKey(idempotencyKey);
         
         while (retryCount < maxRetries)
         {
@@ -167,6 +172,13 @@ public class IdempotencyService : ITransientDependency
 
                     await _idempotencyRepository.InsertAsync(newRecord, cancellationToken: cancellationToken);
                     await uow.CompleteAsync(cancellationToken);
+
+                    if (isMenuKey)
+                    {
+                        _logger.LogInformation(
+                            "Idempotency created: AccountId={AccountId}, Key={Key}, Status={Status}, Caller={Caller} ({CallerFile}:{CallerLine})",
+                            accountId, idempotencyKey, newRecord.Status, callerMember, callerFile, callerLine);
+                    }
 
                     _logger.LogInformation(
                         "Idempotency check: Operation marked as started for AccountId={AccountId}, Key={Key}",
@@ -289,7 +301,10 @@ public class IdempotencyService : ITransientDependency
         Guid accountId,
         string idempotencyKey,
         object? result = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        [CallerMemberName] string? callerMember = null,
+        [CallerFilePath] string? callerFile = null,
+        [CallerLineNumber] int callerLine = 0)
     {
         var record = await _idempotencyRepository.FindByKeyAsync(
             accountId,
@@ -307,6 +322,12 @@ public class IdempotencyService : ITransientDependency
         if (IsMenuLockKey(idempotencyKey))
         {
             await _idempotencyRepository.DeleteAsync(record, cancellationToken: cancellationToken);
+            if (IsMenuIdempotencyKey(idempotencyKey))
+            {
+                _logger.LogInformation(
+                    "Idempotency deleted (menu lock): AccountId={AccountId}, Key={Key}, Caller={Caller} ({CallerFile}:{CallerLine})",
+                    accountId, idempotencyKey, callerMember, callerFile, callerLine);
+            }
             _logger.LogInformation(
                 "Idempotency lock released (succeeded) for AccountId={AccountId}, Key={Key}",
                 accountId, idempotencyKey);
@@ -322,6 +343,13 @@ public class IdempotencyService : ITransientDependency
         record.MarkSucceeded(resultHash);
         await _idempotencyRepository.UpdateAsync(record, cancellationToken: cancellationToken);
 
+        if (IsMenuIdempotencyKey(idempotencyKey))
+        {
+            _logger.LogInformation(
+                "Idempotency updated (succeeded): AccountId={AccountId}, Key={Key}, Status={Status}, Caller={Caller} ({CallerFile}:{CallerLine})",
+                accountId, idempotencyKey, record.Status, callerMember, callerFile, callerLine);
+        }
+
         _logger.LogInformation(
             "Idempotency: Operation marked as succeeded for AccountId={AccountId}, Key={Key}",
             accountId, idempotencyKey);
@@ -333,7 +361,10 @@ public class IdempotencyService : ITransientDependency
     public async Task MarkFailedAsync(
         Guid accountId,
         string idempotencyKey,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        [CallerMemberName] string? callerMember = null,
+        [CallerFilePath] string? callerFile = null,
+        [CallerLineNumber] int callerLine = 0)
     {
         var record = await _idempotencyRepository.FindByKeyAsync(
             accountId,
@@ -351,6 +382,12 @@ public class IdempotencyService : ITransientDependency
         if (IsMenuLockKey(idempotencyKey))
         {
             await _idempotencyRepository.DeleteAsync(record, cancellationToken: cancellationToken);
+            if (IsMenuIdempotencyKey(idempotencyKey))
+            {
+                _logger.LogInformation(
+                    "Idempotency deleted (menu lock failed): AccountId={AccountId}, Key={Key}, Caller={Caller} ({CallerFile}:{CallerLine})",
+                    accountId, idempotencyKey, callerMember, callerFile, callerLine);
+            }
             _logger.LogWarning(
                 "Idempotency lock released (failed) for AccountId={AccountId}, Key={Key}",
                 accountId, idempotencyKey);
@@ -360,6 +397,13 @@ public class IdempotencyService : ITransientDependency
         record.MarkFailed();
         await _idempotencyRepository.UpdateAsync(record, cancellationToken: cancellationToken);
 
+        if (IsMenuIdempotencyKey(idempotencyKey))
+        {
+            _logger.LogInformation(
+                "Idempotency updated (failed): AccountId={AccountId}, Key={Key}, Status={Status}, Caller={Caller} ({CallerFile}:{CallerLine})",
+                accountId, idempotencyKey, record.Status, callerMember, callerFile, callerLine);
+        }
+
         _logger.LogWarning(
             "Idempotency: Operation marked as permanently failed for AccountId={AccountId}, Key={Key}",
             accountId, idempotencyKey);
@@ -368,6 +412,12 @@ public class IdempotencyService : ITransientDependency
     private static bool IsMenuLockKey(string idempotencyKey)
     {
         return idempotencyKey.StartsWith("menu:lock:", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsMenuIdempotencyKey(string idempotencyKey)
+    {
+        return idempotencyKey.StartsWith("menu:lock:", StringComparison.OrdinalIgnoreCase)
+               || idempotencyKey.StartsWith("menu:hash:", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
