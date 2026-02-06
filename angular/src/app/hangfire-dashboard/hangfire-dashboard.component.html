@@ -79,9 +79,9 @@
       </div>
       <div class="col-12 col-xl-6">
         <app-hangfire-job-table
-          [title]="'::MenuSync.ProcessingJobs' | abpLocalization"
-          [jobs]="data.processingJobs"
-          [emptyState]="'::MenuSync.EmptyProcessing' | abpLocalization"
+          [title]="'::MenuSync.EnqueuedJobs' | abpLocalization"
+          [jobs]="data.enqueuedJobs"
+          [emptyState]="'::MenuSync.EmptyEnqueued' | abpLocalization"
         ></app-hangfire-job-table>
       </div>
       <div class="col-12">

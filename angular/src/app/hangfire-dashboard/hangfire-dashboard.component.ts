@@ -42,7 +42,7 @@ export class HangfireDashboardComponent implements OnInit {
     return [
       { label: this.l('::MenuSync.Metrics.Succeeded'), value: counts.succeeded ?? 0, tone: 'success' },
       { label: this.l('::MenuSync.Metrics.Failed'), value: counts.failed ?? 0, tone: 'danger' },
-      { label: this.l('::MenuSync.Metrics.Processing'), value: counts.processing ?? 0, tone: 'primary' },
+      { label: this.l('::MenuSync.Metrics.Enqueued'), value: counts.enqueued ?? 0, tone: 'primary' },
       { label: this.l('::MenuSync.Metrics.Deleted'), value: counts.deleted ?? 0, tone: 'dark' },
     ];
   });
