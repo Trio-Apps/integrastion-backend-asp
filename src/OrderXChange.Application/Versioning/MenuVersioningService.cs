@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO.Compression;
+using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -431,7 +432,7 @@ public class MenuVersioningService : ITransientDependency
 
     /// <summary>
     /// Calculates SHA256 hash of menu structure for change detection.
-    /// Hash includes: product IDs, names, prices, active status, categories, modifiers.
+    /// Hash includes all product fields and related entities to detect any menu change.
     /// </summary>
     private string CalculateMenuHash(List<FoodicsProductDetailDto> products)
     {
@@ -442,37 +443,220 @@ public class MenuVersioningService : ITransientDependency
         var sb = new StringBuilder();
         foreach (var product in sortedProducts)
         {
-            sb.Append($"{product.Id}|");
-            sb.Append($"{product.Name}|");
-            sb.Append($"{product.Price}|");
-            sb.Append($"{product.IsActive}|");
-            sb.Append($"{product.Category?.Id}|");
-            
-            // Include modifiers in hash
-            if (product.Modifiers != null && product.Modifiers.Count > 0)
+            AppendValue(sb, product.Id);
+            AppendValue(sb, product.Name);
+            AppendValue(sb, product.NameLocalized);
+            AppendValue(sb, product.Price);
+            AppendValue(sb, product.Description);
+            AppendValue(sb, product.DescriptionLocalized);
+            AppendValue(sb, product.Image);
+            AppendValue(sb, product.IsActive);
+            AppendValue(sb, product.Sku);
+            AppendValue(sb, product.Barcode);
+            AppendValue(sb, product.CategoryId);
+            AppendValue(sb, product.TaxGroupId);
+            AppendValue(sb, product.DeletedAt);
+
+            // Category
+            if (product.Category != null)
             {
-                var sortedModifiers = product.Modifiers.OrderBy(m => m.Id).ToList();
-                foreach (var modifier in sortedModifiers)
+                AppendValue(sb, product.Category.Id);
+                AppendValue(sb, product.Category.Name);
+                AppendValue(sb, product.Category.NameLocalized);
+            }
+            sb.Append('|');
+
+            // Tax group
+            if (product.TaxGroup != null)
+            {
+                AppendValue(sb, product.TaxGroup.Id);
+                AppendValue(sb, product.TaxGroup.Name);
+                AppendValue(sb, product.TaxGroup.NameLocalized);
+                AppendValue(sb, product.TaxGroup.Rate);
+            }
+            sb.Append('|');
+
+            // Price tags
+            if (product.PriceTags != null && product.PriceTags.Count > 0)
+            {
+                foreach (var tag in product.PriceTags.OrderBy(t => t.Id))
                 {
-                    sb.Append($"M:{modifier.Id}|");
-                    if (modifier.Options != null)
+                    sb.Append("PT:");
+                    AppendValue(sb, tag.Id);
+                    AppendValue(sb, tag.Name);
+                    AppendValue(sb, tag.NameLocalized);
+                    AppendValue(sb, tag.Price);
+                }
+            }
+            sb.Append('|');
+
+            // Tags
+            if (product.Tags != null && product.Tags.Count > 0)
+            {
+                foreach (var tag in product.Tags.OrderBy(t => t.Id))
+                {
+                    sb.Append("T:");
+                    AppendValue(sb, tag.Id);
+                    AppendValue(sb, tag.Name);
+                    AppendValue(sb, tag.NameLocalized);
+                }
+            }
+            sb.Append('|');
+
+            // Branches (with pivot data)
+            if (product.Branches != null && product.Branches.Count > 0)
+            {
+                foreach (var branch in product.Branches.OrderBy(b => b.Id))
+                {
+                    sb.Append("B:");
+                    AppendValue(sb, branch.Id);
+                    AppendValue(sb, branch.Name);
+                    AppendValue(sb, branch.NameLocalized);
+                    AppendValue(sb, branch.Timezone);
+                    AppendValue(sb, branch.IsOpen);
+                    AppendValue(sb, branch.IsActive);
+                    if (branch.Pivot != null)
                     {
-                        var sortedOptions = modifier.Options.OrderBy(o => o.Id).ToList();
-                        foreach (var option in sortedOptions)
+                        AppendValue(sb, branch.Pivot.Price);
+                        AppendValue(sb, branch.Pivot.IsActive);
+                        AppendValue(sb, branch.Pivot.IsInStock);
+                    }
+                }
+            }
+            sb.Append('|');
+
+            // Ingredients (and their branches)
+            if (product.Ingredients != null && product.Ingredients.Count > 0)
+            {
+                foreach (var ingredient in product.Ingredients.OrderBy(i => i.Id))
+                {
+                    sb.Append("I:");
+                    AppendValue(sb, ingredient.Id);
+                    AppendValue(sb, ingredient.Name);
+                    if (ingredient.Branches != null && ingredient.Branches.Count > 0)
+                    {
+                        foreach (var branch in ingredient.Branches.OrderBy(b => b.Id))
                         {
-                            sb.Append($"O:{option.Id},{option.Price}|");
+                            sb.Append("IB:");
+                            AppendValue(sb, branch.Id);
+                            AppendValue(sb, branch.Name);
+                            AppendValue(sb, branch.NameLocalized);
+                            AppendValue(sb, branch.Timezone);
+                            AppendValue(sb, branch.IsOpen);
+                            AppendValue(sb, branch.IsActive);
                         }
                     }
                 }
             }
-            
-            sb.Append(";");
+            sb.Append('|');
+
+            // Modifiers and options
+            if (product.Modifiers != null && product.Modifiers.Count > 0)
+            {
+                foreach (var modifier in product.Modifiers.OrderBy(m => m.Id))
+                {
+                    sb.Append("M:");
+                    AppendValue(sb, modifier.Id);
+                    AppendValue(sb, modifier.Name);
+                    AppendValue(sb, modifier.NameLocalized);
+                    AppendValue(sb, modifier.MinAllowed);
+                    AppendValue(sb, modifier.MaxAllowed);
+                    if (modifier.Options != null && modifier.Options.Count > 0)
+                    {
+                        foreach (var option in modifier.Options.OrderBy(o => o.Id))
+                        {
+                            sb.Append("O:");
+                            AppendValue(sb, option.Id);
+                            AppendValue(sb, option.Name);
+                            AppendValue(sb, option.NameLocalized);
+                            AppendValue(sb, option.Price);
+                            AppendValue(sb, option.Image);
+                            if (option.Branches != null && option.Branches.Count > 0)
+                            {
+                                foreach (var branch in option.Branches.OrderBy(b => b.Id))
+                                {
+                                    sb.Append("OB:");
+                                    AppendValue(sb, branch.Id);
+                                    AppendValue(sb, branch.Name);
+                                    AppendValue(sb, branch.NameLocalized);
+                                    AppendValue(sb, branch.Timezone);
+                                    AppendValue(sb, branch.IsOpen);
+                                    AppendValue(sb, branch.IsActive);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            sb.Append('|');
+
+            // Discounts
+            if (product.Discounts != null && product.Discounts.Count > 0)
+            {
+                foreach (var discount in product.Discounts.OrderBy(d => d.Id))
+                {
+                    sb.Append("D:");
+                    AppendValue(sb, discount.Id);
+                    AppendValue(sb, discount.Name);
+                    AppendValue(sb, discount.DiscountType);
+                    AppendValue(sb, discount.DiscountValue);
+                }
+            }
+            sb.Append('|');
+
+            // Timed events
+            if (product.TimedEvents != null && product.TimedEvents.Count > 0)
+            {
+                foreach (var timedEvent in product.TimedEvents.OrderBy(t => t.Id))
+                {
+                    sb.Append("TE:");
+                    AppendValue(sb, timedEvent.Id);
+                    AppendValue(sb, timedEvent.Name);
+                    AppendValue(sb, timedEvent.StartTime);
+                    AppendValue(sb, timedEvent.EndTime);
+                }
+            }
+            sb.Append('|');
+
+            // Groups
+            if (product.Groups != null && product.Groups.Count > 0)
+            {
+                foreach (var group in product.Groups.OrderBy(g => g.Id))
+                {
+                    sb.Append("G:");
+                    AppendValue(sb, group.Id);
+                    AppendValue(sb, group.Name);
+                    AppendValue(sb, group.NameLocalized);
+                }
+            }
+
+            sb.Append(';');
         }
 
         // Calculate SHA256 hash
         using var sha256 = SHA256.Create();
         var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(sb.ToString()));
         return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+    }
+
+    private static void AppendValue(StringBuilder sb, string? value)
+    {
+        sb.Append(value ?? string.Empty).Append('|');
+    }
+
+    private static void AppendValue(StringBuilder sb, bool? value)
+    {
+        sb.Append(value?.ToString() ?? string.Empty).Append('|');
+    }
+
+    private static void AppendValue(StringBuilder sb, int? value)
+    {
+        sb.Append(value?.ToString(CultureInfo.InvariantCulture) ?? string.Empty).Append('|');
+    }
+
+    private static void AppendValue(StringBuilder sb, decimal? value)
+    {
+        sb.Append(value?.ToString(CultureInfo.InvariantCulture) ?? string.Empty).Append('|');
     }
 
     /// <summary>
