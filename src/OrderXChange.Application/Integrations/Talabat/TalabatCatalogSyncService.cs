@@ -81,23 +81,26 @@ public class TalabatCatalogSyncService : ITransientDependency
                 callbackUrl = $"{callbackBaseUrl.TrimEnd('/')}/catalog-status";
             }
 
-            // Map Foodics products to Talabat catalog format
-            var catalogRequest = _mapper.MapToTalabatCatalog(productsList, vendorCode, callbackUrl);
+            // Map Foodics products to Talabat V2 catalog format (items-based)
+            var catalogRequest = _mapper.MapToTalabatV2Catalog(productsList, chainCode, vendorCode, callbackUrl);
 
-            result.CategoriesCount = catalogRequest.Menu?.Categories?.Count ?? 0;
-            result.ProductsCount = catalogRequest.Menu?.Categories?.Sum(c => c.Products?.Count ?? 0) ?? 0;
+            var items = catalogRequest.Catalog?.Items;
+            result.CategoriesCount = items?.Values.Count(i => string.Equals(i.Type, "Category", StringComparison.OrdinalIgnoreCase)) ?? 0;
+            result.ProductsCount = items?.Values.Count(i => string.Equals(i.Type, "Product", StringComparison.OrdinalIgnoreCase)) ?? 0;
 
             _logger.LogInformation(
-                "Mapped catalog for Talabat. CorrelationId={CorrelationId}, ChainCode={ChainCode}, Categories={Categories}, Products={Products}",
+                "Mapped V2 catalog for Talabat. CorrelationId={CorrelationId}, ChainCode={ChainCode}, Items={Items}, Categories={Categories}, Products={Products}",
                 correlationId,
                 chainCode,
+                items?.Count ?? 0,
                 result.CategoriesCount,
                 result.ProductsCount);
 
-            // Submit to Talabat
-            var response = await _talabatCatalogClient.SubmitCatalogAsync(
+            // Submit to Talabat V2 API
+            var response = await _talabatCatalogClient.SubmitV2CatalogAsync(
                 chainCode,
                 catalogRequest,
+                vendorCode,
                 cancellationToken);
 
             result.Success = response.Success;
