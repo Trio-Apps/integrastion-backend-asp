@@ -224,6 +224,26 @@ public class MenuSyncRecurringJob : ITransientDependency
             _logger.LogError(ex, "Menu sync job failed");
             throw;
         }
+        finally
+        {
+            if (jobLockAcquired && !jobLockReleased)
+            {
+                try
+                {
+                    await _idempotencyService.MarkFailedAsync(
+                        foodicsAccountId,
+                        idempotencyKey,
+                        cancellationToken);
+                }
+                catch (Exception releaseEx)
+                {
+                    _logger.LogWarning(
+                        releaseEx,
+                        "Failed to release job-level idempotency lock for FoodicsAccount {AccountId}",
+                        foodicsAccountId);
+                }
+            }
+        }
     }
 
     private async Task SyncAccountAsync(Guid foodicsAccountId, string? branchId, bool skipInternalIdempotency, CancellationToken cancellationToken)
@@ -234,6 +254,8 @@ public class MenuSyncRecurringJob : ITransientDependency
         // Generate idempotency key for this sync operation (job-level lock)
         var timestamp = DateTime.UtcNow;
         var idempotencyKey = _idempotencyService.GenerateMenuSyncKey(foodicsAccountId, branchId, timestamp);
+        var jobLockAcquired = false;
+        var jobLockReleased = false;
         string? snapshotIdempotencyKey = null;
         
         // ✨ NEW: Start Menu Sync Run for comprehensive tracking
@@ -298,6 +320,8 @@ public class MenuSyncRecurringJob : ITransientDependency
                     }
                     return;
                 }
+
+                jobLockAcquired = true;
             }
             catch (BusinessException ex) when (ex.Code == "OPERATION_IN_PROGRESS")
             {
@@ -532,6 +556,16 @@ public class MenuSyncRecurringJob : ITransientDependency
                     {
                         await _syncRunManager.CompleteSyncRunAsync(syncRun.Id, "Skipped - Identical snapshot already processed", cancellationToken: cancellationToken);
                     }
+                    
+                    if (jobLockAcquired && !jobLockReleased)
+                    {
+                        await _idempotencyService.MarkSucceededAsync(
+                            foodicsAccountId,
+                            idempotencyKey,
+                            new { Message = "Skipped - Identical snapshot already processed" },
+                            cancellationToken);
+                        jobLockReleased = true;
+                    }
                     return;
                 }
             }
@@ -547,6 +581,16 @@ public class MenuSyncRecurringJob : ITransientDependency
                 if (syncRun != null)
                 {
                     await _syncRunManager.CompleteSyncRunAsync(syncRun.Id, "Skipped - Duplicate snapshot processing", cancellationToken: cancellationToken);
+                }
+
+                if (jobLockAcquired && !jobLockReleased)
+                {
+                    await _idempotencyService.MarkSucceededAsync(
+                        foodicsAccountId,
+                        idempotencyKey,
+                        new { Message = "Skipped - Duplicate snapshot processing" },
+                        cancellationToken);
+                    jobLockReleased = true;
                 }
                 return;
             }
@@ -790,6 +834,7 @@ public class MenuSyncRecurringJob : ITransientDependency
                 idempotencyKey,
                 syncResult,
                 cancellationToken);
+            jobLockReleased = true;
 
             // Mark snapshot as succeeded with result hash for duplicate detection
             if (!string.IsNullOrWhiteSpace(snapshotIdempotencyKey))
@@ -837,6 +882,7 @@ public class MenuSyncRecurringJob : ITransientDependency
                 foodicsAccountId,
                 idempotencyKey,
                 cancellationToken);
+            jobLockReleased = true;
 
             // Also mark the snapshot key as failed (permanent failure for this snapshot)
             if (!string.IsNullOrWhiteSpace(snapshotIdempotencyKey))
