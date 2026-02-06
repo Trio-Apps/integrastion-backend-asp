@@ -35,6 +35,7 @@ public class MenuSyncRecurringJob : ITransientDependency
     private readonly FoodicsProductStagingService _stagingService;
     private readonly FoodicsAccountTokenService _tokenService;
     private readonly TalabatCatalogSyncService _talabatSyncService;
+    private readonly TalabatAccountService _talabatAccountService;
     private readonly IRepository<FoodicsAccount, Guid> _foodicsAccountRepository;
     private readonly IRepository<FoodicsProductStaging, Guid> _stagingRepository;
     private readonly ICurrentTenant _currentTenant;
@@ -52,6 +53,7 @@ public class MenuSyncRecurringJob : ITransientDependency
         FoodicsProductStagingService stagingService,
         FoodicsAccountTokenService tokenService,
         TalabatCatalogSyncService talabatSyncService,
+        TalabatAccountService talabatAccountService,
         IRepository<FoodicsAccount, Guid> foodicsAccountRepository,
         IRepository<FoodicsProductStaging, Guid> stagingRepository,
         ICurrentTenant currentTenant,
@@ -66,6 +68,7 @@ public class MenuSyncRecurringJob : ITransientDependency
         _stagingService = stagingService;
         _tokenService = tokenService;
         _talabatSyncService = talabatSyncService;
+        _talabatAccountService = talabatAccountService;
         _foodicsAccountRepository = foodicsAccountRepository;
         _stagingRepository = stagingRepository;
         _currentTenant = currentTenant;
@@ -620,9 +623,11 @@ public class MenuSyncRecurringJob : ITransientDependency
             // Push to Talabat (if enabled and vendor code is configured)
             // ---------------------------------------------------------------------------------
             var talabatEnabled = _configuration.GetValue<bool>("Talabat:Enabled", true);
-            var talabatVendorCode = await GetTalabatVendorCodeAsync(foodicsAccountId, cancellationToken);
+            var talabatInfo = await GetTalabatChainAndVendorAsync(foodicsAccountId, cancellationToken);
+            var talabatChainCode = talabatInfo.ChainCode;
+            var talabatVendorCode = talabatInfo.VendorCode;
 
-            if (talabatEnabled && !string.IsNullOrWhiteSpace(talabatVendorCode))
+            if (talabatEnabled && !string.IsNullOrWhiteSpace(talabatChainCode) && !string.IsNullOrWhiteSpace(talabatVendorCode))
             {
                 // ✨ Update progress: Talabat sync
                 if (syncRun != null)
@@ -637,8 +642,9 @@ public class MenuSyncRecurringJob : ITransientDependency
                 }
 
                 _logger.LogInformation(
-                    "Pushing catalog to Talabat. FoodicsAccount={AccountId}, VendorCode={VendorCode}, ProductCount={ProductCount}",
+                    "Pushing catalog to Talabat. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}, ProductCount={ProductCount}",
                     foodicsAccountId,
+                    talabatChainCode,
                     talabatVendorCode,
                     allProducts.Count);
 
@@ -647,6 +653,7 @@ public class MenuSyncRecurringJob : ITransientDependency
                     var correlationId = syncRun?.CorrelationId ?? Guid.NewGuid().ToString();
                     var talabatResult = await _talabatSyncService.SyncCatalogAsync(
                         allProducts.Values,
+                        talabatChainCode,
                         talabatVendorCode,
                         correlationId,
                         cancellationToken);
@@ -654,9 +661,10 @@ public class MenuSyncRecurringJob : ITransientDependency
                     if (talabatResult.Success)
                     {
                         _logger.LogInformation(
-                            "Talabat catalog sync submitted successfully. FoodicsAccount={AccountId}, VendorCode={VendorCode}, " +
+                            "Talabat catalog sync submitted successfully. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}, " +
                             "ImportId={ImportId}, Categories={Categories}, Products={Products}, Duration={Duration}ms",
                             foodicsAccountId,
+                            talabatChainCode,
                             talabatVendorCode,
                             talabatResult.ImportId,
                             talabatResult.CategoriesCount,
@@ -720,12 +728,13 @@ public class MenuSyncRecurringJob : ITransientDependency
                     else
                     {
                         _logger.LogWarning(
-                            "Talabat catalog sync failed. FoodicsAccount={AccountId}, VendorCode={VendorCode}, " +
-                            "Message={Message}, Errors={Errors}",
-                            foodicsAccountId,
-                            talabatVendorCode,
-                            talabatResult.Message,
-                            talabatResult.Errors != null ? string.Join("; ", talabatResult.Errors.Take(5)) : "<none>");
+                        "Talabat catalog sync failed. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}, " +
+                        "Message={Message}, Errors={Errors}",
+                        foodicsAccountId,
+                        talabatChainCode,
+                        talabatVendorCode,
+                        talabatResult.Message,
+                        talabatResult.Errors != null ? string.Join("; ", talabatResult.Errors.Take(5)) : "<none>");
                         
                         if (syncRun != null)
                         {
@@ -748,9 +757,10 @@ public class MenuSyncRecurringJob : ITransientDependency
                 {
                     _logger.LogError(
                         talabatEx,
-                        "Error pushing catalog to Talabat. FoodicsAccount={AccountId}, VendorCode={VendorCode}. " +
+                        "Error pushing catalog to Talabat. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}. " +
                         "Staging data saved successfully, but Talabat sync failed.",
                         foodicsAccountId,
+                        talabatChainCode,
                         talabatVendorCode);
                     
                     if (syncRun != null)
@@ -785,7 +795,7 @@ public class MenuSyncRecurringJob : ITransientDependency
             else
             {
                 _logger.LogDebug(
-                    "No Talabat vendor code configured for FoodicsAccount {AccountId}. Skipping Talabat push.",
+                    "No Talabat chain/vendor code configured for FoodicsAccount {AccountId}. Skipping Talabat push.",
                     foodicsAccountId);
                     
                 if (syncRun != null)
@@ -925,41 +935,54 @@ public class MenuSyncRecurringJob : ITransientDependency
     /// First checks the FoodicsAccount.TalabatVendorCode property,
     /// then falls back to configuration.
     /// </summary>
-    private async Task<string?> GetTalabatVendorCodeAsync(Guid foodicsAccountId, CancellationToken cancellationToken)
+    private async Task<(string? ChainCode, string? VendorCode)> GetTalabatChainAndVendorAsync(Guid foodicsAccountId, CancellationToken cancellationToken)
     {
         try
         {
-            // Try to get vendor code from FoodicsAccount entity
+            // Prefer TalabatAccount linked to this FoodicsAccount
+            var linkedAccounts = await _talabatAccountService.GetAccountsByFoodicsAccountIdAsync(foodicsAccountId, cancellationToken);
+            var linkedAccount = linkedAccounts.FirstOrDefault();
+            if (linkedAccounts.Count > 1)
+            {
+                _logger.LogWarning(
+                    "Multiple TalabatAccounts linked to FoodicsAccount {AccountId}. Using the first one. Count={Count}",
+                    foodicsAccountId,
+                    linkedAccounts.Count);
+            }
+
+            if (linkedAccount != null)
+            {
+                return (linkedAccount.ChainCode, linkedAccount.VendorCode);
+            }
+
+            // Fallback: Try to get vendor code from FoodicsAccount entity (legacy)
             var account = await _foodicsAccountRepository.GetAsync(foodicsAccountId, cancellationToken: cancellationToken);
-            
-            // Check if the account has a TalabatVendorCode property
-            // This would need to be added to the FoodicsAccount entity
             var vendorCode = account.GetType().GetProperty("TalabatVendorCode")?.GetValue(account) as string;
-            
             if (!string.IsNullOrWhiteSpace(vendorCode))
             {
-                return vendorCode;
+                var chainCode = _configuration["Talabat:ChainCode"] ?? "tlbt-pick";
+                return (chainCode, vendorCode);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Could not get TalabatVendorCode from FoodicsAccount {AccountId}", foodicsAccountId);
+            _logger.LogDebug(ex, "Could not get Talabat chain/vendor code for FoodicsAccount {AccountId}", foodicsAccountId);
         }
 
-        // Fallback to configuration (default vendor code for all accounts)
-        // In production, each FoodicsAccount should have its own TalabatVendorCode
+        // Final fallback to configuration (legacy support)
         var configVendorCode = _configuration["Talabat:DefaultVendorCode"];
-        
+        var configChainCode = _configuration["Talabat:ChainCode"] ?? "tlbt-pick";
+
         if (!string.IsNullOrWhiteSpace(configVendorCode))
         {
             _logger.LogDebug(
-                "Using default Talabat vendor code from configuration for FoodicsAccount {AccountId}: {VendorCode}",
+                "Using Talabat chain/vendor code from configuration for FoodicsAccount {AccountId}: ChainCode={ChainCode}, VendorCode={VendorCode}",
                 foodicsAccountId,
+                configChainCode,
                 configVendorCode);
-            return configVendorCode;
         }
 
-        return null;
+        return (configChainCode, configVendorCode);
     }
 }
 

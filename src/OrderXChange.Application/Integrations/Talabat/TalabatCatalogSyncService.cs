@@ -42,12 +42,14 @@ public class TalabatCatalogSyncService : ITransientDependency
     /// Sync Foodics products to Talabat catalog
     /// </summary>
     /// <param name="products">Foodics products with full includes</param>
+    /// <param name="chainCode">Talabat chain code (e.g., "tlbt-pick")</param>
     /// <param name="vendorCode">Talabat vendor code</param>
     /// <param name="correlationId">Correlation ID for tracing</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Sync result</returns>
     public async Task<TalabatSyncResult> SyncCatalogAsync(
         IEnumerable<FoodicsProductDetailDto> products,
+        string chainCode,
         string vendorCode,
         string? correlationId = null,
         CancellationToken cancellationToken = default)
@@ -56,8 +58,9 @@ public class TalabatCatalogSyncService : ITransientDependency
         var productsList = products.ToList();
 
         _logger.LogInformation(
-            "Starting Talabat catalog sync. CorrelationId={CorrelationId}, VendorCode={VendorCode}, ProductCount={ProductCount}",
+            "Starting Talabat catalog sync. CorrelationId={CorrelationId}, ChainCode={ChainCode}, VendorCode={VendorCode}, ProductCount={ProductCount}",
             correlationId,
+            chainCode,
             vendorCode,
             productsList.Count);
 
@@ -85,14 +88,15 @@ public class TalabatCatalogSyncService : ITransientDependency
             result.ProductsCount = catalogRequest.Menu?.Categories?.Sum(c => c.Products?.Count ?? 0) ?? 0;
 
             _logger.LogInformation(
-                "Mapped catalog for Talabat. CorrelationId={CorrelationId}, Categories={Categories}, Products={Products}",
+                "Mapped catalog for Talabat. CorrelationId={CorrelationId}, ChainCode={ChainCode}, Categories={Categories}, Products={Products}",
                 correlationId,
+                chainCode,
                 result.CategoriesCount,
                 result.ProductsCount);
 
             // Submit to Talabat
             var response = await _talabatCatalogClient.SubmitCatalogAsync(
-                vendorCode,
+                chainCode,
                 catalogRequest,
                 cancellationToken);
 
