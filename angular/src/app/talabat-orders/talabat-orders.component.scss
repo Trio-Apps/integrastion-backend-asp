@@ -35,6 +35,14 @@
   min-width: 220px;
 }
 
+.status-select {
+  height: 2.5rem;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  padding: 0 0.75rem;
+  background: #fff;
+}
+
 .order-cell {
   display: flex;
   align-items: center;

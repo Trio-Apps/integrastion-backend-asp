@@ -8,7 +8,6 @@ import { TableModule, TableLazyLoadEvent } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
-import { DropdownModule } from 'primeng/dropdown';
 import { TalabatOrderLogsService, TalabatOrderLogDto, GetTalabatOrderLogsInput } from '@proxy/talabat';
 
 @Component({
@@ -22,7 +21,6 @@ import { TalabatOrderLogsService, TalabatOrderLogDto, GetTalabatOrderLogsInput }
     TagModule,
     ButtonModule,
     InputTextModule,
-    DropdownModule,
   ],
   templateUrl: './talabat-orders.component.html',
   styleUrls: ['./talabat-orders.component.scss'],

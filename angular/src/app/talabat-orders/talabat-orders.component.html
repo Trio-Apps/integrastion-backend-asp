@@ -14,14 +14,16 @@
     </span>
     <span class="filter-item">
       <label for="status">Status</label>
-      <p-dropdown
-        inputId="status"
-        [options]="statusOptions"
-        [showClear]="true"
-        [(ngModel)]="status()"
+      <select
+        id="status"
+        class="status-select"
+        [ngModel]="status()"
         (ngModelChange)="status.set($event || '')"
-        placeholder="All"
-      ></p-dropdown>
+      >
+        <option *ngFor="let option of statusOptions" [value]="option.value">
+          {{ option.label }}
+        </option>
+      </select>
     </span>
   </div>
 
