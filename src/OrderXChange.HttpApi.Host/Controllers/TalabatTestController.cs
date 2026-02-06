@@ -268,13 +268,14 @@ public class TalabatTestController : AbpController
 
             // Step 2: Map to Talabat format (includes vendors array for V2 API)
             _logger.LogInformation("Step 2: Mapping products to Talabat V2 format...");
-            var catalogRequest = _mapper.MapToTalabatCatalog(products.Values, chainCode);
+            var catalogRequest = _mapper.MapToTalabatCatalog(products.Values, platformVendorId);
 
             // Step 3: Push to Talabat V2 API
             _logger.LogInformation("Step 3: Pushing catalog to Talabat V2 API...");
             var result = await _syncService.SyncCatalogAsync(
                 products.Values,
                 chainCode,
+                platformVendorId,
                 correlationId: Guid.NewGuid().ToString(),
                 cancellationToken);
 
