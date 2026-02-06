@@ -306,6 +306,7 @@ public class IdempotencyService : ITransientDependency
         [CallerFilePath] string? callerFile = null,
         [CallerLineNumber] int callerLine = 0)
     {
+        using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true);
         string? resultHash = null;
         if (result != null)
         {
@@ -349,6 +350,7 @@ public class IdempotencyService : ITransientDependency
             _logger.LogInformation(
                 "Idempotency: Operation marked as succeeded for AccountId={AccountId}, Key={Key}",
                 accountId, idempotencyKey);
+            await uow.CompleteAsync(cancellationToken);
             return;
         }
 
@@ -364,6 +366,7 @@ public class IdempotencyService : ITransientDependency
             _logger.LogInformation(
                 "Idempotency lock released (succeeded) for AccountId={AccountId}, Key={Key}",
                 accountId, idempotencyKey);
+            await uow.CompleteAsync(cancellationToken);
             return;
         }
 
@@ -380,6 +383,7 @@ public class IdempotencyService : ITransientDependency
         _logger.LogInformation(
             "Idempotency: Operation marked as succeeded for AccountId={AccountId}, Key={Key}",
             accountId, idempotencyKey);
+        await uow.CompleteAsync(cancellationToken);
     }
 
     /// <summary>
@@ -393,6 +397,7 @@ public class IdempotencyService : ITransientDependency
         [CallerFilePath] string? callerFile = null,
         [CallerLineNumber] int callerLine = 0)
     {
+        using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true);
         var record = await _idempotencyRepository.FindByKeyAsync(
             accountId,
             idempotencyKey,
@@ -427,6 +432,7 @@ public class IdempotencyService : ITransientDependency
             _logger.LogWarning(
                 "Idempotency: Operation marked as permanently failed for AccountId={AccountId}, Key={Key}",
                 accountId, idempotencyKey);
+            await uow.CompleteAsync(cancellationToken);
             return;
         }
 
@@ -442,6 +448,7 @@ public class IdempotencyService : ITransientDependency
             _logger.LogWarning(
                 "Idempotency lock released (failed) for AccountId={AccountId}, Key={Key}",
                 accountId, idempotencyKey);
+            await uow.CompleteAsync(cancellationToken);
             return;
         }
 
@@ -458,6 +465,7 @@ public class IdempotencyService : ITransientDependency
         _logger.LogWarning(
             "Idempotency: Operation marked as permanently failed for AccountId={AccountId}, Key={Key}",
             accountId, idempotencyKey);
+        await uow.CompleteAsync(cancellationToken);
     }
 
     private static bool IsMenuLockKey(string idempotencyKey)

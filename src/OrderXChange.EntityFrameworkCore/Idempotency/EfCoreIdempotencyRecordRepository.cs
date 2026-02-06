@@ -30,6 +30,7 @@ public class EfCoreIdempotencyRecordRepository
     {
         var dbSet = await GetDbSetAsync();
         return await dbSet
+            .AsNoTracking()
             .FirstOrDefaultAsync(
                 x => x.AccountId == accountId && x.IdempotencyKey == idempotencyKey,
                 GetCancellationToken(cancellationToken));
