@@ -1,6 +1,8 @@
 using AutoMapper;
 using OrderXChange.Application.Versioning.DTOs;
+using OrderXChange.Application.Contracts.Integrations.Talabat;
 using OrderXChange.Domain.Versioning;
+using OrderXChange.Domain.Staging;
 using System;
 
 namespace OrderXChange;
@@ -80,5 +82,8 @@ public class OrderXChangeApplicationAutoMapperProfile : Profile
                         src.Configuration,
                         (System.Text.Json.JsonSerializerOptions?)null)
                     : null));
+
+        // Talabat order sync log mappings
+        CreateMap<TalabatOrderSyncLog, TalabatOrderLogDto>();
     }
 }

@@ -1,0 +1,83 @@
+<div class="orders-page">
+  <div class="page-header">
+    <div>
+      <h2 class="page-title">Talabat Orders</h2>
+      <p class="page-subtitle">Incoming webhook orders and their sync status</p>
+    </div>
+    <button pButton type="button" icon="pi pi-refresh" label="Refresh" class="p-button-outlined" (click)="refresh()"></button>
+  </div>
+
+  <div class="filters">
+    <span class="filter-item">
+      <label for="vendorCode">Vendor Code</label>
+      <input id="vendorCode" type="text" pInputText [(ngModel)]="vendorCode()" placeholder="PH-SIDDIQ-002" (ngModelChange)="vendorCode.set($event)" />
+    </span>
+    <span class="filter-item">
+      <label for="status">Status</label>
+      <p-dropdown
+        inputId="status"
+        [options]="statusOptions"
+        [showClear]="true"
+        [(ngModel)]="status()"
+        (ngModelChange)="status.set($event || '')"
+        placeholder="All"
+      ></p-dropdown>
+    </span>
+  </div>
+
+  <p-table
+    [value]="logs()"
+    [lazy]="true"
+    [paginator]="true"
+    [rows]="rows()"
+    [totalRecords]="totalRecords()"
+    [first]="first()"
+    [loading]="loading()"
+    (onLazyLoad)="loadLogs($event)"
+    [rowsPerPageOptions]="[10, 20, 50]"
+    sortField="receivedAt"
+    sortOrder="-1"
+    dataKey="id"
+  >
+    <ng-template pTemplate="header">
+      <tr>
+        <th pSortableColumn="receivedAt">Received <p-sortIcon field="receivedAt"></p-sortIcon></th>
+        <th pSortableColumn="vendorCode">Vendor <p-sortIcon field="vendorCode"></p-sortIcon></th>
+        <th>Order</th>
+        <th pSortableColumn="productsCount">Products <p-sortIcon field="productsCount"></p-sortIcon></th>
+        <th pSortableColumn="categoriesCount">Categories <p-sortIcon field="categoriesCount"></p-sortIcon></th>
+        <th>Status</th>
+        <th pSortableColumn="attempts">Attempts <p-sortIcon field="attempts"></p-sortIcon></th>
+        <th>Last Error</th>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="body" let-row>
+      <tr>
+        <td>
+          <div class="date-cell">{{ row.receivedAt || row.creationTime | date: 'short' }}</div>
+        </td>
+        <td>{{ row.vendorCode || '-' }}</td>
+        <td>
+          <div class="order-cell">
+            <div class="order-code">{{ getOrderCode(row) }}</div>
+            <p-tag *ngIf="row.isTestOrder" value="TEST" severity="warning"></p-tag>
+          </div>
+        </td>
+        <td>{{ row.productsCount ?? 0 }}</td>
+        <td>{{ row.categoriesCount ?? 0 }}</td>
+        <td>
+          <p-tag [severity]="getStatusSeverity(row.status)" [value]="row.status || 'Unknown'"></p-tag>
+        </td>
+        <td>{{ row.attempts ?? 0 }}</td>
+        <td class="error-cell">{{ row.lastError || '-' }}</td>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="emptymessage">
+      <tr>
+        <td colspan="8">No orders recorded yet.</td>
+      </tr>
+    </ng-template>
+  </p-table>
+</div>

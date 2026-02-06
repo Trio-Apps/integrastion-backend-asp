@@ -70,3 +70,31 @@ export interface TalabatSyncLogItemDto {
   tenantId?: string;
   tenantName?: string;
 }
+
+export interface GetTalabatOrderLogsInput extends PagedAndSortedResultRequestDto {
+  vendorCode?: string;
+  status?: string;
+  isTestOrder?: boolean;
+  fromDate?: string;
+  toDate?: string;
+}
+
+export interface TalabatOrderLogDto {
+  id?: string;
+  foodicsAccountId?: string;
+  vendorCode?: string;
+  platformRestaurantId?: string;
+  orderToken?: string;
+  orderCode?: string;
+  shortCode?: string;
+  status?: string;
+  isTestOrder?: boolean;
+  productsCount?: number;
+  categoriesCount?: number;
+  orderCreatedAt?: string;
+  receivedAt?: string;
+  lastAttemptAt?: string;
+  attempts?: number;
+  lastError?: string;
+  creationTime?: string;
+}

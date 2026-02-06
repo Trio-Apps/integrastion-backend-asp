@@ -100,6 +100,15 @@ function configureRoutes() {
       layout: eLayoutType.application,
     },
     {
+      path: '/talabat-orders',
+      name: 'Talabat Orders',
+      parentName: '::Menu:Dashboard',
+      iconClass: 'pi pi-inbox',
+      order: 5,
+      layout: eLayoutType.application,
+      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+    },
+    {
       path: '/talabat-dashboard',
       name: '::Menu:TalabatDashboard',
       parentName: '::Menu:Dashboard',

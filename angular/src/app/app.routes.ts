@@ -30,6 +30,11 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard, permissionGuard],
   },
   {
+    path: 'talabat-orders',
+    loadComponent: () => import('./talabat-orders/talabat-orders.component').then(c => c.TalabatOrdersComponent),
+    canActivate: [authGuard, permissionGuard],
+  },
+  {
     path: 'account',
     loadChildren: () => import('@volo/abp.ng.account/public').then(c => c.createRoutes()),
   },
