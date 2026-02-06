@@ -60,8 +60,14 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
         string? branchId = null,
         CancellationToken cancellationToken = default)
     {
-        _backgroundJobClient.Enqueue<MenuSyncRecurringJob>(job =>
+        var jobId = _backgroundJobClient.Enqueue<MenuSyncRecurringJob>(job =>
             job.ExecuteAsync(foodicsAccountId, branchId, false, default));
+
+        Logger.LogInformation(
+            "Enqueued MenuSyncRecurringJob {JobId}. FoodicsAccountId={FoodicsAccountId}, BranchId={BranchId}",
+            jobId,
+            foodicsAccountId?.ToString() ?? "<all>",
+            branchId ?? "<all>");
 
         await Task.CompletedTask;
     }
