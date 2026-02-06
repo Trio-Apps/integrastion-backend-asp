@@ -23,13 +23,16 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
 {
     private readonly IRepository<MenuItemMapping, Guid> _mappingRepository;
     private readonly ILogger<MenuMappingService> _logger;
+    private readonly Volo.Abp.Guids.IGuidGenerator _guidGenerator;
 
     public MenuMappingService(
         IRepository<MenuItemMapping, Guid> mappingRepository,
-        ILogger<MenuMappingService> logger)
+        ILogger<MenuMappingService> logger,
+        Volo.Abp.Guids.IGuidGenerator guidGenerator)
     {
         _mappingRepository = mappingRepository;
         _logger = logger;
+        _guidGenerator = guidGenerator;
     }
 
     public async Task<MenuItemMapping> GetOrCreateMappingAsync(
@@ -76,6 +79,7 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
 
         var newMapping = new MenuItemMapping
         {
+            Id = _guidGenerator.Create(),
             FoodicsAccountId = foodicsAccountId,
             BranchId = branchId,
             EntityType = entityType,
@@ -471,6 +475,7 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
 
         var newMapping = new MenuItemMapping
         {
+            Id = _guidGenerator.Create(),
             FoodicsAccountId = foodicsAccountId,
             BranchId = branchId,
             EntityType = entityType,
