@@ -17,6 +17,7 @@ using Volo.Abp;
 using Foodics;
 using Volo.Abp.TenantManagement.Talabat;
 using Hangfire;
+using Microsoft.Extensions.Logging;
 
 namespace OrderXChange.BackgroundJobs;
 
