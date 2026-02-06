@@ -112,7 +112,7 @@
               <div class="stat-item">
                 <span class="stat-label">{{ '::TalabatDashboard.SyncStatus' | abpLocalization }}:</span>
                 <p-tag 
-                  [value]="stats.lastSyncStatus || 'Unknown'" 
+                  [value]="getStatusLabel(stats.lastSyncStatus)" 
                   [severity]="getStatusSeverity(stats.lastSyncStatus)"
                   [icon]="getStatusIcon(stats.lastSyncStatus)" />
               </div>
@@ -180,7 +180,7 @@
               <tr>
                 <td>
                   <p-tag 
-                    [value]="log.status || 'Unknown'" 
+                    [value]="getStatusLabel(log.status)" 
                     [severity]="getStatusSeverity(log.status)"
                     [icon]="getStatusIcon(log.status)" />
                 </td>

@@ -302,12 +302,15 @@ export class TalabatDashboardComponent implements OnInit {
       case 'success':
       case 'done':
         return 'success';
+      case 'partial':
+        return 'warn';
       case 'failed':
         return 'danger';
       case 'submitted':
-      case 'processing':
       case 'in_progress':
-        return 'warn';
+        return 'info';
+      case 'processing':
+        return 'info';
       default:
         return 'secondary';
     }
@@ -318,14 +321,36 @@ export class TalabatDashboardComponent implements OnInit {
       case 'success':
       case 'done':
         return 'pi pi-check-circle';
+      case 'partial':
+        return 'pi pi-exclamation-triangle';
       case 'failed':
         return 'pi pi-times-circle';
-      case 'submitted':
       case 'processing':
       case 'in_progress':
         return 'pi pi-spin pi-spinner';
+      case 'submitted':
+        return 'pi pi-send';
       default:
         return 'pi pi-question-circle';
+    }
+  }
+
+  getStatusLabel(status: string | undefined): string {
+    switch (status?.toLowerCase()) {
+      case 'success':
+      case 'done':
+        return 'Completed';
+      case 'failed':
+        return 'Failed';
+      case 'partial':
+        return 'Partial';
+      case 'processing':
+      case 'in_progress':
+        return 'Processing';
+      case 'submitted':
+        return 'Submitted';
+      default:
+        return 'Unknown';
     }
   }
 

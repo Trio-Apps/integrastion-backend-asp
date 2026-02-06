@@ -61,6 +61,11 @@ public class TalabatCatalogSyncService : ITransientDependency
         correlationId ??= Guid.NewGuid().ToString();
         var originalProductsList = products.ToList();
         var productsList = FilterProductsForTalabat(originalProductsList).ToList();
+        var categoriesCount = productsList
+            .Select(p => p.Category?.Id ?? p.CategoryId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct()
+            .Count();
 
         if (productsList.Count != originalProductsList.Count)
         {
@@ -104,15 +109,13 @@ public class TalabatCatalogSyncService : ITransientDependency
                 callbackUrl,
                 cancellationToken);
 
-            var items = catalogRequest.Catalog?.Items;
-            result.CategoriesCount = items?.Values.Count(i => string.Equals(i.Type, "Category", StringComparison.OrdinalIgnoreCase)) ?? 0;
-            result.ProductsCount = items?.Values.Count(i => string.Equals(i.Type, "Product", StringComparison.OrdinalIgnoreCase)) ?? 0;
+            result.CategoriesCount = categoriesCount;
+            result.ProductsCount = productsList.Count;
 
             _logger.LogInformation(
-                "Mapped V2 catalog for Talabat. CorrelationId={CorrelationId}, ChainCode={ChainCode}, Items={Items}, Categories={Categories}, Products={Products}",
+                "Mapped V2 catalog for Talabat. CorrelationId={CorrelationId}, ChainCode={ChainCode}, Categories={Categories}, Products={Products}",
                 correlationId,
                 chainCode,
-                items?.Count ?? 0,
                 result.CategoriesCount,
                 result.ProductsCount);
 
@@ -315,6 +318,11 @@ public class TalabatCatalogSyncService : ITransientDependency
         correlationId ??= Guid.NewGuid().ToString();
         var originalProductsList = products.ToList();
         var productsList = FilterProductsForTalabat(originalProductsList).ToList();
+        var categoriesCount = productsList
+            .Select(p => p.Category?.Id ?? p.CategoryId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct()
+            .Count();
 
         if (productsList.Count != originalProductsList.Count)
         {
@@ -365,15 +373,13 @@ public class TalabatCatalogSyncService : ITransientDependency
                 callbackUrl,
                 cancellationToken);
 
-            // V2 format uses Items dictionary where items can be of various types (Product, Category, Topping, etc.)
-            result.CategoriesCount = catalogRequest.Catalog?.Items?.Count(x => x.Value.Type == "Category") ?? 0;
-            result.ProductsCount = catalogRequest.Catalog?.Items?.Count(x => x.Value.Type == "Product") ?? 0;
+            result.CategoriesCount = categoriesCount;
+            result.ProductsCount = productsList.Count;
 
             _logger.LogInformation(
-                "Mapped catalog to Talabat V2 format. CorrelationId={CorrelationId}, Categories={Categories}, TotalItems={Items}, Products={Products}",
+                "Mapped catalog to Talabat V2 format. CorrelationId={CorrelationId}, Categories={Categories}, Products={Products}",
                 correlationId,
                 result.CategoriesCount,
-                catalogRequest.Catalog?.Items?.Count ?? 0,
                 result.ProductsCount);
 
                 var response = await _talabatCatalogClient.SubmitV2CatalogAsync(
