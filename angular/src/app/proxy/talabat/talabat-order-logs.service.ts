@@ -13,7 +13,7 @@ export class TalabatOrderLogsService {
     this.restService.request<any, PagedResultDto<TalabatOrderLogDto>>(
       {
         method: 'GET',
-        url: '/api/app/talabat-order-logs',
+        url: '/api/app/talabat-order-log',
         params: { ...input },
       },
       { apiName: this.apiName, ...config }
