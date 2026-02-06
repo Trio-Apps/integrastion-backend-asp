@@ -118,6 +118,7 @@ public class FoodicsProductStagingService : ITransientDependency
                     // BranchId is NOT part of the unique key - one record per product per account
                     // Branch availability is stored in BranchesJson field
                     var existingProduct = await dbContext.Set<FoodicsProductStaging>()
+                        .IgnoreQueryFilters()
                         .AsNoTracking()
                         .FirstOrDefaultAsync(
                             x => x.FoodicsAccountId == foodicsAccountId &&
@@ -126,8 +127,24 @@ public class FoodicsProductStagingService : ITransientDependency
 
                     if (existingProduct != null)
                     {
-                        // Update existing - reload with tracking to get latest version
-                        var trackedProduct = await _stagingRepository.GetAsync(existingProduct.Id, cancellationToken: cancellationToken);
+                        // Update existing - reload with tracking to get latest version (including soft-deleted rows)
+                        var trackedProduct = await dbContext.Set<FoodicsProductStaging>()
+                            .IgnoreQueryFilters()
+                            .FirstOrDefaultAsync(x => x.Id == existingProduct.Id, cancellationToken);
+
+                        if (trackedProduct == null)
+                        {
+                            // Fallback: repository (should be rare)
+                            trackedProduct = await _stagingRepository.GetAsync(existingProduct.Id, cancellationToken: cancellationToken);
+                        }
+
+                        // If the existing row is soft-deleted, revive it
+                        if (trackedProduct.IsDeleted)
+                        {
+                            trackedProduct.IsDeleted = false;
+                            trackedProduct.DeletionTime = null;
+                            trackedProduct.DeleterId = null;
+                        }
 
                         // Update properties with latest data from Foodics
                         UpdateStagingProduct(trackedProduct, product, branchId, syncDate, account.TenantId);
@@ -163,6 +180,7 @@ public class FoodicsProductStagingService : ITransientDependency
                             {
                                 var retryDbContext = await _dbContextProvider.GetDbContextAsync();
                                 var existingId = await retryDbContext.Set<FoodicsProductStaging>()
+                                    .IgnoreQueryFilters()
                                     .AsNoTracking()
                                     .Where(x => x.FoodicsAccountId == foodicsAccountId && x.FoodicsProductId == product.Id)
                                     .Select(x => x.Id)
@@ -174,7 +192,21 @@ public class FoodicsProductStagingService : ITransientDependency
                                     throw;
                                 }
 
-                                var trackedProduct = await _stagingRepository.GetAsync(existingId, cancellationToken: cancellationToken);
+                                var trackedProduct = await retryDbContext.Set<FoodicsProductStaging>()
+                                    .IgnoreQueryFilters()
+                                    .FirstOrDefaultAsync(x => x.Id == existingId, cancellationToken);
+
+                                if (trackedProduct == null)
+                                {
+                                    trackedProduct = await _stagingRepository.GetAsync(existingId, cancellationToken: cancellationToken);
+                                }
+
+                                if (trackedProduct.IsDeleted)
+                                {
+                                    trackedProduct.IsDeleted = false;
+                                    trackedProduct.DeletionTime = null;
+                                    trackedProduct.DeleterId = null;
+                                }
                                 UpdateStagingProduct(trackedProduct, product, branchId, syncDate, account.TenantId);
                                 await _stagingRepository.UpdateAsync(trackedProduct, autoSave: true, cancellationToken: cancellationToken);
                                 result.UpdatedCount++;
