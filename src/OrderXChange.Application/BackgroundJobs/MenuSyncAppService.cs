@@ -100,7 +100,8 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
             accessToken: accessToken,
             perPage: 100,
             includeDeleted: false,
-            CancellationToken.None);
+            includeInactive: false,
+            cancellationToken: CancellationToken.None);
 
         // Build menu structure from products
         var result = BuildMenuFromProducts(allProducts.Values);
@@ -567,7 +568,8 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
             accessToken: accessToken,
             perPage: 100,
             includeDeleted: false,
-            CancellationToken.None);
+            includeInactive: false,
+            cancellationToken: CancellationToken.None);
         
         // Extract unique ACTIVE branches from products
         var branches = allProducts.Values
@@ -596,7 +598,8 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
             accessToken: accessToken,
             perPage: 100,
             includeDeleted: false,
-            CancellationToken.None);
+            includeInactive: false,
+            cancellationToken: CancellationToken.None);
         
         // Extract unique groups from products and count products per group
         var groupSummaries = allProducts.Values

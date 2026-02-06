@@ -260,7 +260,8 @@ public class MenuSyncScheduler : ITransientDependency
                 branchId: null,  // Always fetch ALL products to get branch info
                 accessToken: accessToken,
                 perPage: 100,
-                includeDeleted: false,  
+                includeDeleted: false,
+                includeInactive: false,
                 cancellationToken: cancellationToken);
 
             _logger.LogInformation("⚡ [Job] Fetched {Count} products from Foodics (all branches). AccountId={AccountId}, CorrelationId={CorrelationId}",

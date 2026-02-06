@@ -119,6 +119,7 @@ public class TalabatTestController : AbpController
             var products = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
                 branchId,
                 perPage: 100,
+                includeInactive: false,
                 cancellationToken: cancellationToken);
 
             _logger.LogInformation("⚡ [Full {TestId}] Fetched {Count} products from Foodics", testId, products.Count);
@@ -253,6 +254,7 @@ public class TalabatTestController : AbpController
             var products = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
                 branchId,
                 perPage: 50, // Limit for testing
+                includeInactive: false,
                 cancellationToken: cancellationToken);
 
             _logger.LogInformation("Fetched {Count} products from Foodics", products.Count);
@@ -336,6 +338,7 @@ public class TalabatTestController : AbpController
             var products = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
                 branchId,
                 perPage: limit,
+                includeInactive: false,
                 cancellationToken: cancellationToken);
 
             if (products.Count == 0)
@@ -459,6 +462,7 @@ public class TalabatTestController : AbpController
             var products = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
                 branchId,
                 perPage: 50,
+                includeInactive: false,
                 cancellationToken: cancellationToken);
 
             if (products.Count == 0)
@@ -1139,7 +1143,8 @@ public class TalabatTestController : AbpController
             var products = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
                 branchId: null, 
                 accessToken: null, 
-                perPage: 100, 
+                perPage: 100,
+                includeInactive: false,
                 cancellationToken: cancellationToken);
             
             // Prepare matching lists
@@ -1356,6 +1361,7 @@ public class TalabatTestController : AbpController
                 branchId: null,
                 accessToken: null,
                 perPage: 100,
+                includeInactive: false,
                 cancellationToken: cancellationToken);
 
             if (products.Count == 0)
@@ -1427,6 +1433,7 @@ public class TalabatTestController : AbpController
                 branchId: null,
                 accessToken: null,
                 perPage: 100,
+                includeInactive: false,
                 cancellationToken: cancellationToken);
 
             if (products.Count == 0)

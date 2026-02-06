@@ -386,7 +386,8 @@ public class MenuSyncRecurringJob : ITransientDependency
                 accessToken: accessToken,
                 perPage: 100,
                 includeDeleted: true,
-                cancellationToken);
+                includeInactive: false,
+                cancellationToken: cancellationToken);
 
             _logger.LogInformation(
                 "Fetched {Count} products from Foodics for account {AccountId}",
