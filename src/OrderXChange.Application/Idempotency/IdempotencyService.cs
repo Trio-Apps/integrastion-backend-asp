@@ -306,6 +306,12 @@ public class IdempotencyService : ITransientDependency
         [CallerFilePath] string? callerFile = null,
         [CallerLineNumber] int callerLine = 0)
     {
+        string? resultHash = null;
+        if (result != null)
+        {
+            resultHash = ComputeHash(result);
+        }
+
         var record = await _idempotencyRepository.FindByKeyAsync(
             accountId,
             idempotencyKey,
@@ -313,8 +319,35 @@ public class IdempotencyService : ITransientDependency
 
         if (record == null)
         {
-            _logger.LogWarning(
-                "Cannot mark succeeded: Record not found for AccountId={AccountId}, Key={Key}",
+            if (IsMenuLockKey(idempotencyKey))
+            {
+                _logger.LogInformation(
+                    "Idempotency lock already released (succeeded). AccountId={AccountId}, Key={Key}",
+                    accountId, idempotencyKey);
+                return;
+            }
+
+            var newRecord = new IdempotencyRecord(
+                accountId,
+                idempotencyKey,
+                IdempotencyStatus.Succeeded,
+                retentionDays: 30)
+            {
+                ResultHash = resultHash
+            };
+            newRecord.LastProcessedUtc = DateTime.UtcNow;
+
+            await _idempotencyRepository.InsertAsync(newRecord, cancellationToken: cancellationToken);
+
+            if (IsMenuIdempotencyKey(idempotencyKey))
+            {
+                _logger.LogInformation(
+                    "Idempotency created (succeeded): AccountId={AccountId}, Key={Key}, Status={Status}, Caller={Caller} ({CallerFile}:{CallerLine})",
+                    accountId, idempotencyKey, newRecord.Status, callerMember, callerFile, callerLine);
+            }
+
+            _logger.LogInformation(
+                "Idempotency: Operation marked as succeeded for AccountId={AccountId}, Key={Key}",
                 accountId, idempotencyKey);
             return;
         }
@@ -332,12 +365,6 @@ public class IdempotencyService : ITransientDependency
                 "Idempotency lock released (succeeded) for AccountId={AccountId}, Key={Key}",
                 accountId, idempotencyKey);
             return;
-        }
-
-        string? resultHash = null;
-        if (result != null)
-        {
-            resultHash = ComputeHash(result);
         }
 
         record.MarkSucceeded(resultHash);
@@ -373,8 +400,32 @@ public class IdempotencyService : ITransientDependency
 
         if (record == null)
         {
+            if (IsMenuLockKey(idempotencyKey))
+            {
+                _logger.LogInformation(
+                    "Idempotency lock already released (failed). AccountId={AccountId}, Key={Key}",
+                    accountId, idempotencyKey);
+                return;
+            }
+
+            var newRecord = new IdempotencyRecord(
+                accountId,
+                idempotencyKey,
+                IdempotencyStatus.FailedPermanent,
+                retentionDays: 30);
+            newRecord.LastProcessedUtc = DateTime.UtcNow;
+
+            await _idempotencyRepository.InsertAsync(newRecord, cancellationToken: cancellationToken);
+
+            if (IsMenuIdempotencyKey(idempotencyKey))
+            {
+                _logger.LogInformation(
+                    "Idempotency created (failed): AccountId={AccountId}, Key={Key}, Status={Status}, Caller={Caller} ({CallerFile}:{CallerLine})",
+                    accountId, idempotencyKey, newRecord.Status, callerMember, callerFile, callerLine);
+            }
+
             _logger.LogWarning(
-                "Cannot mark failed: Record not found for AccountId={AccountId}, Key={Key}",
+                "Idempotency: Operation marked as permanently failed for AccountId={AccountId}, Key={Key}",
                 accountId, idempotencyKey);
             return;
         }

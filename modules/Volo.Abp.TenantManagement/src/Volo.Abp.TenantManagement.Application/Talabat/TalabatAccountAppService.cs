@@ -93,6 +93,7 @@ namespace Volo.Abp.TenantManagement.Talabat
                 ApiSecret = input.ApiSecret,
                 IsActive = input.IsActive,
                 UserName = input.UserName,
+                Password = input.Password,
                 PlatformKey = input.PlatformKey,
                 PlatformRestaurantId = platformRestaurantId,
                 FoodicsAccountId = input.FoodicsAccountId,
@@ -155,6 +156,10 @@ namespace Volo.Abp.TenantManagement.Talabat
             talabatAccount.ApiSecret = input.ApiSecret;
             talabatAccount.IsActive = input.IsActive;
             talabatAccount.UserName = input.UserName;
+            if (!string.IsNullOrWhiteSpace(input.Password))
+            {
+                talabatAccount.Password = input.Password;
+            }
             talabatAccount.PlatformKey = input.PlatformKey;
             talabatAccount.PlatformRestaurantId = platformRestaurantId;
             talabatAccount.FoodicsAccountId = input.FoodicsAccountId;

@@ -8,6 +8,7 @@ export interface CreateUpdateTalabatAccountDto extends EntityDto {
   apiSecret?: string;
   isActive: boolean;
   userName?: string;
+  password?: string;
   platformKey?: string;
   platformRestaurantId?: string;
   foodicsAccountId?: string;

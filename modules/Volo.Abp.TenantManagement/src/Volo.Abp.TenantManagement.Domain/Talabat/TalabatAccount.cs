@@ -14,6 +14,7 @@ namespace Volo.Abp.TenantManagement.Talabat
         public string ApiSecret { get; set; }
         public bool IsActive { get; set; } = true;
         public string? UserName { get; set; }
+        public string? Password { get; set; }
         
         /// <summary>
         /// Platform key - e.g., "TB" for Talabat Brand, "TB_KW" for Kuwait

@@ -31,6 +31,9 @@ namespace Volo.Abp.TenantManagement.Talabat
         [StringLength(100)]
         public string UserName { get; set; }
 
+        [StringLength(200)]
+        public string? Password { get; set; }
+
         [StringLength(50)]
         public string PlatformKey { get; set; }
 

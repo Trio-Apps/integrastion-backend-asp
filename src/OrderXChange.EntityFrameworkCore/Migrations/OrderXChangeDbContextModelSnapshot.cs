@@ -4594,6 +4594,10 @@ namespace OrderXChange.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
 
+                    b.Property<string>("Password")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
                     b.Property<bool>("SyncAllBranches")
                         .HasColumnType("tinyint(1)");
 

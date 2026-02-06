@@ -240,14 +240,16 @@ public class TalabatAccountService : ITransientDependency
 
     private TalabatAccountCredentials MapToCredentials(TalabatAccount account)
     {
-        // Password no longer stored on TalabatAccount; use configured value instead
         var passwordFromConfig = _configuration["Talabat:Password"];
+        var password = !string.IsNullOrWhiteSpace(account.Password)
+            ? account.Password
+            : passwordFromConfig;
         return new TalabatAccountCredentials
         {
             AccountId = account.Id,
             Name = account.Name,
             UserName = account.UserName,
-            Password = passwordFromConfig,
+            Password = password,
             ChainCode = account.ChainCode,
             VendorCode = account.VendorCode,
             PlatformKey = account.PlatformKey,

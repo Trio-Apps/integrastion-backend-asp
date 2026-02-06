@@ -287,12 +287,14 @@ export class TalabatListComponent implements OnInit {
 
     this.submitting = true;
     const formValue = this.accountForm.value;
+    const password = (formValue.password || '').trim();
     const dto: CreateUpdateTalabatAccountDto = {
       name: formValue.name,
       vendorCode: formValue.vendorCode,
       chainCode: formValue.chainCode,
       isActive: formValue.isActive,
       userName: formValue.userName,
+      password: password ? password : undefined,
       platformKey: formValue.platformKey,
       platformRestaurantId: formValue.platformRestaurantId,
       foodicsAccountId: formValue.foodicsAccountId,
