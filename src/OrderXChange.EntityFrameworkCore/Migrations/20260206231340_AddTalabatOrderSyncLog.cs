@@ -1,5 +1,4 @@
-using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -113,6 +112,9 @@ namespace OrderXChange.Migrations
                 name: "IX_TalabatOrderSyncLogs_VendorCode",
                 table: "AppTalabatOrderSyncLogs",
                 column: "VendorCode");
+
+            migrationBuilder.Sql(
+                "ALTER TABLE `TalabatAccounts` ADD COLUMN IF NOT EXISTS `Password` longtext NULL");
         }
 
         /// <inheritdoc />
@@ -120,6 +122,9 @@ namespace OrderXChange.Migrations
         {
             migrationBuilder.DropTable(
                 name: "AppTalabatOrderSyncLogs");
+
+            migrationBuilder.Sql(
+                "ALTER TABLE `TalabatAccounts` DROP COLUMN IF EXISTS `Password`");
         }
     }
 }
