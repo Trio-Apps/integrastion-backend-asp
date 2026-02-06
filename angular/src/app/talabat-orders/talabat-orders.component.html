@@ -10,7 +10,14 @@
   <div class="filters">
     <span class="filter-item">
       <label for="vendorCode">Vendor Code</label>
-      <input id="vendorCode" type="text" pInputText [(ngModel)]="vendorCode()" placeholder="PH-SIDDIQ-002" (ngModelChange)="vendorCode.set($event)" />
+      <input
+        id="vendorCode"
+        type="text"
+        pInputText
+        [ngModel]="vendorCode()"
+        (ngModelChange)="vendorCode.set($event)"
+        placeholder="PH-SIDDIQ-002"
+      />
     </span>
     <span class="filter-item">
       <label for="status">Status</label>
@@ -38,7 +45,7 @@
     (onLazyLoad)="loadLogs($event)"
     [rowsPerPageOptions]="[10, 20, 50]"
     sortField="receivedAt"
-    sortOrder="-1"
+    [sortOrder]="-1"
     dataKey="id"
   >
     <ng-template pTemplate="header">
@@ -63,7 +70,7 @@
         <td>
           <div class="order-cell">
             <div class="order-code">{{ getOrderCode(row) }}</div>
-            <p-tag *ngIf="row.isTestOrder" value="TEST" severity="warning"></p-tag>
+            <p-tag *ngIf="row.isTestOrder" value="TEST" severity="warn"></p-tag>
           </div>
         </td>
         <td>{{ row.productsCount ?? 0 }}</td>

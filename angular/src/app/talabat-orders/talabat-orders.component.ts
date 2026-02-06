@@ -87,7 +87,7 @@ export class TalabatOrdersComponent {
       });
   }
 
-  getStatusSeverity(status?: string): 'success' | 'warning' | 'danger' | 'info' | 'secondary' {
+  getStatusSeverity(status?: string): 'success' | 'warn' | 'danger' | 'info' | 'secondary' {
     switch ((status || '').toLowerCase()) {
       case 'completed':
       case 'done':
@@ -99,7 +99,7 @@ export class TalabatOrdersComponent {
         return 'info';
       case 'enqueued':
       case 'pending':
-        return 'warning';
+        return 'warn';
       default:
         return 'secondary';
     }
