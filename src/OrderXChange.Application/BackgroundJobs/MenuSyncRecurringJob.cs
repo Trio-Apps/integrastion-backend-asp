@@ -378,14 +378,13 @@ public class MenuSyncRecurringJob : ITransientDependency
 
             // Fetch ALL products with full includes using the products endpoint
             // NOTE:
-            // - We set includeDeleted = true so that we can detect products that were deleted in Foodics
-            //   and mark them as soft-deleted in our staging table (and then propagate deletions to Talabat).
+            // - We set includeDeleted = false to avoid returning deleted products from Foodics.
             // - Active products are filtered later at the staging / Talabat submission layers.
             var allProducts = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
                 branchId,
                 accessToken: accessToken,
                 perPage: 100,
-                includeDeleted: true,
+                includeDeleted: false,
                 includeInactive: false,
                 cancellationToken: cancellationToken);
 
