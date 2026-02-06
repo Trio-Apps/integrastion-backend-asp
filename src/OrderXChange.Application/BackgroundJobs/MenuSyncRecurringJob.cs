@@ -224,26 +224,6 @@ public class MenuSyncRecurringJob : ITransientDependency
             _logger.LogError(ex, "Menu sync job failed");
             throw;
         }
-        finally
-        {
-            if (jobLockAcquired && !jobLockReleased)
-            {
-                try
-                {
-                    await _idempotencyService.MarkFailedAsync(
-                        foodicsAccountId,
-                        idempotencyKey,
-                        cancellationToken);
-                }
-                catch (Exception releaseEx)
-                {
-                    _logger.LogWarning(
-                        releaseEx,
-                        "Failed to release job-level idempotency lock for FoodicsAccount {AccountId}",
-                        foodicsAccountId);
-                }
-            }
-        }
     }
 
     private async Task SyncAccountAsync(Guid foodicsAccountId, string? branchId, bool skipInternalIdempotency, CancellationToken cancellationToken)
@@ -917,6 +897,26 @@ public class MenuSyncRecurringJob : ITransientDependency
                 ex.Message);
             
             throw;
+        }
+        finally
+        {
+            if (jobLockAcquired && !jobLockReleased)
+            {
+                try
+                {
+                    await _idempotencyService.MarkFailedAsync(
+                        foodicsAccountId,
+                        idempotencyKey,
+                        cancellationToken);
+                }
+                catch (Exception releaseEx)
+                {
+                    _logger.LogWarning(
+                        releaseEx,
+                        "Failed to release job-level idempotency lock for FoodicsAccount {AccountId}",
+                        foodicsAccountId);
+                }
+            }
         }
     }
 
