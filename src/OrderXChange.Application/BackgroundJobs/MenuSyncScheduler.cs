@@ -425,6 +425,7 @@ public class MenuSyncScheduler : ITransientDependency
             groupFilterResult.FilteredProducts,
             chainCode,
             foodicsAccountId,
+            branchId: null,
             correlationId,
             vendorCode,
             cancellationToken);

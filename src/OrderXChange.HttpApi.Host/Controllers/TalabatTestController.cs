@@ -175,6 +175,7 @@ public class TalabatTestController : AbpController
                 foodicsDtos,
                 chainCode,
                 accountId,
+                branchId,
                 correlationId,
                 vendorCode: null,
                 cancellationToken);
@@ -234,11 +235,13 @@ public class TalabatTestController : AbpController
     public async Task<IActionResult> TestSyncAsync(
         [FromQuery] string? chainCode = null,
         [FromQuery] string? branchId = null,
+        [FromQuery] Guid? foodicsAccountId = null,
         CancellationToken cancellationToken = default)
     {
         // V2 API uses chainCode instead of vendorCode
         chainCode ??= _configuration["Talabat:ChainCode"] ?? _configuration["Talabat:DefaultVendorCode"] ?? "783216";
         var platformVendorId = _configuration["Talabat:PlatformVendorId"] ?? "PH-SIDDIQ-002";
+        var accountId = foodicsAccountId ?? Guid.Parse("11111111-1111-1111-1111-111111111111");
         
         try
         {
@@ -275,6 +278,8 @@ public class TalabatTestController : AbpController
             var result = await _syncService.SyncCatalogAsync(
                 products.Values,
                 chainCode,
+                accountId,
+                branchId,
                 platformVendorId,
                 correlationId: Guid.NewGuid().ToString(),
                 cancellationToken);

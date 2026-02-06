@@ -654,6 +654,8 @@ public class MenuSyncRecurringJob : ITransientDependency
                     var talabatResult = await _talabatSyncService.SyncCatalogAsync(
                         allProducts.Values,
                         talabatChainCode,
+                        foodicsAccountId,
+                        branchId,
                         talabatVendorCode,
                         correlationId,
                         cancellationToken);

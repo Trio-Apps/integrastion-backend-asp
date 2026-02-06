@@ -43,6 +43,8 @@ public class TalabatCatalogSyncService : ITransientDependency
     /// </summary>
     /// <param name="products">Foodics products with full includes</param>
     /// <param name="chainCode">Talabat chain code (e.g., "tlbt-pick")</param>
+    /// <param name="foodicsAccountId">FoodicsAccount ID for stable ID mapping</param>
+    /// <param name="branchId">Optional branch ID for stable ID mapping</param>
     /// <param name="vendorCode">Talabat vendor code</param>
     /// <param name="correlationId">Correlation ID for tracing</param>
     /// <param name="cancellationToken">Cancellation token</param>
@@ -50,12 +52,23 @@ public class TalabatCatalogSyncService : ITransientDependency
     public async Task<TalabatSyncResult> SyncCatalogAsync(
         IEnumerable<FoodicsProductDetailDto> products,
         string chainCode,
+        Guid foodicsAccountId,
+        string? branchId,
         string vendorCode,
         string? correlationId = null,
         CancellationToken cancellationToken = default)
     {
         correlationId ??= Guid.NewGuid().ToString();
-        var productsList = products.ToList();
+        var originalProductsList = products.ToList();
+        var productsList = FilterProductsForTalabat(originalProductsList).ToList();
+
+        if (productsList.Count != originalProductsList.Count)
+        {
+            _logger.LogInformation(
+                "Filtered products for Talabat submission. Original={OriginalCount}, Filtered={FilteredCount}",
+                originalProductsList.Count,
+                productsList.Count);
+        }
 
         _logger.LogInformation(
             "Starting Talabat catalog sync. CorrelationId={CorrelationId}, ChainCode={ChainCode}, VendorCode={VendorCode}, ProductCount={ProductCount}",
@@ -82,7 +95,14 @@ public class TalabatCatalogSyncService : ITransientDependency
             }
 
             // Map Foodics products to Talabat V2 catalog format (items-based)
-            var catalogRequest = _mapper.MapToTalabatV2Catalog(productsList, chainCode, vendorCode, callbackUrl);
+            var catalogRequest = await _mapper.MapToTalabatV2CatalogAsync(
+                productsList,
+                foodicsAccountId,
+                branchId,
+                chainCode,
+                vendorCode,
+                callbackUrl,
+                cancellationToken);
 
             var items = catalogRequest.Catalog?.Items;
             result.CategoriesCount = items?.Values.Count(i => string.Equals(i.Type, "Category", StringComparison.OrdinalIgnoreCase)) ?? 0;
@@ -287,12 +307,22 @@ public class TalabatCatalogSyncService : ITransientDependency
         IEnumerable<FoodicsProductDetailDto> products,
         string chainCode,
         Guid foodicsAccountId,
+        string? branchId = null,
         string? correlationId = null,
         string? vendorCode = null,
         CancellationToken cancellationToken = default)
     {
         correlationId ??= Guid.NewGuid().ToString();
-        var productsList = products.ToList();
+        var originalProductsList = products.ToList();
+        var productsList = FilterProductsForTalabat(originalProductsList).ToList();
+
+        if (productsList.Count != originalProductsList.Count)
+        {
+            _logger.LogInformation(
+                "Filtered products for Talabat submission. Original={OriginalCount}, Filtered={FilteredCount}",
+                originalProductsList.Count,
+                productsList.Count);
+        }
 
         _logger.LogInformation(
             "Starting Talabat V2 catalog sync. CorrelationId={CorrelationId}, ChainCode={ChainCode}, ProductCount={ProductCount}",
@@ -326,7 +356,14 @@ public class TalabatCatalogSyncService : ITransientDependency
 
             // Map Foodics products to Talabat V2 catalog format
             // Pass vendorCode to ensure each TalabatAccount gets its own vendor in the vendors array
-            var catalogRequest = _mapper.MapToTalabatV2Catalog(productsList, chainCode, vendorCode: vendorCode, callbackUrl: callbackUrl);
+            var catalogRequest = await _mapper.MapToTalabatV2CatalogAsync(
+                productsList,
+                foodicsAccountId,
+                branchId,
+                chainCode,
+                vendorCode,
+                callbackUrl,
+                cancellationToken);
 
             // V2 format uses Items dictionary where items can be of various types (Product, Category, Topping, etc.)
             result.CategoriesCount = catalogRequest.Catalog?.Items?.Count(x => x.Value.Type == "Category") ?? 0;
@@ -416,6 +453,14 @@ public class TalabatCatalogSyncService : ITransientDependency
         }
 
         return result;
+    }
+
+    private static IEnumerable<FoodicsProductDetailDto> FilterProductsForTalabat(
+        IEnumerable<FoodicsProductDetailDto> products)
+    {
+        return products.Where(p =>
+            string.IsNullOrWhiteSpace(p.DeletedAt) &&
+            (p.IsActive == true || (p.Groups != null && p.Groups.Count > 0)));
     }
 }
 
