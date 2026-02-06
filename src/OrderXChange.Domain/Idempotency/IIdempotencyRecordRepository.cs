@@ -17,6 +17,14 @@ public interface IIdempotencyRecordRepository : IRepository<IdempotencyRecord>
         Guid accountId,
         string idempotencyKey,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Insert or update an idempotency record by primary key (AccountId + IdempotencyKey)
+    /// </summary>
+    Task UpsertAsync(
+        IdempotencyRecord record,
+        bool updateFirstSeen = false,
+        CancellationToken cancellationToken = default);
     
     /// <summary>
     /// Check if an idempotency key exists

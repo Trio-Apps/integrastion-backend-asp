@@ -337,7 +337,7 @@ public class IdempotencyService : ITransientDependency
             };
             newRecord.LastProcessedUtc = DateTime.UtcNow;
 
-            await _idempotencyRepository.InsertAsync(newRecord, cancellationToken: cancellationToken);
+            await _idempotencyRepository.UpsertAsync(newRecord, updateFirstSeen: false, cancellationToken: cancellationToken);
 
             if (IsMenuIdempotencyKey(idempotencyKey))
             {
@@ -415,7 +415,7 @@ public class IdempotencyService : ITransientDependency
                 retentionDays: 30);
             newRecord.LastProcessedUtc = DateTime.UtcNow;
 
-            await _idempotencyRepository.InsertAsync(newRecord, cancellationToken: cancellationToken);
+            await _idempotencyRepository.UpsertAsync(newRecord, updateFirstSeen: false, cancellationToken: cancellationToken);
 
             if (IsMenuIdempotencyKey(idempotencyKey))
             {
