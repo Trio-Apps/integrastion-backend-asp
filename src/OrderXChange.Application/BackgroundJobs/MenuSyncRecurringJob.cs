@@ -507,11 +507,15 @@ public class MenuSyncRecurringJob : ITransientDependency
                     branchId,
                     allProducts.Values);
 
+                var snapshotStaleMinutes = _configuration.GetValue<int>("Idempotency:MenuSnapshotStaleMinutes", 60);
+                var snapshotStaleAfter = TimeSpan.FromMinutes(Math.Max(5, snapshotStaleMinutes));
+
                 var (canProcessSnapshot, existingSnapshotRecord) = await _idempotencyService.CheckAndMarkStartedAsync(
                     foodicsAccountId,
                     snapshotIdempotencyKey,
                     retentionDays: 30, // 14–30 days as per SDD 7.2
-                    cancellationToken);
+                    cancellationToken,
+                    snapshotStaleAfter);
 
                 if (!canProcessSnapshot)
                 {
