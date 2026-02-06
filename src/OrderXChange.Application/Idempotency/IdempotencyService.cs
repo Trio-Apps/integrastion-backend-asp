@@ -42,7 +42,8 @@ public class IdempotencyService : ITransientDependency
         Guid accountId,
         string idempotencyKey,
         int retentionDays = 30,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        TimeSpan? staleAfter = null)
     {
         const int maxRetries = 3;
         var retryCount = 0;
@@ -60,16 +61,76 @@ public class IdempotencyService : ITransientDependency
 
                 if (existing != null)
                 {
+                    var isMenuLockKey = IsMenuLockKey(idempotencyKey);
+
                     // Record exists - check status
                     switch (existing.Status)
                     {
                         case IdempotencyStatus.Succeeded:
+                            if (isMenuLockKey)
+                            {
+                                _logger.LogInformation(
+                                    "Idempotency lock: Previous lock already succeeded for AccountId={AccountId}, Key={Key}. Releasing for new run.",
+                                    accountId, idempotencyKey);
+                                await _idempotencyRepository.DeleteAsync(existing, cancellationToken: cancellationToken);
+                                existing = null;
+                                break;
+                            }
+
                             _logger.LogInformation(
                                 "Idempotency check: Operation already succeeded for AccountId={AccountId}, Key={Key}",
                                 accountId, idempotencyKey);
                             return (false, existing);
 
                         case IdempotencyStatus.Started:
+                            if (isMenuLockKey)
+                            {
+                                if (staleAfter.HasValue)
+                                {
+                                    var staleCutoff = DateTime.UtcNow.Subtract(staleAfter.Value);
+                                    if (existing.LastProcessedUtc <= staleCutoff)
+                                    {
+                                        _logger.LogWarning(
+                                            "Idempotency lock: Stale operation detected for AccountId={AccountId}, Key={Key}. " +
+                                            "LastProcessedUtc={LastProcessedUtc}, StaleAfter={StaleAfter}. Releasing lock.",
+                                            accountId, idempotencyKey, existing.LastProcessedUtc, staleAfter.Value);
+
+                                        await _idempotencyRepository.DeleteAsync(existing, cancellationToken: cancellationToken);
+                                        existing = null;
+                                        break;
+                                    }
+                                }
+
+                                _logger.LogWarning(
+                                    "Idempotency lock: Operation already in progress for AccountId={AccountId}, Key={Key}",
+                                    accountId, idempotencyKey);
+                                throw new BusinessException("OPERATION_IN_PROGRESS")
+                                    .WithData("AccountId", accountId)
+                                    .WithData("IdempotencyKey", idempotencyKey);
+                            }
+
+                            if (staleAfter.HasValue)
+                            {
+                                var staleCutoff = DateTime.UtcNow.Subtract(staleAfter.Value);
+                                if (existing.LastProcessedUtc <= staleCutoff)
+                                {
+                                    _logger.LogWarning(
+                                        "Idempotency check: Stale operation detected for AccountId={AccountId}, Key={Key}. " +
+                                        "LastProcessedUtc={LastProcessedUtc}, StaleAfter={StaleAfter}. Taking over.",
+                                        accountId, idempotencyKey, existing.LastProcessedUtc, staleAfter.Value);
+
+                                    existing.Status = IdempotencyStatus.Started;
+                                    existing.FirstSeenUtc = DateTime.UtcNow;
+                                    existing.LastProcessedUtc = DateTime.UtcNow;
+                                    existing.ExpiresAt = DateTime.UtcNow.AddDays(retentionDays);
+
+                                    await _idempotencyRepository.UpdateAsync(existing, cancellationToken: cancellationToken);
+                                    await uow.CompleteAsync(cancellationToken);
+
+                                    return (true, existing);
+                                }
+                            }
+
                             _logger.LogWarning(
                                 "Idempotency check: Operation already in progress for AccountId={AccountId}, Key={Key}",
                                 accountId, idempotencyKey);
@@ -78,6 +139,16 @@ public class IdempotencyService : ITransientDependency
                                 .WithData("IdempotencyKey", idempotencyKey);
 
                         case IdempotencyStatus.FailedPermanent:
+                            if (isMenuLockKey)
+                            {
+                                _logger.LogInformation(
+                                    "Idempotency lock: Previous lock failed permanently for AccountId={AccountId}, Key={Key}. Releasing for new run.",
+                                    accountId, idempotencyKey);
+                                await _idempotencyRepository.DeleteAsync(existing, cancellationToken: cancellationToken);
+                                existing = null;
+                                break;
+                            }
+
                             _logger.LogWarning(
                                 "Idempotency check: Operation previously failed permanently for AccountId={AccountId}, Key={Key}",
                                 accountId, idempotencyKey);
@@ -85,21 +156,24 @@ public class IdempotencyService : ITransientDependency
                     }
                 }
 
-                // No existing record - create new one
-                var newRecord = new IdempotencyRecord(
-                    accountId,
-                    idempotencyKey,
-                    IdempotencyStatus.Started,
-                    retentionDays);
+                if (existing == null)
+                {
+                    // No existing record - create new one
+                    var newRecord = new IdempotencyRecord(
+                        accountId,
+                        idempotencyKey,
+                        IdempotencyStatus.Started,
+                        retentionDays);
 
-                await _idempotencyRepository.InsertAsync(newRecord, cancellationToken: cancellationToken);
-                await uow.CompleteAsync(cancellationToken);
+                    await _idempotencyRepository.InsertAsync(newRecord, cancellationToken: cancellationToken);
+                    await uow.CompleteAsync(cancellationToken);
 
-                _logger.LogInformation(
-                    "Idempotency check: Operation marked as started for AccountId={AccountId}, Key={Key}",
-                    accountId, idempotencyKey);
+                    _logger.LogInformation(
+                        "Idempotency check: Operation marked as started for AccountId={AccountId}, Key={Key}",
+                        accountId, idempotencyKey);
 
-                return (true, newRecord);
+                    return (true, newRecord);
+                }
             }
             catch (DbUpdateConcurrencyException ex)
             {
@@ -230,6 +304,15 @@ public class IdempotencyService : ITransientDependency
             return;
         }
 
+        if (IsMenuLockKey(idempotencyKey))
+        {
+            await _idempotencyRepository.DeleteAsync(record, cancellationToken: cancellationToken);
+            _logger.LogInformation(
+                "Idempotency lock released (succeeded) for AccountId={AccountId}, Key={Key}",
+                accountId, idempotencyKey);
+            return;
+        }
+
         string? resultHash = null;
         if (result != null)
         {
@@ -265,12 +348,26 @@ public class IdempotencyService : ITransientDependency
             return;
         }
 
+        if (IsMenuLockKey(idempotencyKey))
+        {
+            await _idempotencyRepository.DeleteAsync(record, cancellationToken: cancellationToken);
+            _logger.LogWarning(
+                "Idempotency lock released (failed) for AccountId={AccountId}, Key={Key}",
+                accountId, idempotencyKey);
+            return;
+        }
+
         record.MarkFailed();
         await _idempotencyRepository.UpdateAsync(record, cancellationToken: cancellationToken);
 
         _logger.LogWarning(
             "Idempotency: Operation marked as permanently failed for AccountId={AccountId}, Key={Key}",
             accountId, idempotencyKey);
+    }
+
+    private static bool IsMenuLockKey(string idempotencyKey)
+    {
+        return idempotencyKey.StartsWith("menu:lock:", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

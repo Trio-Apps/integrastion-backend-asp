@@ -273,11 +273,15 @@ public class MenuSyncRecurringJob : ITransientDependency
         {
             try
             {
+                var lockMinutes = _configuration.GetValue<int>("Idempotency:MenuSyncLockMinutes", 15);
+                var staleAfter = TimeSpan.FromMinutes(Math.Max(1, lockMinutes));
+
                 var (canProcess, existingRecord) = await _idempotencyService.CheckAndMarkStartedAsync(
                     foodicsAccountId,
                     idempotencyKey,
                     retentionDays: 1, // Short retention for sync operations (auto-cleanup after 1 day)
-                    cancellationToken);
+                    cancellationToken,
+                    staleAfter);
                 
                 if (!canProcess)
                 {
