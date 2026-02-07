@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -27,6 +28,7 @@ public class OrderDispatchDistributedEventHandler
     private readonly TalabatAccountService _talabatAccountService;
     private readonly TalabatOrderToFoodicsMapper _orderMapper;
     private readonly FoodicsOrderClient _foodicsOrderClient;
+    private readonly FoodicsCatalogClient _foodicsCatalogClient;
     private readonly FoodicsAccountTokenService _tokenService;
     private readonly IdempotencyService _idempotencyService;
     private readonly ICurrentTenant _currentTenant;
@@ -39,6 +41,7 @@ public class OrderDispatchDistributedEventHandler
         TalabatAccountService talabatAccountService,
         TalabatOrderToFoodicsMapper orderMapper,
         FoodicsOrderClient foodicsOrderClient,
+        FoodicsCatalogClient foodicsCatalogClient,
         FoodicsAccountTokenService tokenService,
         IdempotencyService idempotencyService,
         ICurrentTenant currentTenant,
@@ -50,6 +53,7 @@ public class OrderDispatchDistributedEventHandler
         _talabatAccountService = talabatAccountService;
         _orderMapper = orderMapper;
         _foodicsOrderClient = foodicsOrderClient;
+        _foodicsCatalogClient = foodicsCatalogClient;
         _tokenService = tokenService;
         _idempotencyService = idempotencyService;
         _currentTenant = currentTenant;
@@ -128,6 +132,19 @@ public class OrderDispatchDistributedEventHandler
                     throw new InvalidOperationException($"TalabatAccount not found for vendor {eventData.VendorCode}.");
                 }
 
+                var accessToken = await _tokenService.GetAccessTokenAsync(eventData.FoodicsAccountId);
+
+                if (string.IsNullOrWhiteSpace(account.FoodicsBranchId))
+                {
+                    var resolvedBranch = await ResolveFoodicsBranchAsync(accessToken, eventData.VendorCode, eventData.FoodicsAccountId);
+                    account.FoodicsBranchId = resolvedBranch.BranchId;
+                    account.FoodicsBranchName = resolvedBranch.BranchName;
+                    await _talabatAccountService.UpdateBranchAsync(
+                        account.Id,
+                        resolvedBranch.BranchId,
+                        resolvedBranch.BranchName);
+                }
+
                 if (string.IsNullOrWhiteSpace(account.FoodicsBranchId))
                 {
                     throw new InvalidOperationException(
@@ -135,7 +152,6 @@ public class OrderDispatchDistributedEventHandler
                 }
 
                 var request = _orderMapper.MapToCreateOrder(webhook, account.FoodicsBranchId, account.VendorCode);
-                var accessToken = await _tokenService.GetAccessTokenAsync(eventData.FoodicsAccountId);
 
                 var response = await _foodicsOrderClient.CreateOrderAsync(request, accessToken);
 
@@ -175,7 +191,7 @@ public class OrderDispatchDistributedEventHandler
                 eventData.CorrelationId,
                 isTransient);
 
-            await TryUpdateOrderLogFailedAsync(eventData.OrderLogId, ex, currentAttempt);
+            await TryUpdateOrderLogFailedAsync(eventData.OrderLogId, eventData.TenantId, ex, currentAttempt);
 
             if (!isTransient || currentAttempt >= maxAttempts)
             {
@@ -208,22 +224,60 @@ public class OrderDispatchDistributedEventHandler
         }
     }
 
-    private async Task TryUpdateOrderLogFailedAsync(Guid orderLogId, Exception ex, int attempts)
+    private async Task TryUpdateOrderLogFailedAsync(Guid orderLogId, Guid? tenantId, Exception ex, int attempts)
     {
         try
         {
-            var log = await _orderSyncLogRepository.GetAsync(orderLogId);
-            log.Status = "Failed";
-            log.ErrorMessage = ex.Message;
-            log.ErrorCode = ex.GetType().Name;
-            log.Attempts = attempts;
-            log.LastAttemptUtc = DateTime.UtcNow;
-            await _orderSyncLogRepository.UpdateAsync(log, autoSave: true);
+            using (_currentTenant.Change(tenantId))
+            {
+                var log = await _orderSyncLogRepository.GetAsync(orderLogId);
+                log.Status = "Failed";
+                log.ErrorMessage = ex.Message;
+                log.ErrorCode = ex.GetType().Name;
+                log.Attempts = attempts;
+                log.LastAttemptUtc = DateTime.UtcNow;
+                await _orderSyncLogRepository.UpdateAsync(log, autoSave: true);
+            }
         }
         catch (Exception logEx)
         {
             _logger.LogWarning(logEx, "Failed to update order log failure status. OrderLogId={OrderLogId}", orderLogId);
         }
+    }
+
+    private async Task<(string BranchId, string? BranchName)> ResolveFoodicsBranchAsync(
+        string accessToken,
+        string vendorCode,
+        Guid foodicsAccountId)
+    {
+        _logger.LogInformation(
+            "Resolving Foodics branch dynamically. VendorCode={VendorCode}, FoodicsAccountId={FoodicsAccountId}",
+            vendorCode,
+            foodicsAccountId);
+
+        var products = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
+            accessToken: accessToken,
+            perPage: 100,
+            includeDeleted: false,
+            includeInactive: false);
+
+        var branch = products.Values
+            .SelectMany(p => p.Branches ?? Enumerable.Empty<FoodicsBranchDto>())
+            .FirstOrDefault(b => !string.IsNullOrWhiteSpace(b.Id) && (b.IsActive ?? true));
+
+        if (branch == null || string.IsNullOrWhiteSpace(branch.Id))
+        {
+            throw new InvalidOperationException(
+                $"Unable to resolve Foodics branch for vendor {vendorCode}. No active branches found in Foodics catalog.");
+        }
+
+        _logger.LogInformation(
+            "Resolved Foodics branch from catalog. VendorCode={VendorCode}, BranchId={BranchId}, BranchName={BranchName}",
+            vendorCode,
+            branch.Id,
+            branch.Name);
+
+        return (branch.Id, string.IsNullOrWhiteSpace(branch.Name) ? branch.NameLocalized : branch.Name);
     }
 
     private int GetRetryDelaySeconds(int attempt)

@@ -161,6 +161,25 @@ public class TalabatAccountService : ITransientDependency
     }
 
     /// <summary>
+    /// Updates Foodics branch linkage for a TalabatAccount.
+    /// </summary>
+    public async Task UpdateBranchAsync(
+        Guid accountId,
+        string branchId,
+        string? branchName,
+        CancellationToken cancellationToken = default)
+    {
+        using var uow = _unitOfWorkManager.Begin(requiresNew: true);
+        var account = await _talabatAccountRepository.GetAsync(accountId, cancellationToken: cancellationToken);
+
+        account.FoodicsBranchId = branchId;
+        account.FoodicsBranchName = branchName;
+
+        await _talabatAccountRepository.UpdateAsync(account, autoSave: true, cancellationToken: cancellationToken);
+        await uow.CompleteAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Gets TalabatAccounts linked to a specific FoodicsAccount
     /// Uses requiresNew UoW to avoid disposed DbContext issues in background jobs.
     /// </summary>
