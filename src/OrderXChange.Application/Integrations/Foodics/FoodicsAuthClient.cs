@@ -32,19 +32,33 @@ public class FoodicsAuthClient : ITransientDependency
     {
         var tokenUrl = ResolveTokenUrl();
         var scope = _configuration["Foodics:OAuthScope"];
+        var grantType = _configuration["Foodics:OAuthGrantType"] ?? "client_credentials";
+        var useBasicAuth = bool.TryParse(_configuration["Foodics:OAuthUseBasicAuth"], out var parsed) && parsed;
+        var includeClientCreds = !useBasicAuth;
+
+        var form = new Dictionary<string, string?>
+        {
+            ["grant_type"] = grantType,
+            ["scope"] = string.IsNullOrWhiteSpace(scope) ? null : scope
+        };
+
+        if (includeClientCreds)
+        {
+            form["client_id"] = clientId;
+            form["client_secret"] = clientSecret;
+        }
 
         using var request = new HttpRequestMessage(HttpMethod.Post, tokenUrl)
         {
-            Content = new FormUrlEncodedContent(new Dictionary<string, string?>
-            {
-                ["grant_type"] = "client_credentials",
-                ["client_id"] = clientId,
-                ["client_secret"] = clientSecret,
-                ["scope"] = string.IsNullOrWhiteSpace(scope) ? null : scope
-            })
+            Content = new FormUrlEncodedContent(form)
         };
 
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        if (useBasicAuth)
+        {
+            var basicValue = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", basicValue);
+        }
 
         var response = await _httpClient.SendAsync(request, cancellationToken);
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -52,8 +66,9 @@ public class FoodicsAuthClient : ITransientDependency
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogError(
-                "Foodics token request failed. StatusCode={StatusCode}, Body={Body}",
+                "Foodics token request failed. StatusCode={StatusCode}, Url={Url}, Body={Body}",
                 (int)response.StatusCode,
+                tokenUrl,
                 body);
 
             throw new InvalidOperationException(
