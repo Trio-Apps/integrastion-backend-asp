@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Hangfire;
+using Microsoft.Extensions.Configuration;
 using OrderXChange.Application.Idempotency;
 using OrderXChange.BackgroundJobs;
 using OrderXChange.Integrations.Foodics;
@@ -29,6 +30,7 @@ public class MenuSyncDistributedEventHandler
     private readonly IDistributedEventBus _eventBus;
     private readonly ILogger<MenuSyncDistributedEventHandler> _logger;
     private readonly IBackgroundJobClient _backgroundJobs;
+    private readonly IConfiguration _configuration;
 
     public MenuSyncDistributedEventHandler(
         MenuSyncRecurringJob menuSyncJob,
@@ -36,6 +38,7 @@ public class MenuSyncDistributedEventHandler
         ICurrentTenant currentTenant,
         IDistributedEventBus eventBus,
         IBackgroundJobClient backgroundJobs,
+        IConfiguration configuration,
         ILogger<MenuSyncDistributedEventHandler> logger)
     {
         _menuSyncJob = menuSyncJob;
@@ -43,6 +46,7 @@ public class MenuSyncDistributedEventHandler
         _currentTenant = currentTenant;
         _eventBus = eventBus;
         _backgroundJobs = backgroundJobs;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -82,21 +86,25 @@ public class MenuSyncDistributedEventHandler
     private async Task ProcessMenuSyncAsync(MenuSyncEto eventData, int currentAttempt)
     {
         const int maxAttempts = 3;
+        var disableMenuIdempotency = _configuration.GetValue<bool>("Idempotency:DisableMenuSync", true);
 
         try
         {
-            // Check idempotency before processing
-            var (canProcess, existingRecord) = await _idempotencyService.CheckAndMarkStartedAsync(
-                eventData.AccountId,
-                eventData.IdempotencyKey);
-
-            if (!canProcess)
+            if (!disableMenuIdempotency)
             {
-                _logger.LogInformation(
-                    "Skipping duplicate MenuSync request. CorrelationId={CorrelationId}, Status={Status}",
-                    eventData.CorrelationId,
-                    existingRecord?.Status);
-                return;
+                // Check idempotency before processing
+                var (canProcess, existingRecord) = await _idempotencyService.CheckAndMarkStartedAsync(
+                    eventData.AccountId,
+                    eventData.IdempotencyKey);
+
+                if (!canProcess)
+                {
+                    _logger.LogInformation(
+                        "Skipping duplicate MenuSync request. CorrelationId={CorrelationId}, Status={Status}",
+                        eventData.CorrelationId,
+                        existingRecord?.Status);
+                    return;
+                }
             }
 
             // Change to correct tenant context
@@ -110,9 +118,12 @@ public class MenuSyncDistributedEventHandler
                     skipInternalIdempotency: true);
 
                 // Mark as succeeded
-                await _idempotencyService.MarkSucceededAsync(
-                    eventData.AccountId,
-                    eventData.IdempotencyKey);
+                if (!disableMenuIdempotency)
+                {
+                    await _idempotencyService.MarkSucceededAsync(
+                        eventData.AccountId,
+                        eventData.IdempotencyKey);
+                }
 
                 _logger.LogInformation(
                     "MenuSync completed successfully. CorrelationId={CorrelationId}",
@@ -144,9 +155,12 @@ public class MenuSyncDistributedEventHandler
                 // Non-retryable or max attempts reached → DLQ + mark permanent failure
                 await SendToDlqAsync(eventData, ex, currentAttempt, isTransient);
 
-                await _idempotencyService.MarkFailedAsync(
-                    eventData.AccountId,
-                    eventData.IdempotencyKey);
+                if (!disableMenuIdempotency)
+                {
+                    await _idempotencyService.MarkFailedAsync(
+                        eventData.AccountId,
+                        eventData.IdempotencyKey);
+                }
 
                 return;
             }

@@ -233,6 +233,9 @@ public class MenuSyncRecurringJob : ITransientDependency
     {
         // Check if Menu Versioning is enabled
         var versioningEnabled = _configuration.GetValue<bool>("MenuVersioning:Enabled", true);
+        var disableMenuIdempotency = _configuration.GetValue<bool>("Idempotency:DisableMenuSync", true);
+        var forceMenuSync = _configuration.GetValue<bool>("MenuSync:AlwaysSync", true);
+        var useSnapshotIdempotency = !disableMenuIdempotency && !forceMenuSync;
         
         // Generate idempotency key for this sync operation (job-level lock)
         var timestamp = DateTime.UtcNow;
@@ -274,7 +277,7 @@ public class MenuSyncRecurringJob : ITransientDependency
         
         // Check if operation already in progress or completed
         // Skip this check if called from Kafka consumer (which already did idempotency check)
-        if (!skipInternalIdempotency)
+        if (!skipInternalIdempotency && !disableMenuIdempotency)
         {
             try
             {
@@ -324,7 +327,7 @@ public class MenuSyncRecurringJob : ITransientDependency
         else
         {
             _logger.LogDebug(
-                "Skipping internal idempotency check for FoodicsAccount {AccountId} (called from Kafka consumer)",
+                "Skipping internal idempotency check for FoodicsAccount {AccountId} (called from Kafka consumer or idempotency disabled)",
                 foodicsAccountId);
         }
         
@@ -427,8 +430,8 @@ public class MenuSyncRecurringJob : ITransientDependency
                         changeDetectionResult.ChangeType,
                         changeDetectionResult.CurrentHash);
 
-                    // ✨ OPTIMIZATION: Skip sync if no changes detected
-                    if (!changeDetectionResult.HasChanged)
+                    // ✨ OPTIMIZATION: Skip sync if no changes detected (disabled when force sync is enabled)
+                    if (!forceMenuSync && !changeDetectionResult.HasChanged)
                     {
                         _logger.LogInformation(
                             "🎯 OPTIMIZATION: Menu has NOT changed for FoodicsAccount {AccountId}, Branch {BranchId}. " +
@@ -439,17 +442,20 @@ public class MenuSyncRecurringJob : ITransientDependency
                             changeDetectionResult.PreviousVersion);
 
                         // Mark idempotency as succeeded since we completed the check
-                        await _idempotencyService.MarkSucceededAsync(
-                            foodicsAccountId,
-                            idempotencyKey,
-                            new { 
-                                Message = "No changes detected - sync skipped",
-                                Hash = changeDetectionResult.CurrentHash,
-                                Version = changeDetectionResult.PreviousVersion,
-                                ProductsCount = allProducts.Count,
-                                OptimizationSaved = true
-                            },
-                            cancellationToken);
+                        if (!disableMenuIdempotency)
+                        {
+                            await _idempotencyService.MarkSucceededAsync(
+                                foodicsAccountId,
+                                idempotencyKey,
+                                new { 
+                                    Message = "No changes detected - sync skipped",
+                                    Hash = changeDetectionResult.CurrentHash,
+                                    Version = changeDetectionResult.PreviousVersion,
+                                    ProductsCount = allProducts.Count,
+                                    OptimizationSaved = true
+                                },
+                                cancellationToken);
+                        }
 
                         if (syncRun != null)
                         {
@@ -507,75 +513,78 @@ public class MenuSyncRecurringJob : ITransientDependency
                 }
             }
 
-            try
+            if (useSnapshotIdempotency)
             {
-                snapshotIdempotencyKey = _idempotencyService.GenerateMenuSnapshotKey(
-                    foodicsAccountId,
-                    branchId,
-                    allProducts.Values);
-
-                var snapshotStaleMinutes = _configuration.GetValue<int>("Idempotency:MenuSnapshotStaleMinutes", 60);
-                var snapshotStaleAfter = TimeSpan.FromMinutes(Math.Max(5, snapshotStaleMinutes));
-
-                var (canProcessSnapshot, existingSnapshotRecord) = await _idempotencyService.CheckAndMarkStartedAsync(
-                    foodicsAccountId,
-                    snapshotIdempotencyKey,
-                    retentionDays: 30, // 14–30 days as per SDD 7.2
-                    cancellationToken,
-                    snapshotStaleAfter);
-
-                if (!canProcessSnapshot)
+                try
                 {
-                    // Map SDD behaviour:
-                    // - Succeeded  -> treat as 200/OK and short-circuit
-                    // - FailedPermanent -> treat as 400/BadRequest equivalent (log + skip)
-                    _logger.LogInformation(
-                        "Skipping menu sync for FoodicsAccount {AccountId}, Branch {BranchId} because an identical menu snapshot has already been processed. SnapshotStatus={Status}",
+                    snapshotIdempotencyKey = _idempotencyService.GenerateMenuSnapshotKey(
                         foodicsAccountId,
-                        branchId ?? "<all>",
-                        existingSnapshotRecord?.Status);
+                        branchId,
+                        allProducts.Values);
+
+                    var snapshotStaleMinutes = _configuration.GetValue<int>("Idempotency:MenuSnapshotStaleMinutes", 60);
+                    var snapshotStaleAfter = TimeSpan.FromMinutes(Math.Max(5, snapshotStaleMinutes));
+
+                    var (canProcessSnapshot, existingSnapshotRecord) = await _idempotencyService.CheckAndMarkStartedAsync(
+                        foodicsAccountId,
+                        snapshotIdempotencyKey,
+                        retentionDays: 30, // 14–30 days as per SDD 7.2
+                        cancellationToken,
+                        snapshotStaleAfter);
+
+                    if (!canProcessSnapshot)
+                    {
+                        // Map SDD behaviour:
+                        // - Succeeded  -> treat as 200/OK and short-circuit
+                        // - FailedPermanent -> treat as 400/BadRequest equivalent (log + skip)
+                        _logger.LogInformation(
+                            "Skipping menu sync for FoodicsAccount {AccountId}, Branch {BranchId} because an identical menu snapshot has already been processed. SnapshotStatus={Status}",
+                            foodicsAccountId,
+                            branchId ?? "<all>",
+                            existingSnapshotRecord?.Status);
+
+                        if (syncRun != null)
+                        {
+                            await _syncRunManager.CompleteSyncRunAsync(syncRun.Id, "Skipped - Identical snapshot already processed", cancellationToken: cancellationToken);
+                        }
+                        
+                        if (jobLockAcquired && !jobLockReleased && !disableMenuIdempotency)
+                        {
+                            await _idempotencyService.MarkSucceededAsync(
+                                foodicsAccountId,
+                                idempotencyKey,
+                                new { Message = "Skipped - Identical snapshot already processed" },
+                                cancellationToken);
+                            jobLockReleased = true;
+                        }
+                        return;
+                    }
+                }
+                catch (BusinessException ex) when (ex.Code == "OPERATION_IN_PROGRESS")
+                {
+                    // Another worker is already processing the same snapshot – equivalent to HTTP 429
+                    _logger.LogWarning(
+                        ex,
+                        "Menu snapshot sync for FoodicsAccount {AccountId}, Branch {BranchId} is already in progress. Skipping duplicate snapshot.",
+                        foodicsAccountId,
+                        branchId ?? "<all>");
 
                     if (syncRun != null)
                     {
-                        await _syncRunManager.CompleteSyncRunAsync(syncRun.Id, "Skipped - Identical snapshot already processed", cancellationToken: cancellationToken);
+                        await _syncRunManager.CompleteSyncRunAsync(syncRun.Id, "Skipped - Duplicate snapshot processing", cancellationToken: cancellationToken);
                     }
-                    
-                    if (jobLockAcquired && !jobLockReleased)
+
+                    if (jobLockAcquired && !jobLockReleased && !disableMenuIdempotency)
                     {
                         await _idempotencyService.MarkSucceededAsync(
                             foodicsAccountId,
                             idempotencyKey,
-                            new { Message = "Skipped - Identical snapshot already processed" },
+                            new { Message = "Skipped - Duplicate snapshot processing" },
                             cancellationToken);
                         jobLockReleased = true;
                     }
                     return;
                 }
-            }
-            catch (BusinessException ex) when (ex.Code == "OPERATION_IN_PROGRESS")
-            {
-                // Another worker is already processing the same snapshot – equivalent to HTTP 429
-                _logger.LogWarning(
-                    ex,
-                    "Menu snapshot sync for FoodicsAccount {AccountId}, Branch {BranchId} is already in progress. Skipping duplicate snapshot.",
-                    foodicsAccountId,
-                    branchId ?? "<all>");
-
-                if (syncRun != null)
-                {
-                    await _syncRunManager.CompleteSyncRunAsync(syncRun.Id, "Skipped - Duplicate snapshot processing", cancellationToken: cancellationToken);
-                }
-
-                if (jobLockAcquired && !jobLockReleased)
-                {
-                    await _idempotencyService.MarkSucceededAsync(
-                        foodicsAccountId,
-                        idempotencyKey,
-                        new { Message = "Skipped - Duplicate snapshot processing" },
-                        cancellationToken);
-                    jobLockReleased = true;
-                }
-                return;
             }
 
             // ✨ Update progress: Staging
@@ -821,15 +830,18 @@ public class MenuSyncRecurringJob : ITransientDependency
             }
 
             // Mark as succeeded - this releases the job-level lock for this account
-            await _idempotencyService.MarkSucceededAsync(
-                foodicsAccountId,
-                idempotencyKey,
-                syncResult,
-                cancellationToken);
-            jobLockReleased = true;
+            if (!disableMenuIdempotency)
+            {
+                await _idempotencyService.MarkSucceededAsync(
+                    foodicsAccountId,
+                    idempotencyKey,
+                    syncResult,
+                    cancellationToken);
+                jobLockReleased = true;
+            }
 
             // Mark snapshot as succeeded with result hash for duplicate detection
-            if (!string.IsNullOrWhiteSpace(snapshotIdempotencyKey))
+            if (!string.IsNullOrWhiteSpace(snapshotIdempotencyKey) && !disableMenuIdempotency)
             {
                 await _idempotencyService.MarkSucceededAsync(
                     foodicsAccountId,
@@ -870,14 +882,17 @@ public class MenuSyncRecurringJob : ITransientDependency
         catch (Exception ex)
         {
             // Mark as failed - this releases the job-level lock and marks the operation as failed
-            await _idempotencyService.MarkFailedAsync(
-                foodicsAccountId,
-                idempotencyKey,
-                cancellationToken);
-            jobLockReleased = true;
+            if (!disableMenuIdempotency)
+            {
+                await _idempotencyService.MarkFailedAsync(
+                    foodicsAccountId,
+                    idempotencyKey,
+                    cancellationToken);
+                jobLockReleased = true;
+            }
 
             // Also mark the snapshot key as failed (permanent failure for this snapshot)
-            if (!string.IsNullOrWhiteSpace(snapshotIdempotencyKey))
+            if (!string.IsNullOrWhiteSpace(snapshotIdempotencyKey) && !disableMenuIdempotency)
             {
                 await _idempotencyService.MarkFailedAsync(
                     foodicsAccountId,
@@ -912,7 +927,7 @@ public class MenuSyncRecurringJob : ITransientDependency
         }
         finally
         {
-            if (jobLockAcquired && !jobLockReleased)
+            if (jobLockAcquired && !jobLockReleased && !disableMenuIdempotency)
             {
                 try
                 {
