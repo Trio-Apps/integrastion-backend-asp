@@ -6,10 +6,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OrderXChange.Application.Contracts.Integrations.Talabat;
 using OrderXChange.Application.Integrations.Foodics;
+using Volo.Abp.DependencyInjection;
 
 namespace OrderXChange.Application.Integrations.Talabat;
 
-public class TalabatOrderToFoodicsMapper
+public class TalabatOrderToFoodicsMapper : ITransientDependency
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<TalabatOrderToFoodicsMapper> _logger;
