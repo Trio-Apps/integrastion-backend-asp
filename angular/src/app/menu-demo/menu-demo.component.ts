@@ -6,7 +6,7 @@ import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { TagModule } from 'primeng/tag';
 import { CheckboxModule } from 'primeng/checkbox';
-import { LocalizationPipe, MultiTenancyService, SessionStateService } from '@abp/ng.core';
+import { LocalizationPipe, MultiTenancyService, SessionStateService, PermissionService } from '@abp/ng.core';
 import { MenuSyncService } from '@proxy/background-jobs';
 import type { FoodicsEnhancedAggregatedMenuDto, FoodicsAggregatedCategoryDto, FoodicsProductDetailDto } from '@proxy/application/integrations/foodics/models';
 import { TenantService } from '../proxy/volo/abp/tenant-management/tenant.service';
@@ -33,6 +33,7 @@ export class MenuDemoComponent implements OnInit {
   private tenantService = inject(TenantService);
   private multiTenancy = inject(MultiTenancyService);
   private sessionState = inject(SessionStateService);
+  private permissionService = inject(PermissionService);
 
   categories: CategoryView[] = [];
   selectedCategory: CategoryView | null = null;
@@ -48,7 +49,9 @@ export class MenuDemoComponent implements OnInit {
   selectedTenantName: string | null = null;
 
   ngOnInit(): void {
-    this.loadTenants();
+    if (this.permissionService.getGrantedPolicy('OrderXChange.Dashboard.Host')) {
+      this.loadTenants();
+    }
     this.loadCategories();
   }
 

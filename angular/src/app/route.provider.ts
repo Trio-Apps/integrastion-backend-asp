@@ -16,7 +16,8 @@ function configureRoutes() {
         name: '::Menu:Home',
         iconClass: 'fas fa-home',
         order: 1,
-        layout: eLayoutType.application
+        layout: eLayoutType.application,
+        invisible: true
       },
 
       {
@@ -75,6 +76,7 @@ function configureRoutes() {
       iconClass: 'fas fa-home',
       order: 1,
       layout: eLayoutType.application,
+      invisible: true
     },
     {
       path: '/dashboard',
@@ -82,6 +84,7 @@ function configureRoutes() {
       iconClass: 'pi pi-chart-bar',
       order: 5,
       layout: eLayoutType.application,
+      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
     },
     {
       path: '/hangfire-monitoring',
@@ -90,6 +93,7 @@ function configureRoutes() {
       iconClass: PrimeIcons.HISTORY,
       order: 3,
       layout: eLayoutType.application,
+      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
     },
     {
       path: '/menu',
@@ -98,6 +102,7 @@ function configureRoutes() {
       iconClass: 'pi pi-list',
       order: 4,
       layout: eLayoutType.application,
+      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
     },
     {
       path: '/talabat-orders',
@@ -115,6 +120,7 @@ function configureRoutes() {
       iconClass: 'pi pi-chart-line',
       order: 2,
       layout: eLayoutType.application,
+      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
     },
   ]);
 }
