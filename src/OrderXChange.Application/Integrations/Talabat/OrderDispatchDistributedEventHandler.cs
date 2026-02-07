@@ -31,6 +31,7 @@ public class OrderDispatchDistributedEventHandler
     private readonly FoodicsOrderClient _foodicsOrderClient;
     private readonly FoodicsCatalogClient _foodicsCatalogClient;
     private readonly FoodicsAccountTokenService _tokenService;
+    private readonly Microsoft.Extensions.Configuration.IConfiguration _configuration;
     private readonly IdempotencyService _idempotencyService;
     private readonly ICurrentTenant _currentTenant;
     private readonly IDistributedEventBus _eventBus;
@@ -44,6 +45,7 @@ public class OrderDispatchDistributedEventHandler
         FoodicsOrderClient foodicsOrderClient,
         FoodicsCatalogClient foodicsCatalogClient,
         FoodicsAccountTokenService tokenService,
+        Microsoft.Extensions.Configuration.IConfiguration configuration,
         IdempotencyService idempotencyService,
         ICurrentTenant currentTenant,
         IDistributedEventBus eventBus,
@@ -56,6 +58,7 @@ public class OrderDispatchDistributedEventHandler
         _foodicsOrderClient = foodicsOrderClient;
         _foodicsCatalogClient = foodicsCatalogClient;
         _tokenService = tokenService;
+        _configuration = configuration;
         _idempotencyService = idempotencyService;
         _currentTenant = currentTenant;
         _eventBus = eventBus;
@@ -133,7 +136,7 @@ public class OrderDispatchDistributedEventHandler
                     throw new InvalidOperationException($"TalabatAccount not found for vendor {eventData.VendorCode}.");
                 }
 
-                var accessToken = await _tokenService.GetAccessTokenAsync(eventData.FoodicsAccountId);
+                var (accessToken, isOverrideToken) = await GetOrderAccessTokenAsync(eventData.FoodicsAccountId);
 
                 if (string.IsNullOrWhiteSpace(account.FoodicsBranchId))
                 {
@@ -165,6 +168,12 @@ public class OrderDispatchDistributedEventHandler
                 }
                 catch (Exception ex) when (IsAuthFailure(ex))
                 {
+                    if (isOverrideToken)
+                    {
+                        throw new InvalidOperationException(
+                            "Foodics order token override failed authorization. Update Foodics:OrderTestAccessToken.");
+                    }
+
                     accessToken = await RefreshAccessTokenAsync(eventData.FoodicsAccountId, eventData.VendorCode);
                     response = await _foodicsOrderClient.CreateOrderAsync(request, accessToken);
                 }
@@ -257,6 +266,19 @@ public class OrderDispatchDistributedEventHandler
         {
             _logger.LogWarning(logEx, "Failed to update order log failure status. OrderLogId={OrderLogId}", orderLogId);
         }
+    }
+
+    private async Task<(string AccessToken, bool IsOverrideToken)> GetOrderAccessTokenAsync(Guid foodicsAccountId)
+    {
+        var overrideToken = _configuration["Foodics:OrderTestAccessToken"];
+        if (!string.IsNullOrWhiteSpace(overrideToken))
+        {
+            _logger.LogWarning("Using Foodics order token override from configuration.");
+            return (overrideToken, true);
+        }
+
+        var token = await _tokenService.GetAccessTokenAsync(foodicsAccountId);
+        return (token, false);
     }
 
     private async Task<(string BranchId, string? BranchName)> ResolveFoodicsBranchAsync(
