@@ -47,7 +47,6 @@ function configureRoutes() {
         requiredPolicy : 'OrderXChange.Dashboard.Host'
       },
       {
-        path: '',
         name: '::Menu:Account',
         iconClass : PrimeIcons.BOX,
         layout: eLayoutType.application,
