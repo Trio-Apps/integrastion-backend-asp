@@ -49,9 +49,17 @@ export class MenuDemoComponent implements OnInit {
   selectedTenantName: string | null = null;
 
   ngOnInit(): void {
-    if (this.permissionService.getGrantedPolicy('OrderXChange.Dashboard.Host')) {
+    const isHostUser = this.permissionService.getGrantedPolicy('OrderXChange.Dashboard.Host');
+    if (isHostUser) {
       this.loadTenants();
+      const currentTenant = this.sessionState.getTenant();
+      if (currentTenant?.name) {
+        this.selectedTenantName = currentTenant.name;
+        this.loadCategories();
+      }
+      return;
     }
+
     this.loadCategories();
   }
 
@@ -132,6 +140,14 @@ export class MenuDemoComponent implements OnInit {
         this.selectCategory(updated);
       }
     }
+  }
+
+  get isHostWithoutTenant(): boolean {
+    if (!this.canSwitchTenant) {
+      return false;
+    }
+    const currentTenant = this.sessionState.getTenant();
+    return !currentTenant?.name;
   }
 
   selectCategory(category: CategoryView): void {

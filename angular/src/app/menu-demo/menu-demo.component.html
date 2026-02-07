@@ -10,7 +10,7 @@
           <input type="checkbox" [(ngModel)]="showInactiveProducts" (change)="onToggleInactive()">
           <span class="small">Show inactive products</span>
         </label>
-        <p-button icon="pi pi-refresh" label="Refresh" size="small" (onClick)="loadCategories()"></p-button>
+        <p-button icon="pi pi-refresh" label="Refresh" size="small" (onClick)="loadCategories()" [disabled]="isHostWithoutTenant"></p-button>
       </div>
     </div>
   </div>
@@ -27,12 +27,17 @@
       <button class="btn btn-sm btn-outline-secondary" type="button" (click)="clearTenantSelection()">Host</button>
     </div>
 
+    <div *ngIf="isHostWithoutTenant" class="alert alert-info">
+      Select a tenant to view categories.
+    </div>
+
     <!-- Error Display -->
-    <ng-container *ngIf="error">
+    <ng-container *ngIf="error && !isHostWithoutTenant">
       <div class="alert alert-danger" role="alert" style="white-space: pre-wrap;">{{ error }}</div>
     </ng-container>
 
     <!-- Categories -->
+    <ng-container *ngIf="!isHostWithoutTenant">
     <p-table
       [value]="categories"
       [loading]="isLoading"
@@ -65,9 +70,10 @@
         </tr>
       </ng-template>
     </p-table>
+    </ng-container>
 
     <!-- Products for selected category -->
-    <div *ngIf="selectedCategory" class="mt-4">
+    <div *ngIf="selectedCategory && !isHostWithoutTenant" class="mt-4">
       <h6 class="mb-2">Products in {{ selectedCategory.name }}</h6>
       <p-table
         [value]="selectedProducts"
@@ -97,7 +103,7 @@
     </div>
 
     <!-- Empty State -->
-    <div *ngIf="!isLoading && !error && categories?.length === 0" class="text-muted text-center" style="margin-top: 2rem;">
+    <div *ngIf="!isLoading && !error && !isHostWithoutTenant && categories?.length === 0" class="text-muted text-center" style="margin-top: 2rem;">
       <i class="pi pi-info-circle" style="font-size: 2rem;"></i>
       <p class="mt-2">{{ '::Menu.Empty' | abpLocalization }}</p>
     </div>
