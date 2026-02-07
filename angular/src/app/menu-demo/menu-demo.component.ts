@@ -149,8 +149,8 @@ export class MenuDemoComponent implements OnInit {
       .map(child => child.product)
       .filter(Boolean);
 
-    const activeProducts = rawProducts.filter(p => p.isActive === true);
-    const inactiveProducts = rawProducts.filter(p => p.isActive !== true);
+    const activeProducts = rawProducts.filter(p => p.is_active === true);
+    const inactiveProducts = rawProducts.filter(p => p.is_active !== true);
     const visibleProducts = this.filterProducts(rawProducts);
 
     return {
@@ -164,8 +164,8 @@ export class MenuDemoComponent implements OnInit {
   }
 
   private recalculateCategory(category: CategoryView): CategoryView {
-    const activeProducts = category.products.filter(p => p.isActive === true);
-    const inactiveProducts = category.products.filter(p => p.isActive !== true);
+    const activeProducts = category.products.filter(p => p.is_active === true);
+    const inactiveProducts = category.products.filter(p => p.is_active !== true);
     const visibleProducts = this.filterProducts(category.products);
 
     return {
@@ -180,7 +180,7 @@ export class MenuDemoComponent implements OnInit {
     if (this.showInactiveProducts) {
       return products;
     }
-    return products.filter(p => p.isActive === true);
+    return products.filter(p => p.is_active === true);
   }
 
   private formatHttpError(err: any): string {

@@ -88,8 +88,8 @@
             <td>{{ product.name }}</td>
             <td class="text-muted small">{{ product.id }}</td>
             <td class="text-end">
-              <p-tag *ngIf="product.isActive" value="Active" severity="success"></p-tag>
-              <p-tag *ngIf="!product.isActive" value="Inactive" severity="secondary"></p-tag>
+              <p-tag *ngIf="product.is_active" value="Active" severity="success"></p-tag>
+              <p-tag *ngIf="!product.is_active" value="Inactive" severity="secondary"></p-tag>
             </td>
           </tr>
         </ng-template>
