@@ -21,6 +21,9 @@ export const APP_ROUTES: Routes = [
     path: 'hangfire-monitoring',
     loadComponent: () => import('./hangfire-dashboard/hangfire-dashboard.component').then(c => c.HangfireDashboardComponent),
     canActivate: [authGuard, permissionGuard],
+    data: {
+      requiredPolicy: 'OrderXChange.Dashboard.Host',
+    },
   },
   {
     path: 'talabat-dashboard',
@@ -31,6 +34,14 @@ export const APP_ROUTES: Routes = [
     path: 'talabat-orders',
     loadComponent: () => import('./talabat-orders/talabat-orders.component').then(c => c.TalabatOrdersComponent),
     canActivate: [authGuard, permissionGuard],
+  },
+  {
+    path: 'categories',
+    loadComponent: () => import('./menu-demo/menu-demo.component').then(c => c.MenuDemoComponent),
+    canActivate: [authGuard, permissionGuard],
+    data: {
+      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+    },
   },
   {
     path: 'account',
