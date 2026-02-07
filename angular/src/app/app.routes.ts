@@ -25,11 +25,6 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard, permissionGuard],
   },
   {
-    path: 'menu',
-    loadComponent: () => import('./menu-demo/menu-demo.component').then(c => c.MenuDemoComponent),
-    canActivate: [authGuard, permissionGuard],
-  },
-  {
     path: 'talabat-orders',
     loadComponent: () => import('./talabat-orders/talabat-orders.component').then(c => c.TalabatOrdersComponent),
     canActivate: [authGuard, permissionGuard],

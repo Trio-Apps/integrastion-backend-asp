@@ -97,15 +97,6 @@ function configureRoutes() {
       requiredPolicy: 'OrderXChange.Dashboard.Tenant',
     },
     {
-      path: '/menu',
-      name: 'Foodics Categories',
-      parentName: '::Menu:Dashboard',
-      iconClass: 'pi pi-list',
-      order: 4,
-      layout: eLayoutType.application,
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
-    },
-    {
       path: '/talabat-orders',
       name: 'Talabat Orders',
       parentName: '::Menu:Dashboard',
