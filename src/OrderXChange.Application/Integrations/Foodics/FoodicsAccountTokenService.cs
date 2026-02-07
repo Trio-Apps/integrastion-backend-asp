@@ -22,17 +22,20 @@ public class FoodicsAccountTokenService : ITransientDependency
 	private readonly ICurrentTenant _currentTenant;
 	private readonly Microsoft.Extensions.Configuration.IConfiguration _configuration;
 	private readonly IUnitOfWorkManager _unitOfWorkManager;
+	private readonly FoodicsAuthClient _authClient;
 
 	public FoodicsAccountTokenService(
 		IRepository<FoodicsAccount, Guid> foodicsAccountRepository,
 		ICurrentTenant currentTenant,
 		IUnitOfWorkManager unitOfWorkManager,
-		Microsoft.Extensions.Configuration.IConfiguration configuration)
+		Microsoft.Extensions.Configuration.IConfiguration configuration,
+		FoodicsAuthClient authClient)
 	{
 		_foodicsAccountRepository = foodicsAccountRepository;
 		_currentTenant = currentTenant;
 		_unitOfWorkManager = unitOfWorkManager;
 		_configuration = configuration;
+		_authClient = authClient;
 	}
 
 	/// <summary>
@@ -64,6 +67,44 @@ public class FoodicsAccountTokenService : ITransientDependency
 		}
 
 		return account.AccessToken;
+	}
+
+	/// <summary>
+	/// Refreshes the access token for a FoodicsAccount using OAuth client credentials.
+	/// Persists the new token on the account.
+	/// </summary>
+	/// <param name="foodicsAccountId">FoodicsAccount ID</param>
+	/// <param name="cancellationToken">Cancellation token</param>
+	/// <returns>New access token</returns>
+	public async Task<string> RefreshAccessTokenAsync(Guid foodicsAccountId, CancellationToken cancellationToken = default)
+	{
+		using var uow = _unitOfWorkManager.Begin(requiresNew: true);
+
+		var account = await _foodicsAccountRepository.GetAsync(
+			x => x.Id == foodicsAccountId,
+			cancellationToken: cancellationToken);
+
+		if (account == null)
+		{
+			throw new InvalidOperationException($"FoodicsAccount with Id {foodicsAccountId} not found.");
+		}
+
+		if (string.IsNullOrWhiteSpace(account.OAuthClientId) || string.IsNullOrWhiteSpace(account.OAuthClientSecret))
+		{
+			throw new InvalidOperationException(
+				$"OAuth client credentials are missing for FoodicsAccount {foodicsAccountId}.");
+		}
+
+		var token = await _authClient.RequestAccessTokenAsync(
+			account.OAuthClientId,
+			account.OAuthClientSecret,
+			cancellationToken);
+
+		account.AccessToken = token.AccessToken;
+		await _foodicsAccountRepository.UpdateAsync(account, autoSave: true, cancellationToken: cancellationToken);
+		await uow.CompleteAsync(cancellationToken);
+
+		return token.AccessToken;
 	}
 
 	/// <summary>

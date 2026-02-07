@@ -45,6 +45,9 @@ public class OrderXChangeApplicationModule : AbpModule
 
         context.Services.AddHttpClient<FoodicsOrderClient>()
             .AddPolicyHandler(GetRetryPolicy());
+
+        context.Services.AddHttpClient<FoodicsAuthClient>()
+            .AddPolicyHandler(GetRetryPolicy());
     }
 
     private static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy()

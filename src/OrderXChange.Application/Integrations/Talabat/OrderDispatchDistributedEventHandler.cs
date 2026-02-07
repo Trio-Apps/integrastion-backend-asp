@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -136,9 +137,13 @@ public class OrderDispatchDistributedEventHandler
 
                 if (string.IsNullOrWhiteSpace(account.FoodicsBranchId))
                 {
-                    var resolvedBranch = await ResolveFoodicsBranchAsync(accessToken, eventData.VendorCode, eventData.FoodicsAccountId);
+                    var resolvedBranch = await ResolveFoodicsBranchWithRetryAsync(
+                        accessToken,
+                        eventData.VendorCode,
+                        eventData.FoodicsAccountId);
                     account.FoodicsBranchId = resolvedBranch.BranchId;
                     account.FoodicsBranchName = resolvedBranch.BranchName;
+                    accessToken = resolvedBranch.AccessToken;
                     await _talabatAccountService.UpdateBranchAsync(
                         account.Id,
                         resolvedBranch.BranchId,
@@ -153,7 +158,16 @@ public class OrderDispatchDistributedEventHandler
 
                 var request = _orderMapper.MapToCreateOrder(webhook, account.FoodicsBranchId, account.VendorCode);
 
-                var response = await _foodicsOrderClient.CreateOrderAsync(request, accessToken);
+                FoodicsOrderResponseDto? response;
+                try
+                {
+                    response = await _foodicsOrderClient.CreateOrderAsync(request, accessToken);
+                }
+                catch (Exception ex) when (IsAuthFailure(ex))
+                {
+                    accessToken = await RefreshAccessTokenAsync(eventData.FoodicsAccountId, eventData.VendorCode);
+                    response = await _foodicsOrderClient.CreateOrderAsync(request, accessToken);
+                }
 
                 orderLog.Status = "Succeeded";
                 orderLog.CompletedAt = DateTime.UtcNow;
@@ -280,6 +294,41 @@ public class OrderDispatchDistributedEventHandler
         return (branch.Id, string.IsNullOrWhiteSpace(branch.Name) ? branch.NameLocalized : branch.Name);
     }
 
+    private async Task<(string BranchId, string? BranchName, string AccessToken)> ResolveFoodicsBranchWithRetryAsync(
+        string accessToken,
+        string vendorCode,
+        Guid foodicsAccountId)
+    {
+        try
+        {
+            var branch = await ResolveFoodicsBranchAsync(accessToken, vendorCode, foodicsAccountId);
+            return (branch.BranchId, branch.BranchName, accessToken);
+        }
+        catch (Exception ex) when (IsAuthFailure(ex))
+        {
+            var refreshedToken = await RefreshAccessTokenAsync(foodicsAccountId, vendorCode);
+            var branch = await ResolveFoodicsBranchAsync(refreshedToken, vendorCode, foodicsAccountId);
+            return (branch.BranchId, branch.BranchName, refreshedToken);
+        }
+    }
+
+    private async Task<string> RefreshAccessTokenAsync(Guid foodicsAccountId, string vendorCode)
+    {
+        _logger.LogWarning(
+            "Refreshing Foodics access token. VendorCode={VendorCode}, FoodicsAccountId={FoodicsAccountId}",
+            vendorCode,
+            foodicsAccountId);
+
+        var token = await _tokenService.RefreshAccessTokenAsync(foodicsAccountId);
+
+        _logger.LogInformation(
+            "Foodics access token refreshed. VendorCode={VendorCode}, FoodicsAccountId={FoodicsAccountId}",
+            vendorCode,
+            foodicsAccountId);
+
+        return token;
+    }
+
     private int GetRetryDelaySeconds(int attempt)
     {
         return attempt switch
@@ -339,5 +388,24 @@ public class OrderDispatchDistributedEventHandler
             || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase)
             || ex.Message.Contains("429", StringComparison.OrdinalIgnoreCase)
             || (ex.Message.Contains("5") && ex.Message.Contains("error", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsAuthFailure(Exception ex)
+    {
+        if (ex is FoodicsApiException apiEx)
+        {
+            return apiEx.StatusCode == HttpStatusCode.Unauthorized
+                || apiEx.StatusCode == HttpStatusCode.Forbidden;
+        }
+
+        if (ex is HttpRequestException)
+        {
+            return ex.Message.Contains("401", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("403", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("Forbidden", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
     }
 }

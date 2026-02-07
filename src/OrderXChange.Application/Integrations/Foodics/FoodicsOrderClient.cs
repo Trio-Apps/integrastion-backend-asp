@@ -1,5 +1,6 @@
 using System;
 using System.Net.Http;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -66,7 +67,10 @@ public class FoodicsOrderClient
                 "Foodics create order failed. StatusCode={StatusCode}, Body={Body}",
                 (int)response.StatusCode,
                 body);
-            response.EnsureSuccessStatusCode();
+            throw new FoodicsApiException(
+                response.StatusCode,
+                body,
+                $"Foodics create order failed with status {(int)response.StatusCode}.");
         }
 
         try
@@ -104,5 +108,18 @@ public class FoodicsOrderClient
     private static string EnsureEndsWithSlash(string value)
     {
         return value.EndsWith("/", StringComparison.Ordinal) ? value : value + "/";
+    }
+}
+
+public sealed class FoodicsApiException : Exception
+{
+    public HttpStatusCode StatusCode { get; }
+    public string? ResponseBody { get; }
+
+    public FoodicsApiException(HttpStatusCode statusCode, string? responseBody, string message)
+        : base(message)
+    {
+        StatusCode = statusCode;
+        ResponseBody = responseBody;
     }
 }
