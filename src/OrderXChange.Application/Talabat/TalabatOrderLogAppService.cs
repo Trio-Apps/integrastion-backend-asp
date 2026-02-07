@@ -11,7 +11,6 @@ using Volo.Abp.Domain.Repositories;
 using System.Linq.Dynamic.Core;
 using Volo.Abp;
 using Volo.Abp.EventBus.Distributed;
-using Microsoft.AspNetCore.Mvc;
 
 namespace OrderXChange.Talabat;
 
@@ -76,8 +75,6 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
         return new PagedResultDto<TalabatOrderLogDto>(totalCount, dtoItems);
     }
 
-    [HttpPost]
-    [Route("retry/{id}")]
     public async Task RetryAsync(Guid id)
     {
         var log = await _orderLogRepository.GetAsync(id);
