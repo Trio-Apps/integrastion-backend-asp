@@ -17,6 +17,7 @@ import { provideThemeLeptonX } from '@abp/ng.theme.lepton-x';
 import { provideSideMenuLayout } from '@abp/ng.theme.lepton-x/layouts';
 import { provideLogo, withEnvironmentOptions } from "@volo/ngx-lepton-x.core";
 import { ApplicationConfig } from '@angular/core';
+import { OAuthStorage } from 'angular-oauth2-oidc';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
 import { environment } from '../environments/environment';
@@ -68,6 +69,10 @@ export const appConfig: ApplicationConfig = {
     provideAuditLoggingConfig(),
     provideOpeniddictproConfig(),
     provideTextTemplateManagementConfig(),
+    {
+      provide: OAuthStorage,
+      useFactory: () => localStorage,
+    },
     {
       provide : CUSTOM_ERROR_HANDLERS,
       useExisting : MyCustomErrorHandlerService,
