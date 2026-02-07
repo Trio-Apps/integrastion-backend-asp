@@ -93,7 +93,7 @@ function configureRoutes() {
     },
     {
       path: '/menu',
-      name: 'Foodics Menu',
+      name: 'Foodics Categories',
       parentName: '::Menu:Dashboard',
       iconClass: 'pi pi-list',
       order: 4,

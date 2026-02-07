@@ -1,57 +1,103 @@
 <div class="card" style="margin:1rem">
   <div class="card-header">
-    <div class="row">
-      <div class="col col-md-6">
+    <div class="row align-items-center">
+      <div class="col-md-6">
         <h5 class="card-title">{{ '::Menu.Title' | abpLocalization }}</h5>
+        <p class="text-muted mb-0">Categories for the current tenant (from staging).</p>
+      </div>
+      <div class="col-md-6 d-flex justify-content-end gap-2">
+        <label class="d-flex align-items-center gap-2 mb-0">
+          <input type="checkbox" [(ngModel)]="showInactiveProducts" (change)="onToggleInactive()">
+          <span class="small">Show inactive products</span>
+        </label>
+        <p-button icon="pi pi-refresh" label="Refresh" size="small" (onClick)="loadCategories()"></p-button>
       </div>
     </div>
   </div>
+
   <div class="card-body">
+    <!-- Tenant selector for host/admin -->
+    <div *ngIf="canSwitchTenant" class="mb-3 d-flex align-items-center gap-2">
+      <label class="mb-0">Tenant</label>
+      <select class="form-select" style="max-width: 260px" [(ngModel)]="selectedTenantName">
+        <option [ngValue]="null">Host (current)</option>
+        <option *ngFor="let t of tenants" [ngValue]="t.name">{{ t.name }}</option>
+      </select>
+      <button class="btn btn-sm btn-outline-primary" type="button" (click)="applyTenantSelection()">Apply</button>
+      <button class="btn btn-sm btn-outline-secondary" type="button" (click)="clearTenantSelection()">Host</button>
+    </div>
+
     <!-- Error Display -->
     <ng-container *ngIf="error">
       <div class="alert alert-danger" role="alert" style="white-space: pre-wrap;">{{ error }}</div>
     </ng-container>
 
-    <!-- Menu Group Analysis -->
-    <div class="mb-3">
-    </div>
+    <!-- Categories -->
     <p-table
-      #menuGroupTable
-      [value]="stagingMenuGroups"
+      [value]="categories"
       [loading]="isLoading"
       [paginator]="true"
       [rows]="10"
       [rowsPerPageOptions]="[10,25,50]"
       [responsiveLayout]="'scroll'"
     >
-
       <ng-template pTemplate="header">
         <tr>
-          <th pSortableColumn="groupName">{{ '::Menu.MenuGroup' | abpLocalization }} <p-sortIcon field="groupName"></p-sortIcon></th>
-          <th pSortableColumn="totalProducts" class="text-end">{{ '::Menu.TotalProducts' | abpLocalization }} <p-sortIcon field="totalProducts"></p-sortIcon></th>
-          <th pSortableColumn="totalCategories" class="text-end">{{ '::Menu.TotalCategories' | abpLocalization }} <p-sortIcon field="totalCategories"></p-sortIcon></th>
-          <th pSortableColumn="isMappedToTalabatAccount">{{ '::Menu.Status' | abpLocalization }} <p-sortIcon field="isMappedToTalabatAccount"></p-sortIcon></th>
+          <th pSortableColumn="name">Category <p-sortIcon field="name"></p-sortIcon></th>
+          <th pSortableColumn="totalProducts" class="text-end">Total Products <p-sortIcon field="totalProducts"></p-sortIcon></th>
+          <th class="text-end">Active</th>
+          <th class="text-end">Inactive</th>
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-row>
         <tr>
           <td>
-            <div>
-              <strong>{{ row.groupName }}</strong>
-            </div>
+            <strong>{{ row.name }}</strong>
+            <div class="text-muted small">{{ row.id }}</div>
           </td>
-          <td class="text-end">{{ (row.totalProducts ?? 0) | number }}</td>
-          <td class="text-end">{{ (row.totalCategories ?? 0) | number }}</td>
-          <td>
-            <p-tag *ngIf="row.isMappedToTalabatAccount" value="{{ '::Menu.Active' | abpLocalization }}" severity="success"></p-tag>
-            <p-tag *ngIf="!row.isMappedToTalabatAccount" value="{{ '::Menu.Inactive' | abpLocalization }}" severity="secondary"></p-tag>
+          <td class="text-end">
+            <button class="btn btn-link p-0" type="button" (click)="selectCategory(row)">
+              {{ row.totalProducts | number }}
+            </button>
           </td>
+          <td class="text-end">{{ row.activeProducts | number }}</td>
+          <td class="text-end">{{ row.inactiveProducts | number }}</td>
         </tr>
       </ng-template>
     </p-table>
 
+    <!-- Products for selected category -->
+    <div *ngIf="selectedCategory" class="mt-4">
+      <h6 class="mb-2">Products in {{ selectedCategory.name }}</h6>
+      <p-table
+        [value]="selectedProducts"
+        [paginator]="true"
+        [rows]="10"
+        [rowsPerPageOptions]="[10,25,50]"
+        [responsiveLayout]="'scroll'"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Name</th>
+            <th>ID</th>
+            <th class="text-end">Status</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-product>
+          <tr>
+            <td>{{ product.name }}</td>
+            <td class="text-muted small">{{ product.id }}</td>
+            <td class="text-end">
+              <p-tag *ngIf="product.isActive" value="Active" severity="success"></p-tag>
+              <p-tag *ngIf="!product.isActive" value="Inactive" severity="secondary"></p-tag>
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+
     <!-- Empty State -->
-    <div *ngIf="!isLoading && !error && stagingMenuGroups?.length === 0" class="text-muted text-center" style="margin-top: 2rem;">
+    <div *ngIf="!isLoading && !error && categories?.length === 0" class="text-muted text-center" style="margin-top: 2rem;">
       <i class="pi pi-info-circle" style="font-size: 2rem;"></i>
       <p class="mt-2">{{ '::Menu.Empty' | abpLocalization }}</p>
     </div>
