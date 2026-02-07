@@ -8,6 +8,9 @@ export const APP_ROUTES: Routes = [
     pathMatch: 'full',
     loadComponent: () => import('./home/home.component').then(c => c.HomeComponent),
     canActivate : [authGuard , permissionGuard],
+    data: {
+      requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant',
+    },
   },
   {
     path: 'dashboard',

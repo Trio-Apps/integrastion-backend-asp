@@ -17,7 +17,7 @@ function configureRoutes() {
         iconClass: 'fas fa-home',
         order: 1,
         layout: eLayoutType.application,
-        requiredPolicy: 'OrderXChange.Dashboard.Host'
+        requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant'
       },
 
       {
@@ -69,15 +69,6 @@ function configureRoutes() {
           layout: eLayoutType.application,
           requiredPolicy : 'OrderXChange.Dashboard.Tenant'
         },
-    {
-      path: '/',
-      name: '::Menu:Home',
-      iconClass: 'fas fa-home',
-      order: 1,
-      layout: eLayoutType.application,
-      invisible: true,
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant'
-    },
     {
       path: '/dashboard',
       name: '::Menu:Dashboard',
