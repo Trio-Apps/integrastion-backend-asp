@@ -110,7 +110,7 @@ export class Login implements OnInit {
         }
       });
     } else {
-      this.sessionState.setTenant(null);
+      this.clearTenantContext();
       this.performLogin(username, password, rememberMe);
     }
   }
@@ -184,6 +184,15 @@ export class Login implements OnInit {
         detail: errors.join(', ')
       });
     }
+  }
+
+  private clearTenantContext(): void {
+    // Ensure stale tenant cookie doesn't force tenant context for host logins.
+    const cookieNames = ['__tenant', 'Abp.TenantId', 'AbpTenantId'];
+    for (const name of cookieNames) {
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${location.hostname}`;
+    }
+    this.sessionState.setTenant(null);
   }
 
   /**
