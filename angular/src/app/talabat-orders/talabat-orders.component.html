@@ -1,4 +1,5 @@
 <div class="orders-page">
+  <p-toast></p-toast>
   <div class="page-header">
     <div>
       <h2 class="page-title">Talabat Orders</h2>
@@ -58,6 +59,7 @@
         <th>Status</th>
         <th pSortableColumn="attempts">Attempts <p-sortIcon field="attempts"></p-sortIcon></th>
         <th>Last Error</th>
+        <th>Actions</th>
       </tr>
     </ng-template>
 
@@ -79,14 +81,47 @@
           <p-tag [severity]="getStatusSeverity(row.status)" [value]="row.status || 'Unknown'"></p-tag>
         </td>
         <td>{{ row.attempts ?? 0 }}</td>
-        <td class="error-cell">{{ row.lastError || '-' }}</td>
+        <td class="error-cell">
+          <ng-container *ngIf="row.lastError; else noError">
+            <button
+              pButton
+              type="button"
+              icon="pi pi-exclamation-circle"
+              label="View"
+              class="p-button-text p-button-sm"
+              (click)="openErrorDialog(row)"
+            ></button>
+          </ng-container>
+          <ng-template #noError>-</ng-template>
+        </td>
+        <td>
+          <button
+            pButton
+            type="button"
+            icon="pi pi-refresh"
+            label="Retry"
+            class="p-button-outlined p-button-sm"
+            [disabled]="(row.status || '').toLowerCase() !== 'failed'"
+            (click)="retryOrder(row)"
+          ></button>
+        </td>
       </tr>
     </ng-template>
 
     <ng-template pTemplate="emptymessage">
       <tr>
-        <td colspan="8">No orders recorded yet.</td>
+        <td colspan="9">No orders recorded yet.</td>
       </tr>
     </ng-template>
   </p-table>
+
+  <p-dialog
+    header="Last Error"
+    [modal]="true"
+    [style]="{ width: '40rem', maxWidth: '90vw' }"
+    [visible]="errorDialogVisible()"
+    (visibleChange)="errorDialogVisible.set($event)"
+  >
+    <pre style="white-space: pre-wrap; margin: 0;">{{ selectedErrorMessage() }}</pre>
+  </p-dialog>
 </div>

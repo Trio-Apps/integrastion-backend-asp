@@ -10,6 +10,7 @@ using OrderXChange.Application.Contracts.Integrations.Talabat;
 using OrderXChange.Application.Idempotency;
 using OrderXChange.Application.Integrations.Foodics;
 using OrderXChange.Domain.Staging;
+using OrderXChange.Idempotency;
 using OrderXChange.Integrations.Talabat;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
@@ -100,10 +101,25 @@ public class OrderDispatchDistributedEventHandler
 
             if (!canProcess)
             {
+                var reason = existingRecord?.Status switch
+                {
+                    IdempotencyStatus.Succeeded => "Duplicate order id/token: idempotency key already succeeded.",
+                    IdempotencyStatus.FailedPermanent => "Duplicate order id/token: idempotency key already marked failed.",
+                    IdempotencyStatus.Started => "Idempotency lock: order already in progress.",
+                    _ => "Idempotency check failed: order already processed or in progress."
+                };
+
                 _logger.LogInformation(
-                    "Skipping duplicate OrderDispatch request. CorrelationId={CorrelationId}, Status={Status}",
+                    "Skipping duplicate OrderDispatch request. CorrelationId={CorrelationId}, Status={Status}, Reason={Reason}",
                     eventData.CorrelationId,
-                    existingRecord?.Status);
+                    existingRecord?.Status,
+                    reason);
+
+                await TryUpdateOrderLogFailedAsync(
+                    eventData.OrderLogId,
+                    eventData.TenantId,
+                    new InvalidOperationException(reason),
+                    currentAttempt);
                 return;
             }
 
@@ -201,6 +217,12 @@ public class OrderDispatchDistributedEventHandler
             _logger.LogWarning(
                 "Order dispatch already in progress. CorrelationId={CorrelationId}",
                 eventData.CorrelationId);
+
+            await TryUpdateOrderLogFailedAsync(
+                eventData.OrderLogId,
+                eventData.TenantId,
+                new InvalidOperationException("Idempotency lock: order already in progress or duplicate id/token."),
+                currentAttempt);
         }
         catch (Exception ex)
         {
@@ -396,6 +418,17 @@ public class OrderDispatchDistributedEventHandler
 
     private static bool IsTransientError(Exception ex)
     {
+        if (ex is FoodicsApiException apiEx)
+        {
+            var statusCode = (int)apiEx.StatusCode;
+            if (statusCode == 429 || statusCode == 408 || statusCode >= 500)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
         if (ex is HttpRequestException || ex.Message.Contains("401", StringComparison.OrdinalIgnoreCase)
             || ex.Message.Contains("403", StringComparison.OrdinalIgnoreCase)
             || ex.Message.Contains("404", StringComparison.OrdinalIgnoreCase)

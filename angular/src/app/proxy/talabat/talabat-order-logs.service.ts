@@ -19,5 +19,14 @@ export class TalabatOrderLogsService {
       { apiName: this.apiName, ...config }
     );
 
+  retry = (id: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, void>(
+      {
+        method: 'POST',
+        url: `/api/app/talabat-order-log/retry/${id}`,
+      },
+      { apiName: this.apiName, ...config }
+    );
+
   constructor(private restService: RestService) {}
 }

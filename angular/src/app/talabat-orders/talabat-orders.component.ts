@@ -8,6 +8,9 @@ import { TableModule, TableLazyLoadEvent } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
+import { DialogModule } from 'primeng/dialog';
+import { ToastModule } from 'primeng/toast';
+import { MessageService } from 'primeng/api';
 import { TalabatOrderLogsService, TalabatOrderLogDto, GetTalabatOrderLogsInput } from '@proxy/talabat';
 
 @Component({
@@ -21,14 +24,18 @@ import { TalabatOrderLogsService, TalabatOrderLogDto, GetTalabatOrderLogsInput }
     TagModule,
     ButtonModule,
     InputTextModule,
+    DialogModule,
+    ToastModule,
   ],
   templateUrl: './talabat-orders.component.html',
   styleUrls: ['./talabat-orders.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [MessageService],
 })
 export class TalabatOrdersComponent {
   private readonly orderLogsService = inject(TalabatOrderLogsService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly messageService = inject(MessageService);
 
   readonly loading = signal<boolean>(false);
   readonly logs = signal<TalabatOrderLogDto[]>([]);
@@ -38,6 +45,8 @@ export class TalabatOrdersComponent {
 
   readonly vendorCode = signal<string>('');
   readonly status = signal<string>('');
+  readonly errorDialogVisible = signal<boolean>(false);
+  readonly selectedErrorMessage = signal<string>('');
 
   readonly statusOptions = [
     { label: 'All', value: '' },
@@ -107,5 +116,42 @@ export class TalabatOrdersComponent {
 
   getOrderCode(log: TalabatOrderLogDto): string {
     return log.shortCode || log.orderCode || log.orderToken || '-';
+  }
+
+  openErrorDialog(log: TalabatOrderLogDto): void {
+    const message = log.lastError?.trim();
+    if (!message) {
+      return;
+    }
+
+    this.selectedErrorMessage.set(message);
+    this.errorDialogVisible.set(true);
+  }
+
+  retryOrder(log: TalabatOrderLogDto): void {
+    if (!log.id) {
+      return;
+    }
+
+    this.orderLogsService.retry(log.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.messageService.add({
+            severity: 'success',
+            summary: 'Retry queued',
+            detail: 'Order retry has been queued successfully.'
+          });
+          this.refresh();
+        },
+        error: error => {
+          console.error('Failed to retry order', error);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Retry failed',
+            detail: error?.error?.error?.message || 'Unable to retry this order.'
+          });
+        }
+      });
   }
 }

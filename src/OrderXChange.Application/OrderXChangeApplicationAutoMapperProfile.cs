@@ -84,6 +84,7 @@ public class OrderXChangeApplicationAutoMapperProfile : Profile
                     : null));
 
         // Talabat order sync log mappings
-        CreateMap<TalabatOrderSyncLog, TalabatOrderLogDto>();
+        CreateMap<TalabatOrderSyncLog, TalabatOrderLogDto>()
+            .ForMember(dest => dest.LastError, opt => opt.MapFrom(src => src.ErrorMessage));
     }
 }
