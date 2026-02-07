@@ -84,7 +84,7 @@ function configureRoutes() {
       iconClass: PrimeIcons.HISTORY,
       order: 3,
       layout: eLayoutType.application,
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant',
     },
     {
       path: '/talabat-orders',
