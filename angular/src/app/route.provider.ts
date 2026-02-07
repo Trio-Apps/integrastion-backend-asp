@@ -75,7 +75,7 @@ function configureRoutes() {
       iconClass: 'pi pi-chart-bar',
       order: 5,
       layout: eLayoutType.application,
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant',
     },
     {
       path: '/hangfire-monitoring',
@@ -84,7 +84,7 @@ function configureRoutes() {
       iconClass: PrimeIcons.HISTORY,
       order: 3,
       layout: eLayoutType.application,
-      requiredPolicy: 'OrderXChange.Dashboard.Host',
+      requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant',
     },
     {
       path: '/talabat-orders',

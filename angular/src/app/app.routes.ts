@@ -22,7 +22,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./hangfire-dashboard/hangfire-dashboard.component').then(c => c.HangfireDashboardComponent),
     canActivate: [authGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Host',
+      requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant',
     },
   },
   {
