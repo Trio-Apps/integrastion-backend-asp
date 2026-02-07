@@ -17,7 +17,7 @@ function configureRoutes() {
         iconClass: 'fas fa-home',
         order: 1,
         layout: eLayoutType.application,
-        invisible: true
+        requiredPolicy: 'OrderXChange.Dashboard.Host'
       },
 
       {
@@ -76,7 +76,8 @@ function configureRoutes() {
       iconClass: 'fas fa-home',
       order: 1,
       layout: eLayoutType.application,
-      invisible: true
+      invisible: true,
+      requiredPolicy: 'OrderXChange.Dashboard.Tenant'
     },
     {
       path: '/dashboard',
