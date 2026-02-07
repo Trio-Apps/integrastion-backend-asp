@@ -10,6 +10,7 @@ using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Uow;
+using Volo.Abp.Data;
 
 namespace OrderXChange.Application.Integrations.Talabat;
 
@@ -32,18 +33,21 @@ public class TalabatAccountService : ITransientDependency
     private readonly IConfiguration _configuration;
     private readonly ILogger<TalabatAccountService> _logger;
     private readonly IUnitOfWorkManager _unitOfWorkManager;
+    private readonly IDataFilter _dataFilter;
 
     public TalabatAccountService(
         IRepository<TalabatAccount, Guid> talabatAccountRepository,
         ICurrentTenant currentTenant,
         IConfiguration configuration,
         IUnitOfWorkManager unitOfWorkManager,
+        IDataFilter dataFilter,
         ILogger<TalabatAccountService> logger)
     {
         _talabatAccountRepository = talabatAccountRepository;
         _currentTenant = currentTenant;
         _configuration = configuration;
         _unitOfWorkManager = unitOfWorkManager;
+        _dataFilter = dataFilter;
         _logger = logger;
     }
 
@@ -64,9 +68,13 @@ public class TalabatAccountService : ITransientDependency
         }
 
         using var uow = _unitOfWorkManager.Begin(requiresNew: true);
-        var account = await _talabatAccountRepository.FirstOrDefaultAsync(
-            x => x.VendorCode == vendorCode && x.IsActive,
-            cancellationToken: cancellationToken);
+        TalabatAccount? account;
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            account = await _talabatAccountRepository.FirstOrDefaultAsync(
+                x => x.VendorCode == vendorCode && x.IsActive,
+                cancellationToken: cancellationToken);
+        }
         await uow.CompleteAsync(cancellationToken);
         return account;
     }
@@ -85,9 +93,13 @@ public class TalabatAccountService : ITransientDependency
         }
 
         using var uow = _unitOfWorkManager.Begin(requiresNew: true);
-        var account = await _talabatAccountRepository.FirstOrDefaultAsync(
-            x => x.PlatformRestaurantId == platformRestaurantId && x.IsActive,
-            cancellationToken: cancellationToken);
+        TalabatAccount? account;
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            account = await _talabatAccountRepository.FirstOrDefaultAsync(
+                x => x.PlatformRestaurantId == platformRestaurantId && x.IsActive,
+                cancellationToken: cancellationToken);
+        }
         await uow.CompleteAsync(cancellationToken);
         return account;
     }
