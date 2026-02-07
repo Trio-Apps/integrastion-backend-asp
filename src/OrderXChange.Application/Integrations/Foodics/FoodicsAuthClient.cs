@@ -36,21 +36,56 @@ public class FoodicsAuthClient : ITransientDependency
         var useBasicAuth = bool.TryParse(_configuration["Foodics:OAuthUseBasicAuth"], out var parsed) && parsed;
         var includeClientCreds = !useBasicAuth;
 
-        var form = new Dictionary<string, string?>
+        HttpContent content;
+        if (string.Equals(grantType, "authorization_code", StringComparison.OrdinalIgnoreCase))
         {
-            ["grant_type"] = grantType,
-            ["scope"] = string.IsNullOrWhiteSpace(scope) ? null : scope
-        };
+            var code = _configuration["Foodics:OAuthCode"];
+            var redirectUri = _configuration["Foodics:OAuthRedirectUri"];
 
-        if (includeClientCreds)
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                throw new InvalidOperationException(
+                    "Foodics OAuth authorization_code flow requires Foodics:OAuthCode configuration.");
+            }
+
+            if (string.IsNullOrWhiteSpace(redirectUri))
+            {
+                throw new InvalidOperationException(
+                    "Foodics OAuth authorization_code flow requires Foodics:OAuthRedirectUri configuration.");
+            }
+
+            var jsonBody = new Dictionary<string, string?>
+            {
+                ["grant_type"] = "authorization_code",
+                ["code"] = code,
+                ["client_id"] = clientId,
+                ["client_secret"] = clientSecret,
+                ["redirect_uri"] = redirectUri
+            };
+
+            content = JsonContent.Create(jsonBody);
+            useBasicAuth = false;
+        }
+        else
         {
-            form["client_id"] = clientId;
-            form["client_secret"] = clientSecret;
+            var form = new Dictionary<string, string?>
+            {
+                ["grant_type"] = grantType,
+                ["scope"] = string.IsNullOrWhiteSpace(scope) ? null : scope
+            };
+
+            if (includeClientCreds)
+            {
+                form["client_id"] = clientId;
+                form["client_secret"] = clientSecret;
+            }
+
+            content = new FormUrlEncodedContent(form);
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Post, tokenUrl)
         {
-            Content = new FormUrlEncodedContent(form)
+            Content = content
         };
 
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
