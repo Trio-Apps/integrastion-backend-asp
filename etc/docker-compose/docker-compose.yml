@@ -1,4 +1,19 @@
 services:
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: reverse_proxy
+    depends_on:
+      - web_api
+      - angular
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d:ro
+      - ./certs:/etc/nginx/certs:ro
+    restart: always
+    networks:
+      - abp-network
+
   web_api:
     build:
       context: ../..
@@ -16,19 +31,20 @@ services:
       kafka:
         condition: service_healthy
     environment:
-      - App__SelfUrl=https://igwdev.beon-it.com
-      - App__AngularUrl=https://igw.beon-it.com
-      - App__HealthCheckUrl=http://localhost:8080/health-status
+      - App__SelfUrl=http://57.128.145.20
+      - App__AngularUrl=http://57.128.145.20
+      - App__HealthCheckUrl=/health-status
       - App__DisablePII=false
       - ConnectionStrings__Hangfire=Server=mariadb;Port=3306;Database=OrderXChange;User=orderxchange_user;Password=OrderXChange@2024;AllowUserVariables=True;UseAffectedRows=False
       - ConnectionStrings__Default=Server=mariadb;Port=3306;Database=OrderXChange;User=orderxchange_user;Password=OrderXChange@2024;AllowUserVariables=True;UseAffectedRows=False
-      - App__CorsOrigins=https://igwdev.beon-it.com,https://igw.beon-it.com,http://localhost:4200
-      - AuthServer__Authority=https://igwdev.beon-it.com
+      - App__CorsOrigins=http://57.128.145.20
+      - AuthServer__Authority=http://57.128.145.20
+      - AuthServer__RequireHttpsMetadata=false
       - AuthServer__SwaggerClientId=OrderXChange_Swagger
-      - OpenIddict__Applications__OrderXChange_Swagger__RootUrl=https://igwdev.beon-it.com
-      - OpenIddict__Applications__OrderXChange_App__RootUrl=https://igw.beon-it.com
-      - OpenIddict__Applications__OrderXChange_Swagger__RedirectUris__0=https://igwdev.beon-it.com/swagger/oauth2-redirect.html
-      - App__RedirectAllowedUrls=https://igwdev.beon-it.com
+      - OpenIddict__Applications__OrderXChange_Swagger__RootUrl=http://57.128.145.20
+      - OpenIddict__Applications__OrderXChange_App__RootUrl=http://57.128.145.20
+      - OpenIddict__Applications__OrderXChange_Swagger__RedirectUris__0=http://57.128.145.20/swagger/oauth2-redirect.html
+      - App__RedirectAllowedUrls=http://57.128.145.20
       - AbpMvcLibsOptions__CheckLibs=false
       - AuthServer__CertificatePassPhrase=0ae7c713-43f1-4428-9273-ac71bd31a284
       - ASPNETCORE_ENVIRONMENT=Production
@@ -85,7 +101,7 @@ services:
       - Talabat__VendorConfig__PH-SIDDIQ-002__PlatformKey=TB_KW
       - Talabat__VendorConfig__PH-SIDDIQ-002__PlatformRestaurantId=783216
       - Talabat__DefaultLocale=ar
-      - Talabat__CallbackBaseUrl=https://igwdev.beon-it.com/api/talabat/webhooks
+      - Talabat__CallbackBaseUrl=http://57.128.145.20/api/talabat/webhooks
       - Talabat__AllowedIps__0=63.32.225.161
       - Talabat__AllowedIps__1=18.202.96.85
       - Talabat__AllowedIps__2=52.208.41.152
@@ -95,8 +111,6 @@ services:
       - Talabat__AllowedIps__6=127.0.0.1
       - Talabat__AllowedIps__7=::1
       - Settings__Abp__Account__EnableLocalLogin=true
-    ports:
-      - "8090:8080"
     restart: always
     networks:
       - abp-network
@@ -127,8 +141,6 @@ services:
     container_name: web_ui
     depends_on:
       - web_api
-    ports:
-      - "4200:80"
     restart: always
     networks:
       - abp-network
@@ -154,7 +166,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    command: 
+    command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
 
