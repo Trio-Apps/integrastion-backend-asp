@@ -157,7 +157,6 @@ services:
       MYSQL_PASSWORD: "OrderXChange@2024"
     volumes:
       - mariadb-data1:/var/lib/mysql
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     networks:
       - abp-network
     healthcheck:
