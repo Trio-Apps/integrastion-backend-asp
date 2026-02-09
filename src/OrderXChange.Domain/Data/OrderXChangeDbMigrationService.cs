@@ -104,13 +104,19 @@ public class OrderXChangeDbMigrationService : ITransientDependency
     private async Task SeedDataAsync(Tenant? tenant = null)
     {
         Logger.LogInformation($"Executing {(tenant == null ? "host" : tenant.Name + " tenant")} database seed...");
-        
-        await _dataSeeder.SeedAsync(new DataSeedContext(tenant?.Id)
-            .WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName,
-                OrderXChangeConsts.AdminEmailDefaultValue)
-            .WithProperty(IdentityDataSeedContributor.AdminPasswordPropertyName,
-                OrderXChangeConsts.AdminPasswordDefaultValue)
-        );
+
+        var context = new DataSeedContext(tenant?.Id);
+
+        if (tenant == null)
+        {
+            // Host seeding can keep default bootstrap credentials.
+            // Tenant credentials are provisioned by TenantCreated flow and must not be reset on every migration run.
+            context
+                .WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName, OrderXChangeConsts.AdminEmailDefaultValue)
+                .WithProperty(IdentityDataSeedContributor.AdminPasswordPropertyName, OrderXChangeConsts.AdminPasswordDefaultValue);
+        }
+
+        await _dataSeeder.SeedAsync(context);
     }
 
     private bool AddInitialMigrationIfNotExist()
