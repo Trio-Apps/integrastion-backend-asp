@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore;
 using OrderXChange.HttpApi.Host.Services;
 using Volo.Abp;
 using Volo.Abp.AspNetCore.Mvc;
@@ -47,10 +48,19 @@ public class TenantAdminController : AbpControllerBase
 
         using (_currentTenant.Change(tenantId))
         {
-            var adminUser = await _identityUserManager.FindByNameAsync("admin");
+            var adminUser = await FindTenantAdminUserAsync(tenantId);
             if (adminUser == null || adminUser.Email.IsNullOrWhiteSpace())
             {
                 throw new UserFriendlyException("Tenant admin user was not found.");
+            }
+
+            if (!string.Equals(adminUser.UserName, adminUser.Email, StringComparison.OrdinalIgnoreCase))
+            {
+                var setUserNameResult = await _identityUserManager.SetUserNameAsync(adminUser, adminUser.Email!);
+                if (!setUserNameResult.Succeeded)
+                {
+                    throw new UserFriendlyException(string.Join("; ", setUserNameResult.Errors.Select(e => e.Description)));
+                }
             }
 
             var resetToken = await _identityUserManager.GeneratePasswordResetTokenAsync(adminUser);
@@ -76,6 +86,22 @@ public class TenantAdminController : AbpControllerBase
             var body = BuildWelcomeEmailHtml(tenant.Name, adminUser.Email!, generatedPassword, loginUrl);
             await _smtpMailSender.SendAsync(adminUser.Email!, subject, body);
         }
+    }
+
+    private async Task<IdentityUser?> FindTenantAdminUserAsync(Guid tenantId)
+    {
+        var adminByUserName = await _identityUserManager.Users
+            .FirstOrDefaultAsync(u => u.TenantId == tenantId && u.UserName == "admin");
+
+        if (adminByUserName != null)
+        {
+            return adminByUserName;
+        }
+
+        return await _identityUserManager.Users
+            .Where(u => u.TenantId == tenantId)
+            .OrderBy(u => u.CreationTime)
+            .FirstOrDefaultAsync();
     }
 
     private static string GeneratePassword(string tenantName)

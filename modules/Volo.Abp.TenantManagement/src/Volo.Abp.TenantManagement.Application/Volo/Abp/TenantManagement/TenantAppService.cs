@@ -89,6 +89,7 @@ public class TenantAppService : TenantManagementAppServiceBase, ITenantAppServic
 
         var tenant = await TenantManager.CreateAsync(input.Name);
         input.MapExtraPropertiesTo(tenant);
+        tenant.SetProperty("AdminEmail", input.AdminEmailAddress);
 
         await TenantRepository.InsertAsync(tenant);
 

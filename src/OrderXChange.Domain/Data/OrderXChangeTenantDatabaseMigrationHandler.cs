@@ -146,7 +146,7 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
 
                         if (!adminEmail.IsNullOrWhiteSpace() && !adminPassword.IsNullOrWhiteSpace())
                         {
-                            await EnsureAdminCredentialsAsync(adminEmail, adminPassword);
+                            await EnsureAdminCredentialsAsync(tenantId, adminEmail, adminPassword);
                         }
                         
                         _logger.LogInformation("✅ Data seeding completed for tenant {TenantId}", tenantId);
@@ -172,16 +172,36 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
     }
 
     private async Task EnsureAdminCredentialsAsync(
+        Guid tenantId,
         string adminEmail,
         string adminPassword)
     {
-        var user = await _identityUserManager.FindByEmailAsync(adminEmail);
+        var user = _identityUserManager.Users
+            .FirstOrDefault(u => u.TenantId == tenantId && u.Email == adminEmail);
+
+        user ??= _identityUserManager.Users
+            .FirstOrDefault(u => u.TenantId == tenantId && u.UserName == "admin");
+
         if (user == null)
         {
             _logger.LogWarning(
-                "Admin user with email {AdminEmail} was not found after seeding; password enforcement skipped.",
+                "Admin user for tenant {TenantId} was not found after seeding; password enforcement skipped. AdminEmail={AdminEmail}",
+                tenantId,
                 adminEmail);
             return;
+        }
+
+        if (!string.Equals(user.UserName, adminEmail, StringComparison.OrdinalIgnoreCase))
+        {
+            var setUserNameResult = await _identityUserManager.SetUserNameAsync(user, adminEmail);
+            if (!setUserNameResult.Succeeded)
+            {
+                _logger.LogWarning(
+                    "Failed to set tenant admin username to email for tenant {TenantId}: {Errors}",
+                    tenantId,
+                    string.Join("; ", setUserNameResult.Errors.Select(e => e.Description))
+                );
+            }
         }
 
         var resetToken = await _identityUserManager.GeneratePasswordResetTokenAsync(user);
@@ -189,8 +209,9 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
         if (!resetResult.Succeeded)
         {
             _logger.LogWarning(
-                "Failed to reset admin password for {AdminEmail}: {Errors}",
+                "Failed to reset admin password for {AdminEmail} in tenant {TenantId}: {Errors}",
                 adminEmail,
+                tenantId,
                 string.Join("; ", resetResult.Errors.Select(e => e.Description))
             );
         }
@@ -201,8 +222,9 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
             if (!updateResult.Succeeded)
             {
                 _logger.LogWarning(
-                    "Failed to clear password-change flag for admin {AdminEmail}: {Errors}",
+                    "Failed to clear password-change flag for admin {AdminEmail} in tenant {TenantId}: {Errors}",
                     adminEmail,
+                    tenantId,
                     string.Join("; ", updateResult.Errors.Select(e => e.Description))
                 );
             }
