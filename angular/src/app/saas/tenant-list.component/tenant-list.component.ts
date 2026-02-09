@@ -20,7 +20,7 @@ import { MessageService, ConfirmationService } from 'primeng/api';
 // ABP & Services
 import { TenantService } from '../../proxy/volo/abp/tenant-management/tenant.service';
 import { TenantDto, GetTenantsInput, TenantCreateDto } from '../../proxy/volo/abp/tenant-management/models';
-import { LocalizationModule, LocalizationService, PagedResultDto } from '@abp/ng.core';
+import { LocalizationModule, LocalizationService, PagedResultDto, RestService } from '@abp/ng.core';
 
 @Component({
   selector: 'app-tenant-list',
@@ -53,6 +53,7 @@ export class TenantListComponent implements OnInit {
   private confirmationService = inject(ConfirmationService);
   private fb = inject(FormBuilder);
   private localization = inject(LocalizationService);
+  private restService = inject(RestService);
 
   // Table data
   tenants: TenantDto[] = [];
@@ -312,6 +313,48 @@ export class TenantListComponent implements OnInit {
           }
         });
       }
+    });
+  }
+
+  resendWelcomeEmail(tenant: TenantDto): void {
+    if (!tenant.id) {
+      return;
+    }
+
+    this.confirmationService.confirm({
+      message: `Regenerate tenant admin password and resend welcome email for "${tenant.name}"?`,
+      header: 'Resend Welcome Email',
+      icon: 'pi pi-envelope',
+      acceptLabel: this.l('::Common.Yes'),
+      rejectLabel: this.l('::Common.Cancel'),
+      accept: () => {
+        this.restService
+          .request<any, void>(
+            {
+              method: 'POST',
+              url: `/api/tenant-admin/${tenant.id}/resend-welcome-email`,
+            },
+            { apiName: 'Default' }
+          )
+          .subscribe({
+            next: () => {
+              this.messageService.add({
+                severity: 'success',
+                summary: this.l('::Common.Success'),
+                detail: `Welcome email resent for "${tenant.name}".`,
+                life: 3000,
+              });
+            },
+            error: error => {
+              this.messageService.add({
+                severity: 'error',
+                summary: this.l('::Common.Error'),
+                detail: error?.error?.error?.message || 'Failed to resend welcome email.',
+                life: 5000,
+              });
+            },
+          });
+      },
     });
   }
 

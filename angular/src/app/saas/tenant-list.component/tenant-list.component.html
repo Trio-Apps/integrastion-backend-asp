@@ -114,6 +114,16 @@
               (onClick)="deleteTenant(tenant)"
               [pTooltip]="'::Tenants.Actions.Delete' | abpLocalization"
               tooltipPosition="bottom" />
+
+            <p-button
+              icon="pi pi-envelope"
+              [rounded]="true"
+              [outlined]="true"
+              severity="info"
+              size="small"
+              (onClick)="resendWelcomeEmail(tenant)"
+              pTooltip="Resend welcome email with new password"
+              tooltipPosition="bottom" />
             
             <p-button 
               icon="pi pi-ellipsis-v" 
