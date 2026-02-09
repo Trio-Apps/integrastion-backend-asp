@@ -2,7 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { AuthService, CoreModule, LocalizationPipe, MultiTenancyService, PermissionService, RestService, SessionStateService } from '@abp/ng.core';
+import { AuthService, CoreModule, LocalizationPipe, MultiTenancyService, RestService, SessionStateService } from '@abp/ng.core';
 import { finalize } from 'rxjs/operators';
 import { firstValueFrom } from 'rxjs';
 
@@ -41,7 +41,6 @@ export class Login implements OnInit {
   private sessionState = inject(SessionStateService);
   private multiTenancy = inject(MultiTenancyService);
   private restService = inject(RestService);
-  private permissionService = inject(PermissionService);
   loginForm!: FormGroup;
   loading = false;
   submitted = false;
@@ -92,8 +91,8 @@ export class Login implements OnInit {
         next: (data) => {
           if (data.success) {
             this.resolveTenantLoginName(tenantNameValue, username)
-              .then(resolvedLogin => this.performLogin(resolvedLogin, password, rememberMe))
-              .catch(() => this.performLogin(username, password, rememberMe));
+              .then(resolvedLogin => this.performLogin(resolvedLogin, password, rememberMe, true))
+              .catch(() => this.performLogin(username, password, rememberMe, true));
           } else {
             this.loading = false;
             this.messageService.add({
@@ -115,7 +114,7 @@ export class Login implements OnInit {
       });
     } else {
       this.clearTenantContext();
-      this.performLogin(username, password, rememberMe);
+      this.performLogin(username, password, rememberMe, false);
     }
   }
 
@@ -145,7 +144,7 @@ export class Login implements OnInit {
   /**
    * Performs the actual login operation
    */
-  private performLogin(username: string, password: string, rememberMe: boolean): void {
+  private performLogin(username: string, password: string, rememberMe: boolean, hasTenantContext: boolean): void {
     this.authService
       .login({ username, password, rememberMe })
       .pipe(
@@ -154,14 +153,15 @@ export class Login implements OnInit {
         })
       )
       .subscribe({
-        next: () => {
+        next: async () => {
           this.messageService.add({
             severity: 'success',
             summary: 'Success',
             detail: 'Login successful! Redirecting...'
           });
-          const isHostAdmin = this.permissionService.getGrantedPolicy('OrderXChange.Dashboard.Host');
-          window.location.href = isHostAdmin ? '/saas/tenants' : '/dashboard';
+
+          const landingRoute = await this.resolveLandingRoute(hasTenantContext);
+          window.location.href = landingRoute;
         },
         error: (error) => {
           console.error('Login error:', error);
@@ -172,6 +172,40 @@ export class Login implements OnInit {
           });
         }
       });
+  }
+
+  private async resolveLandingRoute(hasTenantContext: boolean): Promise<string> {
+    if (hasTenantContext) {
+      return '/dashboard';
+    }
+
+    try {
+      const configuration = await firstValueFrom(
+        this.restService.request<any, any>(
+          {
+            method: 'GET',
+            url: '/api/abp/application-configuration',
+          },
+          { apiName: 'default' }
+        )
+      );
+
+      const grantedPolicies = configuration?.auth?.grantedPolicies ?? {};
+      const isHost = grantedPolicies['OrderXChange.Dashboard.Host'] === true;
+      const isTenant = grantedPolicies['OrderXChange.Dashboard.Tenant'] === true;
+
+      if (isHost) {
+        return '/saas/tenants';
+      }
+
+      if (isTenant) {
+        return '/dashboard';
+      }
+    } catch (error) {
+      console.warn('Failed to resolve landing route from application configuration', error);
+    }
+
+    return '/dashboard';
   }
 
   /**
