@@ -90,9 +90,13 @@ export class Login implements OnInit {
       this.multiTenancy.setTenantByName(tenantNameValue).subscribe({
         next: (data) => {
           if (data.success) {
-            this.resolveTenantLoginName(tenantNameValue, username)
-              .then(resolvedLogin => this.performLoginWithFallback(resolvedLogin, username, password, rememberMe, true))
-              .catch(() => this.performLoginWithFallback(username, username, password, rememberMe, true));
+            this.ensureTenantCookieForAuthentication(data, tenantNameValue)
+              .catch(error => console.warn('Failed to persist tenant cookie for cross-subdomain auth', error))
+              .finally(() => {
+                this.resolveTenantLoginName(tenantNameValue, username)
+                  .then(resolvedLogin => this.performLoginWithFallback(resolvedLogin, username, password, rememberMe, true))
+                  .catch(() => this.performLoginWithFallback(username, username, password, rememberMe, true));
+              });
           } else {
             this.loading = false;
             this.messageService.add({
@@ -300,12 +304,105 @@ export class Login implements OnInit {
   }
 
   private clearTenantContext(): void {
-    // Ensure stale tenant cookie doesn't force tenant context for host logins.
+    // Ensure stale tenant cookies don't force tenant context for host logins.
     const cookieNames = ['__tenant', 'Abp.TenantId', 'AbpTenantId'];
+    const parentDomain = this.getParentDomain(location.hostname);
+
     for (const name of cookieNames) {
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${location.hostname}`;
+      this.clearCookie(name);
+      this.clearCookie(name, location.hostname);
+      if (parentDomain) {
+        this.clearCookie(name, `.${parentDomain}`);
+      }
     }
     this.sessionState.setTenant(null);
+  }
+
+  private async ensureTenantCookieForAuthentication(tenantLookupResult: any, tenantName: string): Promise<void> {
+    const tenantId = await this.resolveTenantId(tenantLookupResult, tenantName);
+    if (!tenantId) {
+      return;
+    }
+
+    const cookieNames = ['__tenant', 'Abp.TenantId', 'AbpTenantId'];
+    const parentDomain = this.getParentDomain(location.hostname);
+
+    for (const name of cookieNames) {
+      this.writeCookie(name, tenantId);
+      this.writeCookie(name, tenantId, location.hostname);
+      if (parentDomain) {
+        this.writeCookie(name, tenantId, `.${parentDomain}`);
+      }
+    }
+  }
+
+  private async resolveTenantId(tenantLookupResult: any, tenantName: string): Promise<string | undefined> {
+    const immediateId = this.tryExtractTenantId(tenantLookupResult);
+    if (immediateId) {
+      return immediateId;
+    }
+
+    if (!tenantName) {
+      return undefined;
+    }
+
+    const encodedTenant = encodeURIComponent(tenantName.trim());
+    const url = `/api/abp/multi-tenancy/tenants/by-name/${encodedTenant}`;
+
+    try {
+      const result = await firstValueFrom(
+        this.restService.request<any, any>(
+          {
+            method: 'GET',
+            url,
+          },
+          { apiName: 'Default' }
+        )
+      );
+
+      return this.tryExtractTenantId(result);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private tryExtractTenantId(source: any): string | undefined {
+    const candidate =
+      source?.tenantId ??
+      source?.id ??
+      source?.tenant?.id ??
+      source?.result?.tenantId ??
+      source?.result?.id ??
+      source?.result?.tenant?.id;
+
+    const value = (candidate ?? '').toString().trim();
+    return value || undefined;
+  }
+
+  private writeCookie(name: string, value: string, domain?: string): void {
+    const encodedValue = encodeURIComponent(value);
+    const secure = location.protocol === 'https:' ? '; Secure' : '';
+    const domainPart = domain ? `; domain=${domain}` : '';
+    document.cookie = `${name}=${encodedValue}; path=/${domainPart}; Max-Age=2592000; SameSite=Lax${secure}`;
+  }
+
+  private clearCookie(name: string, domain?: string): void {
+    const secure = location.protocol === 'https:' ? '; Secure' : '';
+    const domainPart = domain ? `; domain=${domain}` : '';
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/${domainPart}; SameSite=Lax${secure}`;
+  }
+
+  private getParentDomain(hostname: string): string | undefined {
+    if (!hostname || hostname === 'localhost' || /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) {
+      return undefined;
+    }
+
+    const parts = hostname.split('.').filter(Boolean);
+    if (parts.length < 2) {
+      return undefined;
+    }
+
+    return parts.slice(-2).join('.');
   }
 
   /**
