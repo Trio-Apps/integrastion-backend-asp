@@ -91,8 +91,8 @@ export class Login implements OnInit {
         next: (data) => {
           if (data.success) {
             this.resolveTenantLoginName(tenantNameValue, username)
-              .then(resolvedLogin => this.performLogin(resolvedLogin, password, rememberMe, true))
-              .catch(() => this.performLogin(username, password, rememberMe, true));
+              .then(resolvedLogin => this.performLoginWithFallback(resolvedLogin, username, password, rememberMe, true))
+              .catch(() => this.performLoginWithFallback(username, username, password, rememberMe, true));
           } else {
             this.loading = false;
             this.messageService.add({
@@ -114,7 +114,7 @@ export class Login implements OnInit {
       });
     } else {
       this.clearTenantContext();
-      this.performLogin(username, password, rememberMe, false);
+      this.performLoginWithFallback(username, username, password, rememberMe, false);
     }
   }
 
@@ -144,16 +144,36 @@ export class Login implements OnInit {
   /**
    * Performs the actual login operation
    */
-  private performLogin(username: string, password: string, rememberMe: boolean, hasTenantContext: boolean): void {
+  private performLoginWithFallback(
+    primaryUsername: string,
+    originalUsername: string,
+    password: string,
+    rememberMe: boolean,
+    hasTenantContext: boolean
+  ): void {
+    const candidates = this.buildLoginCandidates(primaryUsername, originalUsername, hasTenantContext);
+    this.tryLoginCandidate(candidates, password, rememberMe, hasTenantContext, 0);
+  }
+
+  private tryLoginCandidate(
+    candidates: string[],
+    password: string,
+    rememberMe: boolean,
+    hasTenantContext: boolean,
+    index: number
+  ): void {
+    const username = candidates[index];
+
     this.authService
       .login({ username, password, rememberMe })
-      .pipe(
-        finalize(() => {
+      .pipe(finalize(() => {
+        if (index >= candidates.length - 1) {
           this.loading = false;
-        })
-      )
+        }
+      }))
       .subscribe({
         next: async () => {
+          this.loading = false;
           this.messageService.add({
             severity: 'success',
             summary: 'Success',
@@ -164,6 +184,15 @@ export class Login implements OnInit {
           window.location.href = landingRoute;
         },
         error: (error) => {
+          const isInvalidCredentials =
+            (error?.error?.error_description as string | undefined)?.toLowerCase().includes('invalid username or password') ?? false;
+
+          if (isInvalidCredentials && index < candidates.length - 1) {
+            this.tryLoginCandidate(candidates, password, rememberMe, hasTenantContext, index + 1);
+            return;
+          }
+
+          this.loading = false;
           console.error('Login error:', error);
           this.messageService.add({
             severity: 'error',
@@ -172,6 +201,31 @@ export class Login implements OnInit {
           });
         }
       });
+  }
+
+  private buildLoginCandidates(
+    primaryUsername: string,
+    originalUsername: string,
+    hasTenantContext: boolean
+  ): string[] {
+    const candidates = new Set<string>();
+    const primary = (primaryUsername ?? '').trim();
+    const original = (originalUsername ?? '').trim();
+
+    if (primary) {
+      candidates.add(primary);
+    }
+
+    if (original) {
+      candidates.add(original);
+    }
+
+    // Tenant admins are commonly seeded with username "admin" while UI collects email.
+    if (hasTenantContext && (original.includes('@') || primary.includes('@'))) {
+      candidates.add('admin');
+    }
+
+    return Array.from(candidates);
   }
 
   private async resolveLandingRoute(hasTenantContext: boolean): Promise<string> {
