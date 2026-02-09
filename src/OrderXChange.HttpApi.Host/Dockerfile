@@ -11,17 +11,17 @@ COPY modules/ ./modules/
 
 RUN dotnet restore ./src/OrderXChange.HttpApi.Host/OrderXChange.HttpApi.Host.csproj
 
-WORKDIR /src/OrderXChange.HttpApi.Host
+WORKDIR /src/src/OrderXChange.HttpApi.Host
 RUN dotnet tool install -g Volo.Abp.Cli --version 9.3.6 --add-source https://api.nuget.org/v3/index.json --ignore-failed-sources
 ENV PATH="${PATH}:/root/.dotnet/tools"
 RUN npm install -g yarn \
     && abp install-libs \
-    && test -d /src/OrderXChange.HttpApi.Host/wwwroot/libs
+    && test -d /src/src/OrderXChange.HttpApi.Host/wwwroot/libs
 
 WORKDIR /src
 RUN dotnet publish ./src/OrderXChange.HttpApi.Host/OrderXChange.HttpApi.Host.csproj -c Release -o /app/publish
 RUN mkdir -p /app/publish/wwwroot/libs \
-    && cp -a /src/OrderXChange.HttpApi.Host/wwwroot/libs/. /app/publish/wwwroot/libs/
+    && cp -a /src/src/OrderXChange.HttpApi.Host/wwwroot/libs/. /app/publish/wwwroot/libs/
 
 ARG OPENIDDICT_PFX_PASSPHRASE=0ae7c713-43f1-4428-9273-ac71bd31a284
 RUN openssl req -x509 -newkey rsa:2048 -sha256 -nodes \
