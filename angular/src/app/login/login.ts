@@ -2,7 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { AuthService, CoreModule, LocalizationPipe, MultiTenancyService, RestService, SessionStateService } from '@abp/ng.core';
+import { AuthService, CoreModule, LocalizationPipe, MultiTenancyService, PermissionService, RestService, SessionStateService } from '@abp/ng.core';
 import { finalize } from 'rxjs/operators';
 import { firstValueFrom } from 'rxjs';
 
@@ -41,6 +41,7 @@ export class Login implements OnInit {
   private sessionState = inject(SessionStateService);
   private multiTenancy = inject(MultiTenancyService);
   private restService = inject(RestService);
+  private permissionService = inject(PermissionService);
   loginForm!: FormGroup;
   loading = false;
   submitted = false;
@@ -91,8 +92,8 @@ export class Login implements OnInit {
         next: (data) => {
           if (data.success) {
             this.resolveTenantLoginName(tenantNameValue, username)
-              .then(resolvedLogin => this.performLogin(resolvedLogin, password, rememberMe, true))
-              .catch(() => this.performLogin(username, password, rememberMe, true));
+              .then(resolvedLogin => this.performLogin(resolvedLogin, password, rememberMe))
+              .catch(() => this.performLogin(username, password, rememberMe));
           } else {
             this.loading = false;
             this.messageService.add({
@@ -114,7 +115,7 @@ export class Login implements OnInit {
       });
     } else {
       this.clearTenantContext();
-      this.performLogin(username, password, rememberMe, false);
+      this.performLogin(username, password, rememberMe);
     }
   }
 
@@ -144,7 +145,7 @@ export class Login implements OnInit {
   /**
    * Performs the actual login operation
    */
-  private performLogin(username: string, password: string, rememberMe: boolean, hasTenantContext: boolean): void {
+  private performLogin(username: string, password: string, rememberMe: boolean): void {
     this.authService
       .login({ username, password, rememberMe })
       .pipe(
@@ -159,8 +160,8 @@ export class Login implements OnInit {
             summary: 'Success',
             detail: 'Login successful! Redirecting...'
           });
-          // Host admin lands on tenant management, tenant users land on dashboard.
-          window.location.href = hasTenantContext ? '/dashboard' : '/saas/tenants';
+          const isHostAdmin = this.permissionService.getGrantedPolicy('OrderXChange.Dashboard.Host');
+          window.location.href = isHostAdmin ? '/saas/tenants' : '/dashboard';
         },
         error: (error) => {
           console.error('Login error:', error);
