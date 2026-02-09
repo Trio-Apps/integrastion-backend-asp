@@ -146,7 +146,11 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
                             seedContext
                         );
 
-                        if (markAdminForPasswordChange && !adminEmail.IsNullOrWhiteSpace())
+                        if (!adminEmail.IsNullOrWhiteSpace() && !adminPassword.IsNullOrWhiteSpace())
+                        {
+                            await EnsureAdminCredentialsAsync(adminEmail, adminPassword, markAdminForPasswordChange);
+                        }
+                        else if (markAdminForPasswordChange && !adminEmail.IsNullOrWhiteSpace())
                         {
                             await MarkAdminToChangePasswordOnFirstLoginAsync(adminEmail);
                         }
@@ -201,6 +205,46 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
                 adminEmail,
                 string.Join("; ", result.Errors.Select(e => e.Description))
             );
+        }
+    }
+
+    private async Task EnsureAdminCredentialsAsync(
+        string adminEmail,
+        string adminPassword,
+        bool markAdminForPasswordChange)
+    {
+        var user = await _identityUserManager.FindByEmailAsync(adminEmail);
+        if (user == null)
+        {
+            _logger.LogWarning(
+                "Admin user with email {AdminEmail} was not found after seeding; password enforcement skipped.",
+                adminEmail);
+            return;
+        }
+
+        var resetToken = await _identityUserManager.GeneratePasswordResetTokenAsync(user);
+        var resetResult = await _identityUserManager.ResetPasswordAsync(user, resetToken, adminPassword);
+        if (!resetResult.Succeeded)
+        {
+            _logger.LogWarning(
+                "Failed to reset admin password for {AdminEmail}: {Errors}",
+                adminEmail,
+                string.Join("; ", resetResult.Errors.Select(e => e.Description))
+            );
+        }
+
+        if (markAdminForPasswordChange && !user.ShouldChangePasswordOnNextLogin)
+        {
+            user.SetShouldChangePasswordOnNextLogin(true);
+            var updateResult = await _identityUserManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                _logger.LogWarning(
+                    "Failed to enable password-change-on-first-login for admin {AdminEmail}: {Errors}",
+                    adminEmail,
+                    string.Join("; ", updateResult.Errors.Select(e => e.Description))
+                );
+            }
         }
     }
 }

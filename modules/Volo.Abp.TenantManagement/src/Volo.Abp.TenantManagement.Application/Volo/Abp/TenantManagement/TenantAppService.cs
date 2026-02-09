@@ -94,42 +94,30 @@ public class TenantAppService : TenantManagementAppServiceBase, ITenantAppServic
 
         await CurrentUnitOfWork.SaveChangesAsync();
 
-        // Publish event to trigger asynchronous database migration and data seeding
-        // This prevents blocking the HTTP request and improves API response time
+        // Publish event to trigger asynchronous database migration and data seeding.
+        // Welcome email is sent only if event publishing succeeded.
+        var provisioningEventPublished = true;
         try
         {
-            // Use CancellationToken with timeout to prevent infinite hanging
-            using (var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5)))
-            {
-                await DistributedEventBus.PublishAsync(
-                    new TenantCreatedEto
+            await DistributedEventBus.PublishAsync(
+                new TenantCreatedEto
+                {
+                    Id = tenant.Id,
+                    Name = tenant.Name,
+                    Properties =
                     {
-                        Id = tenant.Id,
-                        Name = tenant.Name,
-                        Properties =
-                        {
-                            { "AdminEmail", input.AdminEmailAddress },
-                            { "AdminPassword", input.AdminPassword }
-                        }
-                    },
-                    false);
-            }
-        }
-        catch (System.OperationCanceledException)
-        {
-            // Event bus publish timed out, but tenant was created successfully
-            // Log and continue - the migration will happen asynchronously via Hangfire retry
-            Logger.LogWarning(
-                "Distributed event bus publish timed out for tenant {TenantId}, " +
-                "but tenant was created. Retrying with Hangfire background job.",
-                tenant.Id);
+                        { "AdminEmail", input.AdminEmailAddress },
+                        { "AdminPassword", input.AdminPassword }
+                    }
+                },
+                false);
         }
         catch (Exception ex)
         {
-            // Even if event publishing fails, the tenant is already created
+            provisioningEventPublished = false;
             Logger.LogError(ex,
                 "Failed to publish TenantCreated event for tenant {TenantId}. " +
-                "Migration will be retried via background jobs.",
+                "Skipping welcome email because credentials are not guaranteed to be provisioned yet.",
                 tenant.Id);
         }
 
@@ -137,10 +125,13 @@ public class TenantAppService : TenantManagementAppServiceBase, ITenantAppServic
         // The OrderXChangeTenantDatabaseMigrationHandler will handle this asynchronously
         // See: src/OrderXChange.Domain/Data/OrderXChangeTenantDatabaseMigrationHandler.cs
 
-        await TrySendWelcomeEmailAsync(
-            tenant.Name,
-            input.AdminEmailAddress,
-            generatedPassword);
+        if (provisioningEventPublished)
+        {
+            await TrySendWelcomeEmailAsync(
+                tenant.Name,
+                input.AdminEmailAddress,
+                generatedPassword);
+        }
 
         return ObjectMapper.Map<Tenant, TenantDto>(tenant);
     }
