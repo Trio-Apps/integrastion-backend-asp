@@ -160,10 +160,8 @@ export class Login implements OnInit {
             summary: 'Success',
             detail: 'Login successful! Redirecting...'
           });
-          // Navigate to home or dashboard after successful login
-          setTimeout(() => {
-            this.router.navigate(['/']);
-          }, 1000);
+          // Use hard redirect to avoid router/account-layout state glitches after token issuance.
+          window.location.href = '/';
         },
         error: (error) => {
           console.error('Login error:', error);
