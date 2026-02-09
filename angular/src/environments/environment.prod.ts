@@ -22,6 +22,10 @@ export const environment = {
   },
   oAuthConfig,
   apis: {
+    default: {
+      url: 'https://igwdev.beon-it.com',
+      rootNamespace: 'OrderXChange',
+    },
     Default: {
       url: 'https://igwdev.beon-it.com',
       rootNamespace: 'OrderXChange',

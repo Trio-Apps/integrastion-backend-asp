@@ -22,6 +22,10 @@ export const environment = {
   },
   oAuthConfig,
   apis: {
+    default: {
+      url: 'http://localhost:8081',
+      rootNamespace: 'OrderXChange',
+    },
     Default: {
       url: 'http://localhost:8081',
       rootNamespace: 'OrderXChange',
