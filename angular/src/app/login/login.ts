@@ -47,6 +47,7 @@ export class Login implements OnInit {
   loading = false;
   submitted = false;
   passwordVisible = false;
+  private tenantAuthValue: string | null = null;
 
   ngOnInit(): void {
     this.initializeForm();
@@ -95,7 +96,7 @@ export class Login implements OnInit {
             this.ensureTenantCookieForAuthentication(data, tenantNameValue)
               .catch(error => console.warn('Failed to persist tenant cookie for cross-subdomain auth', error))
               .finally(() => {
-                this.setOAuthTenantContext(tenantNameValue);
+                this.setOAuthTenantContext(this.tenantAuthValue ?? tenantNameValue);
                 this.resolveTenantLoginName(tenantNameValue, username)
                   .then(resolvedLogin => this.performLoginWithFallback(resolvedLogin, username, password, rememberMe, true))
                   .catch(() => this.performLoginWithFallback(username, username, password, rememberMe, true));
@@ -318,16 +319,19 @@ export class Login implements OnInit {
         this.clearCookie(name, `.${parentDomain}`);
       }
     }
+    this.tenantAuthValue = null;
     this.clearOAuthTenantContext();
     this.sessionState.setTenant(null);
   }
 
   private async ensureTenantCookieForAuthentication(tenantLookupResult: any, tenantName: string): Promise<void> {
     const tenantId = await this.resolveTenantId(tenantLookupResult, tenantName);
-    const tenantValueForCookie = (tenantName ?? '').trim() || tenantId || '';
+    const tenantValueForCookie = tenantId || (tenantName ?? '').trim() || '';
     if (!tenantValueForCookie) {
+      this.tenantAuthValue = null;
       return;
     }
+    this.tenantAuthValue = tenantId || tenantValueForCookie;
 
     const cookieValues: Record<string, string> = {
       __tenant: tenantValueForCookie,

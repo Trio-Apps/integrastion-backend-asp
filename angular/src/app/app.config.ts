@@ -17,6 +17,7 @@ import { provideThemeLeptonX } from '@abp/ng.theme.lepton-x';
 import { provideSideMenuLayout } from '@abp/ng.theme.lepton-x/layouts';
 import { provideLogo, withEnvironmentOptions } from "@volo/ngx-lepton-x.core";
 import { ApplicationConfig } from '@angular/core';
+import { HTTP_INTERCEPTORS } from '@angular/common/http';
 import { OAuthStorage } from 'angular-oauth2-oidc';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
@@ -29,6 +30,7 @@ import { AppConfigurator } from './layout/component/app.configurator';
 import Aura from '@primeuix/themes/aura';
 import { MessageService } from 'primeng/api';
 import { MyCustomErrorHandlerService } from './MyCustomErrorHandlerService.service';
+import { TenantTokenInterceptor } from './interceptors/tenant-token.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -77,6 +79,11 @@ export const appConfig: ApplicationConfig = {
       provide : CUSTOM_ERROR_HANDLERS,
       useExisting : MyCustomErrorHandlerService,
       multi : true,
+    },
+    {
+      provide: HTTP_INTERCEPTORS,
+      useClass: TenantTokenInterceptor,
+      multi: true,
     },
   ]
 };
