@@ -49,7 +49,8 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
         await MigrateAndSeedForTenantAsync(
             eventData.Id,
             eventData.Properties.GetOrDefault("AdminEmail") ?? OrderXChangeConsts.AdminEmailDefaultValue,
-            eventData.Properties.GetOrDefault("AdminPassword") ?? OrderXChangeConsts.AdminPasswordDefaultValue
+            eventData.Properties.GetOrDefault("AdminPassword") ?? OrderXChangeConsts.AdminPasswordDefaultValue,
+            markAdminForPasswordChange: true
         );
     }
 
@@ -62,9 +63,7 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
         }
 
         await MigrateAndSeedForTenantAsync(
-            eventData.Id,
-            OrderXChangeConsts.AdminEmailDefaultValue,
-            OrderXChangeConsts.AdminPasswordDefaultValue
+            eventData.Id
         );
 
         /* You may want to move your data from the old database to the new database!
@@ -81,16 +80,15 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
         }
 
         await MigrateAndSeedForTenantAsync(
-            eventData.TenantId.Value,
-            OrderXChangeConsts.AdminEmailDefaultValue,
-            OrderXChangeConsts.AdminPasswordDefaultValue
+            eventData.TenantId.Value
         );
     }
 
     private async Task MigrateAndSeedForTenantAsync(
         Guid tenantId,
-        string adminEmail,
-        string adminPassword)
+        string? adminEmail = null,
+        string? adminPassword = null,
+        bool markAdminForPasswordChange = false)
     {
         try
         {
@@ -126,13 +124,26 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
                 
                 try
                 {
+                    var seedContext = new DataSeedContext(tenantId);
+
+                    if (!adminEmail.IsNullOrWhiteSpace())
+                    {
+                        seedContext.WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName, adminEmail);
+                    }
+
+                    if (!adminPassword.IsNullOrWhiteSpace())
+                    {
+                        seedContext.WithProperty(IdentityDataSeedContributor.AdminPasswordPropertyName, adminPassword);
+                    }
+
                     await _dataSeeder.SeedAsync(
-                        new DataSeedContext(tenantId)
-                            .WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName, adminEmail)
-                            .WithProperty(IdentityDataSeedContributor.AdminPasswordPropertyName, adminPassword)
+                        seedContext
                     );
 
-                    await MarkAdminToChangePasswordOnFirstLoginAsync(adminEmail);
+                    if (markAdminForPasswordChange && !adminEmail.IsNullOrWhiteSpace())
+                    {
+                        await MarkAdminToChangePasswordOnFirstLoginAsync(adminEmail);
+                    }
                     
                     _logger.LogInformation("✅ Data seeding completed for tenant {TenantId}", tenantId);
                 }
