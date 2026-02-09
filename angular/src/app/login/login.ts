@@ -233,6 +233,6 @@ export class Login implements OnInit {
    * Navigates to forgot password page
    */
   onForgotPassword(): void {
-    this.router.navigate(['/account/forgot-password']);
+    this.router.navigate(['/forgot-password']);
   }
 }

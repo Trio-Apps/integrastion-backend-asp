@@ -62,8 +62,8 @@ export class ForgotPasswordComponent {
         }
 
         const returnUrl = tenantName
-          ? `${window.location.origin}/account/reset-password?tenantName=${encodeURIComponent(tenantName)}`
-          : `${window.location.origin}/account/reset-password`;
+          ? `${window.location.origin}/reset-password?tenantName=${encodeURIComponent(tenantName)}`
+          : `${window.location.origin}/reset-password`;
 
         this.restService
           .request<
