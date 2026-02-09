@@ -8,3 +8,14 @@ Navigate to _etc/docker-compose_ folder and run the `build-images-locally.ps1` s
 Navigate to _etc/docker-compose_ folder and run the `run-docker.ps1` script. The script will generate developer certificates (if it doesn't exist already) with `dotnet dev-certs` command to use HTTPS. Then, the script runs the provided docker-compose file on detached mode.
 
 > Not: Developer certificate is only valid for **localhost** domain. If you want to deploy to a real DNS in a production environment, use LetsEncrypt or similar tools.
+
+### Domain Mapping (Production)
+- `https://igw.beon-it.com` -> Angular frontend container (`web_ui`)
+- `https://igwdev.beon-it.com` -> ASP.NET backend container (`web_api`)
+
+### Nginx TLS certificates
+For DNS-based deployment, place these files in `etc/docker-compose/certs/`:
+- `fullchain.pem`
+- `privkey.pem`
+
+These files are mounted into the nginx container at `/etc/nginx/certs/` and used by both domains.
