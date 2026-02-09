@@ -144,8 +144,6 @@ services:
       dockerfile: Dockerfile
     image: orderxchange-angular
     container_name: web_ui
-    depends_on:
-      - web_api
     restart: always
     networks:
       - abp-network

@@ -84,7 +84,6 @@ export class Login implements OnInit {
     this.loading = true;
     const { tenantName, username, password, rememberMe } = this.loginForm.value;
     const tenantNameValue = (tenantName ?? '').toString().trim();
-
     // If tenant name is provided, validate it first
     if (tenantNameValue) {
       // Use ABP MultiTenancyService so it refreshes app state correctly after setting tenant
@@ -92,8 +91,8 @@ export class Login implements OnInit {
         next: (data) => {
           if (data.success) {
             this.resolveTenantLoginName(tenantNameValue, username)
-              .then(resolvedLogin => this.performLogin(resolvedLogin, password, rememberMe))
-              .catch(() => this.performLogin(username, password, rememberMe));
+              .then(resolvedLogin => this.performLogin(resolvedLogin, password, rememberMe, true))
+              .catch(() => this.performLogin(username, password, rememberMe, true));
           } else {
             this.loading = false;
             this.messageService.add({
@@ -115,7 +114,7 @@ export class Login implements OnInit {
       });
     } else {
       this.clearTenantContext();
-      this.performLogin(username, password, rememberMe);
+      this.performLogin(username, password, rememberMe, false);
     }
   }
 
@@ -145,7 +144,7 @@ export class Login implements OnInit {
   /**
    * Performs the actual login operation
    */
-  private performLogin(username: string, password: string, rememberMe: boolean): void {
+  private performLogin(username: string, password: string, rememberMe: boolean, hasTenantContext: boolean): void {
     this.authService
       .login({ username, password, rememberMe })
       .pipe(
@@ -160,8 +159,8 @@ export class Login implements OnInit {
             summary: 'Success',
             detail: 'Login successful! Redirecting...'
           });
-          // Use hard redirect to avoid router/account-layout state glitches after token issuance.
-          window.location.href = '/';
+          // Host admin lands on tenant management, tenant users land on dashboard.
+          window.location.href = hasTenantContext ? '/dashboard' : '/saas/tenants';
         },
         error: (error) => {
           console.error('Login error:', error);
