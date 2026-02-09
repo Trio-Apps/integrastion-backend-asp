@@ -5,6 +5,7 @@ import { Router, RouterModule } from '@angular/router';
 import { AuthService, CoreModule, LocalizationPipe, MultiTenancyService, RestService, SessionStateService } from '@abp/ng.core';
 import { finalize } from 'rxjs/operators';
 import { firstValueFrom } from 'rxjs';
+import { OAuthService } from 'angular-oauth2-oidc';
 
 // PrimeNG Imports
 import { InputTextModule } from 'primeng/inputtext';
@@ -41,6 +42,7 @@ export class Login implements OnInit {
   private sessionState = inject(SessionStateService);
   private multiTenancy = inject(MultiTenancyService);
   private restService = inject(RestService);
+  private oAuthService = inject(OAuthService);
   loginForm!: FormGroup;
   loading = false;
   submitted = false;
@@ -93,6 +95,7 @@ export class Login implements OnInit {
             this.ensureTenantCookieForAuthentication(data, tenantNameValue)
               .catch(error => console.warn('Failed to persist tenant cookie for cross-subdomain auth', error))
               .finally(() => {
+                this.setOAuthTenantContext(tenantNameValue);
                 this.resolveTenantLoginName(tenantNameValue, username)
                   .then(resolvedLogin => this.performLoginWithFallback(resolvedLogin, username, password, rememberMe, true))
                   .catch(() => this.performLoginWithFallback(username, username, password, rememberMe, true));
@@ -315,23 +318,32 @@ export class Login implements OnInit {
         this.clearCookie(name, `.${parentDomain}`);
       }
     }
+    this.clearOAuthTenantContext();
     this.sessionState.setTenant(null);
   }
 
   private async ensureTenantCookieForAuthentication(tenantLookupResult: any, tenantName: string): Promise<void> {
     const tenantId = await this.resolveTenantId(tenantLookupResult, tenantName);
-    if (!tenantId) {
+    const tenantValueForCookie = (tenantName ?? '').trim() || tenantId || '';
+    if (!tenantValueForCookie) {
       return;
     }
 
-    const cookieNames = ['__tenant', 'Abp.TenantId', 'AbpTenantId'];
+    const cookieValues: Record<string, string> = {
+      __tenant: tenantValueForCookie,
+    };
+    if (tenantId) {
+      cookieValues['Abp.TenantId'] = tenantId;
+      cookieValues['AbpTenantId'] = tenantId;
+    }
+
     const parentDomain = this.getParentDomain(location.hostname);
 
-    for (const name of cookieNames) {
-      this.writeCookie(name, tenantId);
-      this.writeCookie(name, tenantId, location.hostname);
+    for (const [name, value] of Object.entries(cookieValues)) {
+      this.writeCookie(name, value);
+      this.writeCookie(name, value, location.hostname);
       if (parentDomain) {
-        this.writeCookie(name, tenantId, `.${parentDomain}`);
+        this.writeCookie(name, value, `.${parentDomain}`);
       }
     }
   }
@@ -403,6 +415,32 @@ export class Login implements OnInit {
     }
 
     return parts.slice(-2).join('.');
+  }
+
+  private setOAuthTenantContext(tenantName: string): void {
+    const value = (tenantName ?? '').trim();
+    if (!value) {
+      this.clearOAuthTenantContext();
+      return;
+    }
+
+    const oauth = this.oAuthService as any;
+    oauth.customQueryParams = { ...(oauth.customQueryParams ?? {}), __tenant: value };
+    oauth.customTokenParameters = { ...(oauth.customTokenParameters ?? {}), __tenant: value };
+  }
+
+  private clearOAuthTenantContext(): void {
+    const oauth = this.oAuthService as any;
+
+    if (oauth.customQueryParams) {
+      const { __tenant, ...rest } = oauth.customQueryParams;
+      oauth.customQueryParams = rest;
+    }
+
+    if (oauth.customTokenParameters) {
+      const { __tenant, ...rest } = oauth.customTokenParameters;
+      oauth.customTokenParameters = rest;
+    }
   }
 
   /**
