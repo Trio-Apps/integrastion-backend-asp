@@ -60,9 +60,9 @@ public class TenantAdminController : AbpControllerBase
                 throw new UserFriendlyException(string.Join("; ", resetResult.Errors.Select(e => e.Description)));
             }
 
-            if (!adminUser.ShouldChangePasswordOnNextLogin)
+            if (adminUser.ShouldChangePasswordOnNextLogin)
             {
-                adminUser.SetShouldChangePasswordOnNextLogin(true);
+                adminUser.SetShouldChangePasswordOnNextLogin(false);
                 var updateResult = await _identityUserManager.UpdateAsync(adminUser);
                 if (!updateResult.Succeeded)
                 {
@@ -173,4 +173,3 @@ public class TenantAdminController : AbpControllerBase
 </html>";
     }
 }
-

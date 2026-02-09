@@ -50,8 +50,7 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
             eventData.Id,
             eventData.Properties.GetOrDefault("AdminEmail") ?? OrderXChangeConsts.AdminEmailDefaultValue,
             eventData.Properties.GetOrDefault("AdminPassword") ?? OrderXChangeConsts.AdminPasswordDefaultValue,
-            shouldSeedData: true,
-            markAdminForPasswordChange: true
+            shouldSeedData: true
         );
     }
 
@@ -91,8 +90,7 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
         Guid tenantId,
         string? adminEmail = null,
         string? adminPassword = null,
-        bool shouldSeedData = true,
-        bool markAdminForPasswordChange = false)
+        bool shouldSeedData = true)
     {
         try
         {
@@ -148,11 +146,7 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
 
                         if (!adminEmail.IsNullOrWhiteSpace() && !adminPassword.IsNullOrWhiteSpace())
                         {
-                            await EnsureAdminCredentialsAsync(adminEmail, adminPassword, markAdminForPasswordChange);
-                        }
-                        else if (markAdminForPasswordChange && !adminEmail.IsNullOrWhiteSpace())
-                        {
-                            await MarkAdminToChangePasswordOnFirstLoginAsync(adminEmail);
+                            await EnsureAdminCredentialsAsync(adminEmail, adminPassword);
                         }
                         
                         _logger.LogInformation("✅ Data seeding completed for tenant {TenantId}", tenantId);
@@ -177,41 +171,9 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
         }
     }
 
-    private async Task MarkAdminToChangePasswordOnFirstLoginAsync(string adminEmail)
-    {
-        if (adminEmail.IsNullOrWhiteSpace())
-        {
-            return;
-        }
-
-        var user = await _identityUserManager.FindByEmailAsync(adminEmail);
-        if (user == null)
-        {
-            _logger.LogWarning("Admin user with email {AdminEmail} was not found after seeding.", adminEmail);
-            return;
-        }
-
-        if (user.ShouldChangePasswordOnNextLogin)
-        {
-            return;
-        }
-
-        user.SetShouldChangePasswordOnNextLogin(true);
-        var result = await _identityUserManager.UpdateAsync(user);
-        if (!result.Succeeded)
-        {
-            _logger.LogWarning(
-                "Failed to enable password-change-on-first-login for admin {AdminEmail}: {Errors}",
-                adminEmail,
-                string.Join("; ", result.Errors.Select(e => e.Description))
-            );
-        }
-    }
-
     private async Task EnsureAdminCredentialsAsync(
         string adminEmail,
-        string adminPassword,
-        bool markAdminForPasswordChange)
+        string adminPassword)
     {
         var user = await _identityUserManager.FindByEmailAsync(adminEmail);
         if (user == null)
@@ -232,19 +194,22 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
                 string.Join("; ", resetResult.Errors.Select(e => e.Description))
             );
         }
-
-        if (markAdminForPasswordChange && !user.ShouldChangePasswordOnNextLogin)
+        else if (user.ShouldChangePasswordOnNextLogin)
         {
-            user.SetShouldChangePasswordOnNextLogin(true);
+            user.SetShouldChangePasswordOnNextLogin(false);
             var updateResult = await _identityUserManager.UpdateAsync(user);
             if (!updateResult.Succeeded)
             {
                 _logger.LogWarning(
-                    "Failed to enable password-change-on-first-login for admin {AdminEmail}: {Errors}",
+                    "Failed to clear password-change flag for admin {AdminEmail}: {Errors}",
                     adminEmail,
                     string.Join("; ", updateResult.Errors.Select(e => e.Description))
                 );
             }
         }
+
+        // NOTE:
+        // We intentionally do NOT set ShouldChangePasswordOnNextLogin here,
+        // because it can block password-grant login flow for tenant users.
     }
 }
