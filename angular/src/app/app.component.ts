@@ -4,7 +4,6 @@ import { DynamicLayoutComponent, ReplaceableComponentsService, RoutesService } f
 import { LoaderBarComponent } from '@abp/ng.theme.shared';
 import { eThemeLeptonXComponents } from '@abp/ng.theme.lepton-x';
 import { AppLayout } from './layout/component/app.layout';
-import { Login } from './login/login';
 import { ToastModule } from 'primeng/toast';
 
 @Component({
@@ -29,9 +28,5 @@ export class AppComponent implements OnInit {
       component : AppLayout
     });
 
-    this.replaceableComponent.add({
-      key : eThemeLeptonXComponents.AccountLayout,
-      component : Login
-    })
   }
 }

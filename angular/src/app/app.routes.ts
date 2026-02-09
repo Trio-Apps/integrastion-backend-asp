@@ -5,6 +5,10 @@ import { passwordChangeRequiredGuard } from './guards/password-change-required.g
 
 export const APP_ROUTES: Routes = [
   {
+    path: 'account/login',
+    loadComponent: () => import('./login/login').then(c => c.Login),
+  },
+  {
     path: '',
     pathMatch: 'full',
     loadComponent: () => import('./home/home.component').then(c => c.HomeComponent),
