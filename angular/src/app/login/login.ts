@@ -2,8 +2,9 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { AuthService, CoreModule, LocalizationPipe, MultiTenancyService, SessionStateService } from '@abp/ng.core';
+import { AuthService, CoreModule, LocalizationPipe, MultiTenancyService, RestService, SessionStateService } from '@abp/ng.core';
 import { finalize } from 'rxjs/operators';
+import { firstValueFrom } from 'rxjs';
 
 // PrimeNG Imports
 import { InputTextModule } from 'primeng/inputtext';
@@ -39,6 +40,7 @@ export class Login implements OnInit {
   private messageService = inject(MessageService);
   private sessionState = inject(SessionStateService);
   private multiTenancy = inject(MultiTenancyService);
+  private restService = inject(RestService);
   loginForm!: FormGroup;
   loading = false;
   submitted = false;
@@ -89,7 +91,9 @@ export class Login implements OnInit {
       this.multiTenancy.setTenantByName(tenantNameValue).subscribe({
         next: (data) => {
           if (data.success) {
-            this.performLogin(username, password, rememberMe);
+            this.resolveTenantLoginName(tenantNameValue, username)
+              .then(resolvedLogin => this.performLogin(resolvedLogin, password, rememberMe))
+              .catch(() => this.performLogin(username, password, rememberMe));
           } else {
             this.loading = false;
             this.messageService.add({
@@ -113,6 +117,29 @@ export class Login implements OnInit {
       this.clearTenantContext();
       this.performLogin(username, password, rememberMe);
     }
+  }
+
+  private async resolveTenantLoginName(tenantName: string, login: string): Promise<string> {
+    const trimmedLogin = (login ?? '').trim();
+    if (!tenantName || !trimmedLogin.includes('@')) {
+      return trimmedLogin;
+    }
+
+    const encodedTenant = encodeURIComponent(tenantName.trim());
+    const encodedLogin = encodeURIComponent(trimmedLogin);
+    const url = `/api/account/login-resolver/username?tenantName=${encodedTenant}&login=${encodedLogin}`;
+
+    const result = await firstValueFrom(
+      this.restService.request<any, { login?: string }>(
+        {
+          method: 'GET',
+          url,
+        },
+        { apiName: 'default' }
+      )
+    );
+
+    return (result?.login ?? trimmedLogin).trim();
   }
 
   /**
