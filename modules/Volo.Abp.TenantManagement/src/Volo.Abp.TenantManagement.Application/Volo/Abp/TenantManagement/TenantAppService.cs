@@ -212,16 +212,33 @@ public class TenantAppService : TenantManagementAppServiceBase, ITenantAppServic
             prefix = "Tenant";
         }
 
-        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$";
-        var bytes = new byte[8];
-        RandomNumberGenerator.Fill(bytes);
-        var sb = new StringBuilder();
-        for (var i = 0; i < bytes.Length; i++)
+        const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        const string lower = "abcdefghijkmnopqrstuvwxyz";
+        const string digits = "23456789";
+        const string symbols = "!@#";
+        const string all = upper + lower + digits + symbols;
+
+        var chars = new List<char>
         {
-            sb.Append(chars[bytes[i] % chars.Length]);
+            upper[RandomNumberGenerator.GetInt32(upper.Length)],
+            lower[RandomNumberGenerator.GetInt32(lower.Length)],
+            digits[RandomNumberGenerator.GetInt32(digits.Length)],
+            symbols[RandomNumberGenerator.GetInt32(symbols.Length)]
+        };
+
+        for (var i = 0; i < 4; i++)
+        {
+            chars.Add(all[RandomNumberGenerator.GetInt32(all.Length)]);
         }
 
-        return $"{prefix}-{sb}";
+        // Shuffle to avoid fixed pattern (Upper-Lower-Digit-Symbol...)
+        for (var i = chars.Count - 1; i > 0; i--)
+        {
+            var j = RandomNumberGenerator.GetInt32(i + 1);
+            (chars[i], chars[j]) = (chars[j], chars[i]);
+        }
+
+        return $"{prefix}-{new string(chars.ToArray())}";
     }
 
     private async Task TrySendWelcomeEmailAsync(string tenantName, string adminEmail, string password)
