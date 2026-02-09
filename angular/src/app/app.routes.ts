@@ -53,6 +53,20 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'account/forgot-password',
+    loadComponent: () =>
+      import('./account/forgot-password/forgot-password.component').then(
+        c => c.ForgotPasswordComponent
+      ),
+  },
+  {
+    path: 'account/reset-password',
+    loadComponent: () =>
+      import('./account/reset-password/reset-password.component').then(
+        c => c.ResetPasswordComponent
+      ),
+  },
+  {
     path: 'account',
     loadChildren: () => import('@volo/abp.ng.account/public').then(c => c.createRoutes()),
   },

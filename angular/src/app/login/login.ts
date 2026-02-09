@@ -233,12 +233,6 @@ export class Login implements OnInit {
    * Navigates to forgot password page
    */
   onForgotPassword(): void {
-    // Uncomment when route is ready
-    // this.router.navigate(['/forgot-password']);
-    this.messageService.add({
-      severity: 'info',
-      summary: 'Info',
-      detail: 'Forgot password functionality coming soon'
-    });
+    this.router.navigate(['/account/forgot-password']);
   }
 }

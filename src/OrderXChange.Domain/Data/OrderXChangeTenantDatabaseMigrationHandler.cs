@@ -50,6 +50,7 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
             eventData.Id,
             eventData.Properties.GetOrDefault("AdminEmail") ?? OrderXChangeConsts.AdminEmailDefaultValue,
             eventData.Properties.GetOrDefault("AdminPassword") ?? OrderXChangeConsts.AdminPasswordDefaultValue,
+            shouldSeedData: true,
             markAdminForPasswordChange: true
         );
     }
@@ -63,7 +64,8 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
         }
 
         await MigrateAndSeedForTenantAsync(
-            eventData.Id
+            eventData.Id,
+            shouldSeedData: false
         );
 
         /* You may want to move your data from the old database to the new database!
@@ -80,7 +82,8 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
         }
 
         await MigrateAndSeedForTenantAsync(
-            eventData.TenantId.Value
+            eventData.TenantId.Value,
+            shouldSeedData: false
         );
     }
 
@@ -88,6 +91,7 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
         Guid tenantId,
         string? adminEmail = null,
         string? adminPassword = null,
+        bool shouldSeedData = true,
         bool markAdminForPasswordChange = false)
     {
         try
@@ -119,40 +123,43 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
                     await uow.CompleteAsync();
                 }
 
-                // Seed data
-                _logger.LogInformation("🌱 Starting data seeding for tenant {TenantId}", tenantId);
-                
-                try
+                if (shouldSeedData)
                 {
-                    var seedContext = new DataSeedContext(tenantId);
-
-                    if (!adminEmail.IsNullOrWhiteSpace())
-                    {
-                        seedContext.WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName, adminEmail);
-                    }
-
-                    if (!adminPassword.IsNullOrWhiteSpace())
-                    {
-                        seedContext.WithProperty(IdentityDataSeedContributor.AdminPasswordPropertyName, adminPassword);
-                    }
-
-                    await _dataSeeder.SeedAsync(
-                        seedContext
-                    );
-
-                    if (markAdminForPasswordChange && !adminEmail.IsNullOrWhiteSpace())
-                    {
-                        await MarkAdminToChangePasswordOnFirstLoginAsync(adminEmail);
-                    }
+                    // Seed data only during TenantCreated flow to avoid resetting credentials on migration events.
+                    _logger.LogInformation("🌱 Starting data seeding for tenant {TenantId}", tenantId);
                     
-                    _logger.LogInformation("✅ Data seeding completed for tenant {TenantId}", tenantId);
-                }
-                catch (Exception seedEx)
-                {
-                    _logger.LogError(seedEx, 
-                        "❌ Error during data seeding for tenant {TenantId}. This may result in missing admin user.", 
-                        tenantId);
-                    // Don't throw - seeding failure should not block tenant creation
+                    try
+                    {
+                        var seedContext = new DataSeedContext(tenantId);
+
+                        if (!adminEmail.IsNullOrWhiteSpace())
+                        {
+                            seedContext.WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName, adminEmail);
+                        }
+
+                        if (!adminPassword.IsNullOrWhiteSpace())
+                        {
+                            seedContext.WithProperty(IdentityDataSeedContributor.AdminPasswordPropertyName, adminPassword);
+                        }
+
+                        await _dataSeeder.SeedAsync(
+                            seedContext
+                        );
+
+                        if (markAdminForPasswordChange && !adminEmail.IsNullOrWhiteSpace())
+                        {
+                            await MarkAdminToChangePasswordOnFirstLoginAsync(adminEmail);
+                        }
+                        
+                        _logger.LogInformation("✅ Data seeding completed for tenant {TenantId}", tenantId);
+                    }
+                    catch (Exception seedEx)
+                    {
+                        _logger.LogError(seedEx, 
+                            "❌ Error during data seeding for tenant {TenantId}. This may result in missing admin user.", 
+                            tenantId);
+                        // Don't throw - seeding failure should not block tenant creation
+                    }
                 }
             }
         }
