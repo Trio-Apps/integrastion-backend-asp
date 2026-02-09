@@ -3,8 +3,10 @@ using System.Net;
 using System.Net.Mail;
 using System.Threading.Tasks;
 using Volo.Abp;
+using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.TenantManagement.Smtp;
 
 namespace OrderXChange.HttpApi.Host.Services;
@@ -12,15 +14,24 @@ namespace OrderXChange.HttpApi.Host.Services;
 public class DatabaseSmtpMailSender : ITransientDependency
 {
     private readonly IRepository<SmtpConfig, Guid> _smtpConfigRepository;
+    private readonly IDataFilter _dataFilter;
 
-    public DatabaseSmtpMailSender(IRepository<SmtpConfig, Guid> smtpConfigRepository)
+    public DatabaseSmtpMailSender(
+        IRepository<SmtpConfig, Guid> smtpConfigRepository,
+        IDataFilter dataFilter)
     {
         _smtpConfigRepository = smtpConfigRepository;
+        _dataFilter = dataFilter;
     }
 
     public async Task SendAsync(string toEmail, string subject, string htmlBody)
     {
-        var smtpConfig = await _smtpConfigRepository.FindAsync(x => x.TenantId == null);
+        SmtpConfig? smtpConfig;
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            smtpConfig = await _smtpConfigRepository.FindAsync(x => x.TenantId == null);
+        }
+
         if (smtpConfig == null)
         {
             throw new UserFriendlyException("Host SMTP configuration is missing.");
@@ -49,4 +60,3 @@ public class DatabaseSmtpMailSender : ITransientDependency
         await client.SendMailAsync(message);
     }
 }
-
