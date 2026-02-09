@@ -5,6 +5,13 @@ services:
     depends_on:
       - web_api
       - angular
+    command:
+      - /bin/sh
+      - -c
+      - >
+        until wget -q -T 2 -O /dev/null http://angular:80; do echo "Waiting for angular..."; sleep 2; done;
+        until wget -q -T 2 -O /dev/null http://web_api:8080/health-status; do echo "Waiting for web_api..."; sleep 2; done;
+        exec nginx -g 'daemon off;'
     ports:
       - "80:80"
       - "443:443"

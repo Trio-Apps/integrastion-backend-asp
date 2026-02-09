@@ -12,7 +12,7 @@ export const APP_ROUTES: Routes = [
   {
     path: 'dashboard',
     loadComponent: () => import('./dashboard/dashboard.component').then(c => c.DashboardComponent),
-    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    canActivate: [authGuard, passwordChangeRequiredGuard],
   },
   {
     path: 'hangfire-monitoring',
@@ -25,12 +25,12 @@ export const APP_ROUTES: Routes = [
   {
     path: 'talabat-dashboard',
     loadComponent: () => import('./talabat-dashboard/talabat-dashboard.component').then(c => c.TalabatDashboardComponent),
-    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    canActivate: [authGuard, passwordChangeRequiredGuard],
   },
   {
     path: 'talabat-orders',
     loadComponent: () => import('./talabat-orders/talabat-orders.component').then(c => c.TalabatOrdersComponent),
-    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    canActivate: [authGuard, passwordChangeRequiredGuard],
   },
   {
     path: 'categories',
@@ -81,22 +81,22 @@ export const APP_ROUTES: Routes = [
   {
     path: 'saas/tenants',
     loadComponent: () => import('./saas/tenant-list.component/tenant-list.component').then(c => c.TenantListComponent),
-    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    canActivate: [authGuard, passwordChangeRequiredGuard],
   },
   {
     path: 'saas/smtp-config',
     loadComponent: () => import('./saas/smtp-config/smtp-config.component').then(c => c.SmtpConfigComponent),
-    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    canActivate: [authGuard, passwordChangeRequiredGuard],
   },
   {
     path: 'foodics',
     loadComponent: () => import('./saas/foodics-list.component/foodics-list.component').then(c => c.FoodicsListComponent),
-    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    canActivate: [authGuard, passwordChangeRequiredGuard],
   },
   {
     path: 'talabat',
     loadComponent: () => import('./saas/talabat-list.component/talabat-list.component').then(c => c.TalabatListComponent),
-    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    canActivate: [authGuard, passwordChangeRequiredGuard],
   },
   {
     path: 'audit-logs',
