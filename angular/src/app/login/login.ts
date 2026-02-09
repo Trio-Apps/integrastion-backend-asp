@@ -134,7 +134,7 @@ export class Login implements OnInit {
           method: 'GET',
           url,
         },
-        { apiName: 'default' }
+        { apiName: 'Default' }
       )
     );
 
@@ -186,7 +186,7 @@ export class Login implements OnInit {
             method: 'GET',
             url: '/api/abp/application-configuration',
           },
-          { apiName: 'default' }
+          { apiName: 'Default' }
         )
       );
 

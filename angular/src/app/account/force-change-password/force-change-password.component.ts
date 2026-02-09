@@ -80,7 +80,7 @@ export class ForceChangePasswordComponent {
           url: '/api/account/password/change',
           body: input,
         },
-        { apiName: 'default' }
+        { apiName: 'Default' }
       )
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({

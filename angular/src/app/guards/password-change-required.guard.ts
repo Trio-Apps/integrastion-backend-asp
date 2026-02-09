@@ -27,7 +27,7 @@ export const passwordChangeRequiredGuard: CanActivateFn = (_, state) => {
         method: 'GET',
         url: '/api/account/password/change-required',
       },
-      { apiName: 'default' }
+      { apiName: 'Default' }
     )
     .pipe(
       map(response => (response?.required ? router.createUrlTree(['/account/force-change-password']) : true)),

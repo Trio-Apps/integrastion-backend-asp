@@ -94,7 +94,7 @@ export class ResetPasswordComponent implements OnInit {
               url: '/api/account/verify-password-reset-token',
               body: { userId, resetToken },
             },
-            { apiName: 'default' }
+            { apiName: 'Default' }
           )
           .pipe(finalize(() => (this.loading = false)))
           .subscribe({
@@ -167,7 +167,7 @@ export class ResetPasswordComponent implements OnInit {
                 password,
               },
             },
-            { apiName: 'default' }
+            { apiName: 'Default' }
           )
           .pipe(finalize(() => (this.loading = false)))
           .subscribe({

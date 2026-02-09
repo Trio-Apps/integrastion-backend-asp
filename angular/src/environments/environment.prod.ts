@@ -22,7 +22,11 @@ export const environment = {
   },
   oAuthConfig,
   apis: {
-    default: {
+    Default: {
+      url: 'https://igwdev.beon-it.com',
+      rootNamespace: 'OrderXChange',
+    },
+    AbpTenantManagement: {
       url: 'https://igwdev.beon-it.com',
       rootNamespace: 'OrderXChange',
     },

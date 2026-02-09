@@ -22,7 +22,11 @@ export const environment = {
   },
   oAuthConfig,
   apis: {
-    default: {
+    Default: {
+      url: 'http://localhost:8081',
+      rootNamespace: 'OrderXChange',
+    },
+    AbpTenantManagement: {
       url: 'http://localhost:8081',
       rootNamespace: 'OrderXChange',
     },

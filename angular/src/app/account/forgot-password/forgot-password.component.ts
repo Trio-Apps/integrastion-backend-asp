@@ -79,7 +79,7 @@ export class ForgotPasswordComponent {
                 returnUrl,
               },
             },
-            { apiName: 'default' }
+            { apiName: 'Default' }
           )
           .pipe(finalize(() => (this.loading = false)))
           .subscribe({
