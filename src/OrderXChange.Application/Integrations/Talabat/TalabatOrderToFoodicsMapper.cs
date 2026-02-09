@@ -26,7 +26,10 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
     public FoodicsOrderCreateRequest MapToCreateOrder(
         TalabatOrderWebhook webhook,
         string branchId,
-        string vendorCode)
+        string vendorCode,
+        string? businessDate = null,
+        string? businessDateTimeZone = null,
+        string? businessDateSource = null)
     {
         if (webhook.Products == null || webhook.Products.Count == 0)
         {
@@ -39,7 +42,8 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         var guests = ResolveIntSetting("Foodics:OrderGuests", 1);
         var discountType = ResolveIntSetting("Foodics:OrderDiscountType", 1);
 
-        var businessDate = (webhook.CreatedAt ?? DateTime.UtcNow).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var resolvedBusinessDate = businessDate
+            ?? (webhook.CreatedAt ?? DateTime.UtcNow).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var dueAt = webhook.Delivery?.ExpectedDeliveryTime
             ?? webhook.Delivery?.RiderPickupTime
             ?? webhook.ExpiryDate;
@@ -63,7 +67,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             Status = orderStatus,
             KitchenNotes = webhook.Comments?.VendorComment,
             CustomerNotes = webhook.Comments?.CustomerComment,
-            BusinessDate = businessDate,
+            BusinessDate = resolvedBusinessDate,
             SubtotalPrice = subtotal,
             DiscountAmount = discountAmount,
             TotalPrice = total,
@@ -72,7 +76,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             BranchId = branchId,
             Products = products,
             DueAt = dueAt?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-            Meta = BuildMeta(webhook, vendorCode)
+            Meta = BuildMeta(webhook, vendorCode, businessDateTimeZone, businessDateSource)
         };
 
         return request;
@@ -166,7 +170,11 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         }
     }
 
-    private Dictionary<string, object?> BuildMeta(TalabatOrderWebhook webhook, string vendorCode)
+    private Dictionary<string, object?> BuildMeta(
+        TalabatOrderWebhook webhook,
+        string vendorCode,
+        string? businessDateTimeZone,
+        string? businessDateSource)
     {
         var meta = new Dictionary<string, object?>
         {
@@ -177,7 +185,9 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             ["expedition_type"] = webhook.ExpeditionType,
             ["platform_key"] = webhook.LocalInfo?.PlatformKey,
             ["platform_restaurant_id"] = webhook.PlatformRestaurant?.Id,
-            ["test_order"] = webhook.Test
+            ["test_order"] = webhook.Test,
+            ["business_date_timezone"] = businessDateTimeZone,
+            ["business_date_source"] = businessDateSource
         };
 
         if (webhook.Customer != null)

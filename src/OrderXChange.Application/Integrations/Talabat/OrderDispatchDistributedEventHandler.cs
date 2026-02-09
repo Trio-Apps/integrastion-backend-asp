@@ -31,6 +31,7 @@ public class OrderDispatchDistributedEventHandler
     private readonly TalabatOrderToFoodicsMapper _orderMapper;
     private readonly FoodicsOrderClient _foodicsOrderClient;
     private readonly FoodicsCatalogClient _foodicsCatalogClient;
+    private readonly FoodicsBusinessDateResolver _businessDateResolver;
     private readonly FoodicsAccountTokenService _tokenService;
     private readonly Microsoft.Extensions.Configuration.IConfiguration _configuration;
     private readonly IdempotencyService _idempotencyService;
@@ -45,6 +46,7 @@ public class OrderDispatchDistributedEventHandler
         TalabatOrderToFoodicsMapper orderMapper,
         FoodicsOrderClient foodicsOrderClient,
         FoodicsCatalogClient foodicsCatalogClient,
+        FoodicsBusinessDateResolver businessDateResolver,
         FoodicsAccountTokenService tokenService,
         Microsoft.Extensions.Configuration.IConfiguration configuration,
         IdempotencyService idempotencyService,
@@ -58,6 +60,7 @@ public class OrderDispatchDistributedEventHandler
         _orderMapper = orderMapper;
         _foodicsOrderClient = foodicsOrderClient;
         _foodicsCatalogClient = foodicsCatalogClient;
+        _businessDateResolver = businessDateResolver;
         _tokenService = tokenService;
         _configuration = configuration;
         _idempotencyService = idempotencyService;
@@ -175,7 +178,28 @@ public class OrderDispatchDistributedEventHandler
                         $"Foodics branch is not configured for vendor {eventData.VendorCode}. Configure FoodicsBranchId.");
                 }
 
-                var request = _orderMapper.MapToCreateOrder(webhook, account.FoodicsBranchId, account.VendorCode);
+                var businessDate = await _businessDateResolver.ResolveAsync(
+                    webhook.CreatedAt,
+                    account.VendorCode,
+                    account.FoodicsBranchId,
+                    accessToken);
+
+                _logger.LogInformation(
+                    "Resolved Foodics business date. CorrelationId={CorrelationId}, VendorCode={VendorCode}, BranchId={BranchId}, BusinessDate={BusinessDate}, TimeZone={TimeZone}, Source={Source}",
+                    eventData.CorrelationId,
+                    account.VendorCode,
+                    account.FoodicsBranchId,
+                    businessDate.BusinessDate,
+                    businessDate.TimeZone,
+                    businessDate.Source);
+
+                var request = _orderMapper.MapToCreateOrder(
+                    webhook,
+                    account.FoodicsBranchId,
+                    account.VendorCode,
+                    businessDate.BusinessDate,
+                    businessDate.TimeZone,
+                    businessDate.Source);
 
                 FoodicsOrderResponseDto? response;
                 try
