@@ -237,10 +237,6 @@ export class Login implements OnInit {
   }
 
   private async resolveLandingRoute(hasTenantContext: boolean): Promise<string> {
-    if (hasTenantContext) {
-      return '/dashboard';
-    }
-
     try {
       const configuration = await firstValueFrom(
         this.restService.request<any, any>(
@@ -256,18 +252,31 @@ export class Login implements OnInit {
       const isHost = grantedPolicies['OrderXChange.Dashboard.Host'] === true;
       const isTenant = grantedPolicies['OrderXChange.Dashboard.Tenant'] === true;
 
-      if (isHost) {
+      if (hasTenantContext) {
+        if (isTenant) {
+          return '/talabat-dashboard';
+        }
+
+        // Tenant login should never land on host-only pages.
+        return '/dashboard';
+      }
+
+      if (isHost && !isTenant) {
         return '/saas/tenants';
       }
 
       if (isTenant) {
-        return '/dashboard';
+        return '/talabat-dashboard';
+      }
+
+      if (isHost) {
+        return '/saas/tenants';
       }
     } catch (error) {
       console.warn('Failed to resolve landing route from application configuration', error);
     }
 
-    return '/dashboard';
+    return hasTenantContext ? '/talabat-dashboard' : '/dashboard';
   }
 
   /**
