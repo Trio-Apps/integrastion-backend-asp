@@ -32,6 +32,7 @@ interface ChangePasswordRequest {
   ],
   providers: [MessageService],
   templateUrl: './force-change-password.component.html',
+  styleUrl: './force-change-password.component.scss',
 })
 export class ForceChangePasswordComponent {
   private readonly fb = inject(FormBuilder);
