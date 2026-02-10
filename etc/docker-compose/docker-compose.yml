@@ -98,7 +98,6 @@ services:
       - Talabat__BaseUrl=https://integration-middleware.me.restaurant-partners.com
       - Talabat__Username=me-plugin-beon-it-001
       - Talabat__Password=Lw5afsmkEY
-      - Talabat__EnableRequestSignature=true
       - Talabat__Secret=SnyteunCeerhicJofI
       - Talabat__StaticToken=eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjU3MjMyNTIsImV4cCI6MTc2NTczMDQ1MiwiaXNzIjoibWlkZGxld2FyZSIsInN1YiI6Im1lLXBsdWdpbi1iZW9uLWl0LTAwMSJ9.tNAyUgk1qnLWb5mYBE_K2r3OJBE7cths58PlaUYxLwDoGAdz749gOOqXGEgog59E
       - Talabat__IntegrationCode=me-plugin-beon-it-001
