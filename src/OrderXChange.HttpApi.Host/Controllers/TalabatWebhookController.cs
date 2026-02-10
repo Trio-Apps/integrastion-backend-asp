@@ -14,6 +14,7 @@ using OrderXChange.Application.Contracts.Integrations.Talabat;
 using OrderXChange.Application.Integrations.Talabat;
 using OrderXChange.Domain.Staging;
 using OrderXChange.Integrations.Talabat;
+using OrderXChange.Json;
 using OrderXChange.Security;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Distributed;
@@ -34,6 +35,8 @@ namespace OrderXChange.Controllers;
 [AllowAnonymous] // Webhooks are authenticated via signature/IP whitelist
 public class TalabatWebhookController : AbpController
 {
+    private static readonly JsonSerializerOptions TalabatWebhookJsonOptions = CreateTalabatWebhookJsonOptions();
+
     private readonly IConfiguration _configuration;
     private readonly ITalabatSyncStatusService _syncStatusService;
     private readonly TalabatAccountService _talabatAccountService;
@@ -42,6 +45,17 @@ public class TalabatWebhookController : AbpController
     private readonly ICurrentTenant _currentTenant;
     private readonly TalabatWebhookSecurityValidator _webhookSecurityValidator;
     private readonly ILogger<TalabatWebhookController> _logger;
+
+    private static JsonSerializerOptions CreateTalabatWebhookJsonOptions()
+    {
+        var options = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
+        options.Converters.Add(new FlexibleStringJsonConverter());
+        return options;
+    }
 
     public TalabatWebhookController(
         IConfiguration configuration,
@@ -111,10 +125,7 @@ public class TalabatWebhookController : AbpController
             }
 
             // Parse the webhook payload
-            var webhook = JsonSerializer.Deserialize<TalabatCatalogStatusWebhook>(rawBody, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
+            var webhook = JsonSerializer.Deserialize<TalabatCatalogStatusWebhook>(rawBody, TalabatWebhookJsonOptions);
 
             if (webhook == null)
             {
@@ -218,10 +229,7 @@ public class TalabatWebhookController : AbpController
                 return webhookSecurityFailure;
             }
 
-            var webhook = JsonSerializer.Deserialize<TalabatMenuImportRequestWebhook>(rawBody, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
+            var webhook = JsonSerializer.Deserialize<TalabatMenuImportRequestWebhook>(rawBody, TalabatWebhookJsonOptions);
 
             if (webhook != null)
             {
@@ -301,10 +309,7 @@ public class TalabatWebhookController : AbpController
                     clientIp);
             }
 
-            var webhook = JsonSerializer.Deserialize<TalabatOrderWebhook>(rawBody, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
+            var webhook = JsonSerializer.Deserialize<TalabatOrderWebhook>(rawBody, TalabatWebhookJsonOptions);
 
             if (webhook == null)
             {
