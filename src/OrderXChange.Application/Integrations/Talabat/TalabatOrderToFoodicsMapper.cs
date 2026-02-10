@@ -88,12 +88,15 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
 
         foreach (var product in talabatProducts)
         {
-            var productId = product.RemoteCode ?? product.Id;
+            // For Foodics create-order, product_id must come from POS/remote mapping.
+            // Talabat "id" is platform-specific and should not be used as Foodics product id.
+            var productId = product.RemoteCode;
             if (string.IsNullOrWhiteSpace(productId))
             {
                 _logger.LogWarning(
-                    "Skipping Talabat product without remote code. ProductName={Name}",
-                    product.Name);
+                    "Skipping Talabat product without remoteCode. ProductName={Name}, TalabatId={TalabatId}",
+                    product.Name,
+                    product.Id);
                 continue;
             }
 
@@ -130,9 +133,15 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
 
         foreach (var topping in FlattenToppings(toppings))
         {
-            var optionId = topping.RemoteCode ?? topping.Id;
+            // For Foodics create-order, modifier_option_id must come from POS/remote mapping.
+            // Talabat "id" is platform-specific and should not be used as Foodics modifier option id.
+            var optionId = topping.RemoteCode;
             if (string.IsNullOrWhiteSpace(optionId))
             {
+                _logger.LogDebug(
+                    "Skipping Talabat topping without remoteCode. ToppingName={Name}, TalabatId={TalabatId}",
+                    topping.Name,
+                    topping.Id);
                 continue;
             }
 
