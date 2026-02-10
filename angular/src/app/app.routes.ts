@@ -50,7 +50,7 @@ export const APP_ROUTES: Routes = [
     },
   },
   {
-    path: 'account/force-change-password',
+    path: 'force-change-password',
     loadComponent: () =>
       import('./account/force-change-password/force-change-password.component').then(
         c => c.ForceChangePasswordComponent

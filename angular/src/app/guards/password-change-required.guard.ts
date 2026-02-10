@@ -12,7 +12,7 @@ export const passwordChangeRequiredGuard: CanActivateFn = (_, state) => {
   const router = inject(Router);
 
   // Avoid a redirect loop when user is already on the forced change page.
-  if (state.url.startsWith('/account/force-change-password')) {
+  if (state.url.startsWith('/force-change-password')) {
     return of(true);
   }
 
@@ -25,7 +25,7 @@ export const passwordChangeRequiredGuard: CanActivateFn = (_, state) => {
       { apiName: 'Default' }
     )
     .pipe(
-      map(response => (response?.required ? router.createUrlTree(['/account/force-change-password']) : true)),
+      map(response => (response?.required ? router.createUrlTree(['/force-change-password']) : true)),
       catchError(() => of(true))
     );
 };
