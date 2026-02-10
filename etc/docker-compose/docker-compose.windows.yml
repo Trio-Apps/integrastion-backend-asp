@@ -19,6 +19,7 @@ services:
       - App__SelfUrl=http://localhost:8081
       - App__AngularUrl=http://localhost:4201
       - App__HealthCheckUrl=/health-status
+      - App__HealthUiCheckUrl=http://127.0.0.1:8080/health-status
       - App__DisablePII=false
       - ConnectionStrings__Hangfire=Server=mariadb;Port=3306;Database=OrderXChange;User=root;Password=P@ssw0rd;AllowUserVariables=True;UseAffectedRows=False
       - ConnectionStrings__Default=Server=mariadb;Port=3306;Database=OrderXChange;User=root;Password=P@ssw0rd;AllowUserVariables=True;UseAffectedRows=False
