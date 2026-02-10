@@ -13,6 +13,7 @@ namespace OrderXChange.Application.Integrations.Foodics;
 public class FoodicsBusinessDateResolver : ITransientDependency
 {
     private static readonly TimeSpan BranchTimezoneCacheDuration = TimeSpan.FromHours(6);
+    private static readonly TimeSpan BranchTimezoneNegativeCacheDuration = TimeSpan.FromMinutes(15);
 
     private readonly IConfiguration _configuration;
     private readonly IMemoryCache _cache;
@@ -81,40 +82,45 @@ public class FoodicsBusinessDateResolver : ITransientDependency
         }
 
         var cacheKey = $"foodics:branch-timezone:{branchId}";
-        if (_cache.TryGetValue<string>(cacheKey, out var cached) && !string.IsNullOrWhiteSpace(cached))
+        var cachedValue = await _cache.GetOrCreateAsync(cacheKey, async entry =>
         {
-            return cached;
-        }
-
-        try
-        {
-            var products = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
-                accessToken: accessToken,
-                perPage: 100,
-                includeDeleted: false,
-                includeInactive: false);
-
-            var timezone = products.Values
-                .SelectMany(p => p.Branches ?? Enumerable.Empty<FoodicsBranchDto>())
-                .Where(x => string.Equals(x.Id, branchId, StringComparison.OrdinalIgnoreCase))
-                .Select(x => x.Timezone)
-                .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
-
-            if (!string.IsNullOrWhiteSpace(timezone))
+            try
             {
-                _cache.Set(cacheKey, timezone, BranchTimezoneCacheDuration);
-            }
+                var products = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
+                    accessToken: accessToken,
+                    perPage: 100,
+                    includeDeleted: false,
+                    includeInactive: false);
 
-            return timezone;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(
-                ex,
-                "Failed to resolve Foodics branch timezone. BranchId={BranchId}",
-                branchId);
-            return null;
-        }
+                var timezone = products.Values
+                    .SelectMany(p => p.Branches ?? Enumerable.Empty<FoodicsBranchDto>())
+                    .Where(x => string.Equals(x.Id, branchId, StringComparison.OrdinalIgnoreCase))
+                    .Select(x => x.Timezone)
+                    .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+
+                if (!string.IsNullOrWhiteSpace(timezone))
+                {
+                    entry.AbsoluteExpirationRelativeToNow = BranchTimezoneCacheDuration;
+                    return timezone;
+                }
+
+                // Cache misses briefly to avoid repeated heavy catalog calls under load.
+                entry.AbsoluteExpirationRelativeToNow = BranchTimezoneNegativeCacheDuration;
+                return string.Empty;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to resolve Foodics branch timezone. BranchId={BranchId}",
+                    branchId);
+
+                entry.AbsoluteExpirationRelativeToNow = BranchTimezoneNegativeCacheDuration;
+                return string.Empty;
+            }
+        });
+
+        return string.IsNullOrWhiteSpace(cachedValue) ? null : cachedValue;
     }
 
     private string? ResolveConfiguredTimeZone(string vendorCode, string branchId)

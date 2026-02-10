@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Net.Http;
 using System.Net;
 using System.Net.Http.Headers;
@@ -50,6 +51,15 @@ public class FoodicsOrderClient
         string? accessToken = null,
         CancellationToken cancellationToken = default)
     {
+        EnsureBusinessDate(request);
+
+        _logger.LogInformation(
+            "Sending Foodics create order. BranchId={BranchId}, BusinessDate={BusinessDate}, DueAt={DueAt}, ProductCount={ProductCount}",
+            request.BranchId,
+            request.BusinessDate,
+            request.DueAt,
+            request.Products?.Count ?? 0);
+
         var token = GetAccessToken(accessToken);
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "orders")
         {
@@ -103,6 +113,16 @@ public class FoodicsOrderClient
 
         throw new InvalidOperationException(
             "Foodics access token is required. Provide accessToken parameter or configure Foodics:ApiToken/AccessToken in appsettings.");
+    }
+
+    private static void EnsureBusinessDate(FoodicsOrderCreateRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.BusinessDate))
+        {
+            return;
+        }
+
+        request.BusinessDate = DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     }
 
     private static string EnsureEndsWithSlash(string value)
