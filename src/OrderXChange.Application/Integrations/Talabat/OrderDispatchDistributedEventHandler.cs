@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Hangfire;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OrderXChange.Application.Contracts.Integrations.Talabat;
 using OrderXChange.Application.Idempotency;
@@ -35,7 +36,7 @@ public class OrderDispatchDistributedEventHandler
     private readonly FoodicsCatalogClient _foodicsCatalogClient;
     private readonly FoodicsBusinessDateResolver _businessDateResolver;
     private readonly FoodicsAccountTokenService _tokenService;
-    private readonly Microsoft.Extensions.Configuration.IConfiguration _configuration;
+    private readonly IConfiguration _configuration;
     private readonly IdempotencyService _idempotencyService;
     private readonly ICurrentTenant _currentTenant;
     private readonly IDistributedEventBus _eventBus;
@@ -61,7 +62,7 @@ public class OrderDispatchDistributedEventHandler
         FoodicsCatalogClient foodicsCatalogClient,
         FoodicsBusinessDateResolver businessDateResolver,
         FoodicsAccountTokenService tokenService,
-        Microsoft.Extensions.Configuration.IConfiguration configuration,
+        IConfiguration configuration,
         IdempotencyService idempotencyService,
         ICurrentTenant currentTenant,
         IDistributedEventBus eventBus,
@@ -328,11 +329,18 @@ public class OrderDispatchDistributedEventHandler
 
     private async Task<(string AccessToken, bool IsOverrideToken)> GetOrderAccessTokenAsync(Guid foodicsAccountId)
     {
+        var useOverrideToken = _configuration.GetValue<bool?>("Foodics:UseOrderTestAccessToken") ?? false;
         var overrideToken = _configuration["Foodics:OrderTestAccessToken"];
-        if (!string.IsNullOrWhiteSpace(overrideToken))
+        if (useOverrideToken && !string.IsNullOrWhiteSpace(overrideToken))
         {
             _logger.LogWarning("Using Foodics order token override from configuration.");
-            return (overrideToken, true);
+            return (overrideToken!, true);
+        }
+        
+        if (useOverrideToken && string.IsNullOrWhiteSpace(overrideToken))
+        {
+            _logger.LogWarning(
+                "Foodics:UseOrderTestAccessToken is enabled but Foodics:OrderTestAccessToken is empty. Falling back to account token.");
         }
 
         var token = await _tokenService.GetAccessTokenAsync(foodicsAccountId);
