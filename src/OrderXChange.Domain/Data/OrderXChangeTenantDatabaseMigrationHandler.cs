@@ -191,19 +191,6 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
             return;
         }
 
-        if (!string.Equals(user.UserName, adminEmail, StringComparison.OrdinalIgnoreCase))
-        {
-            var setUserNameResult = await _identityUserManager.SetUserNameAsync(user, adminEmail);
-            if (!setUserNameResult.Succeeded)
-            {
-                _logger.LogWarning(
-                    "Failed to set tenant admin username to email for tenant {TenantId}: {Errors}",
-                    tenantId,
-                    string.Join("; ", setUserNameResult.Errors.Select(e => e.Description))
-                );
-            }
-        }
-
         var resetToken = await _identityUserManager.GeneratePasswordResetTokenAsync(user);
         var resetResult = await _identityUserManager.ResetPasswordAsync(user, resetToken, adminPassword);
         if (!resetResult.Succeeded)

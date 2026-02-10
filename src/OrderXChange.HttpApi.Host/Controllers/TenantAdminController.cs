@@ -54,15 +54,6 @@ public class TenantAdminController : AbpControllerBase
                 throw new UserFriendlyException("Tenant admin user was not found.");
             }
 
-            if (!string.Equals(adminUser.UserName, adminUser.Email, StringComparison.OrdinalIgnoreCase))
-            {
-                var setUserNameResult = await _identityUserManager.SetUserNameAsync(adminUser, adminUser.Email!);
-                if (!setUserNameResult.Succeeded)
-                {
-                    throw new UserFriendlyException(string.Join("; ", setUserNameResult.Errors.Select(e => e.Description)));
-                }
-            }
-
             var resetToken = await _identityUserManager.GeneratePasswordResetTokenAsync(adminUser);
             var resetResult = await _identityUserManager.ResetPasswordAsync(adminUser, resetToken, generatedPassword);
             if (!resetResult.Succeeded)

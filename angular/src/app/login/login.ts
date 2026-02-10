@@ -97,9 +97,7 @@ export class Login implements OnInit {
               .catch(error => console.warn('Failed to persist tenant cookie for cross-subdomain auth', error))
               .finally(() => {
                 this.setOAuthTenantContext(this.tenantAuthValue ?? tenantNameValue);
-                this.resolveTenantLoginName(tenantNameValue, username)
-                  .then(resolvedLogin => this.performLoginWithFallback(resolvedLogin, username, password, rememberMe, true))
-                  .catch(() => this.performLoginWithFallback(username, username, password, rememberMe, true));
+                this.performLoginWithFallback(username, username, password, rememberMe, true);
               });
           } else {
             this.loading = false;
@@ -124,29 +122,6 @@ export class Login implements OnInit {
       this.clearTenantContext();
       this.performLoginWithFallback(username, username, password, rememberMe, false);
     }
-  }
-
-  private async resolveTenantLoginName(tenantName: string, login: string): Promise<string> {
-    const trimmedLogin = (login ?? '').trim();
-    if (!tenantName || !trimmedLogin.includes('@')) {
-      return trimmedLogin;
-    }
-
-    const encodedTenant = encodeURIComponent(tenantName.trim());
-    const encodedLogin = encodeURIComponent(trimmedLogin);
-    const url = `/api/account/login-resolver/username?tenantName=${encodedTenant}&login=${encodedLogin}`;
-
-    const result = await firstValueFrom(
-      this.restService.request<any, { login?: string }>(
-        {
-          method: 'GET',
-          url,
-        },
-        { apiName: 'Default' }
-      )
-    );
-
-    return (result?.login ?? trimmedLogin).trim();
   }
 
   /**

@@ -22,6 +22,12 @@ export class TenantTokenInterceptor implements HttpInterceptor {
       headers = headers.set('__tenant', tenant);
     }
 
+    let url = req.url;
+    if (!this.urlContainsTenant(url)) {
+      const delimiter = url.includes('?') ? '&' : '?';
+      url = `${url}${delimiter}__tenant=${encodeURIComponent(tenant)}`;
+    }
+
     let body = req.body;
 
     if (typeof body === 'string') {
@@ -36,7 +42,7 @@ export class TenantTokenInterceptor implements HttpInterceptor {
       body = { ...(body as Record<string, unknown>), __tenant: tenant };
     }
 
-    return next.handle(req.clone({ headers, body }));
+    return next.handle(req.clone({ headers, body, url }));
   }
 
   private isTokenRequest(url: string): boolean {
@@ -45,6 +51,10 @@ export class TenantTokenInterceptor implements HttpInterceptor {
 
   private formEncodedContainsTenant(body: string): boolean {
     return /(^|&)__tenant=/.test(body);
+  }
+
+  private urlContainsTenant(url: string): boolean {
+    return /[?&]__tenant=/.test(url);
   }
 
   private resolveTenantForAuth(): string | null {
