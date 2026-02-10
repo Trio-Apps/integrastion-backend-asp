@@ -18,6 +18,8 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
     IDistributedEventHandler<ApplyDatabaseMigrationsEto>,
     ITransientDependency
 {
+    private const string ForcePasswordChangeAfterLoginPropertyName = "ForcePasswordChangeAfterLogin";
+
     private readonly IEnumerable<IOrderXChangeDbSchemaMigrator> _dbSchemaMigrators;
     private readonly ICurrentTenant _currentTenant;
     private readonly IUnitOfWorkManager _unitOfWorkManager;
@@ -200,14 +202,28 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
                 string.Join("; ", resetResult.Errors.Select(e => e.Description))
             );
         }
-        if (!user.ShouldChangePasswordOnNextLogin)
+        var shouldUpdateUser = false;
+
+        // Keep ABP flag disabled for password-grant login flow.
+        if (user.ShouldChangePasswordOnNextLogin)
         {
-            user.SetShouldChangePasswordOnNextLogin(true);
+            user.SetShouldChangePasswordOnNextLogin(false);
+            shouldUpdateUser = true;
+        }
+
+        if (!user.GetProperty<bool>(ForcePasswordChangeAfterLoginPropertyName, defaultValue: false))
+        {
+            user.SetProperty(ForcePasswordChangeAfterLoginPropertyName, true);
+            shouldUpdateUser = true;
+        }
+
+        if (shouldUpdateUser)
+        {
             var updateResult = await _identityUserManager.UpdateAsync(user);
             if (!updateResult.Succeeded)
             {
                 _logger.LogWarning(
-                    "Failed to enable password-change flag for admin {AdminEmail} in tenant {TenantId}: {Errors}",
+                    "Failed to update password-change flags for admin {AdminEmail} in tenant {TenantId}: {Errors}",
                     adminEmail,
                     tenantId,
                     string.Join("; ", updateResult.Errors.Select(e => e.Description))

@@ -8,6 +8,7 @@ using Volo.Abp;
 using Volo.Abp.Authorization;
 using Volo.Abp.Identity;
 using Volo.Abp.AspNetCore.Mvc;
+using Volo.Abp.Data;
 using Volo.Abp.Users;
 
 namespace OrderXChange.HttpApi.Host.Controllers;
@@ -16,6 +17,8 @@ namespace OrderXChange.HttpApi.Host.Controllers;
 [Route("api/account/password")]
 public class AccountPasswordController : AbpControllerBase
 {
+    private const string ForcePasswordChangeAfterLoginPropertyName = "ForcePasswordChangeAfterLogin";
+
     private readonly ICurrentUser _currentUser;
     private readonly IdentityUserManager _identityUserManager;
 
@@ -36,7 +39,12 @@ public class AccountPasswordController : AbpControllerBase
         }
 
         var user = await _identityUserManager.GetByIdAsync(_currentUser.Id.Value);
-        return new PasswordChangeRequiredDto(user.ShouldChangePasswordOnNextLogin);
+        var forceChangeRequired = user.GetProperty<bool>(
+            ForcePasswordChangeAfterLoginPropertyName,
+            defaultValue: false
+        );
+
+        return new PasswordChangeRequiredDto(forceChangeRequired);
     }
 
     [HttpPost("change")]
@@ -64,9 +72,23 @@ public class AccountPasswordController : AbpControllerBase
             throw new UserFriendlyException(string.Join("; ", changeResult.Errors.Select(e => e.Description)));
         }
 
+        var shouldUpdateUser = false;
+
+        if (user.GetProperty<bool>(ForcePasswordChangeAfterLoginPropertyName, defaultValue: false))
+        {
+            user.SetProperty(ForcePasswordChangeAfterLoginPropertyName, false);
+            shouldUpdateUser = true;
+        }
+
+        // Keep ABP flag disabled for password-grant login flow.
         if (user.ShouldChangePasswordOnNextLogin)
         {
             user.SetShouldChangePasswordOnNextLogin(false);
+            shouldUpdateUser = true;
+        }
+
+        if (shouldUpdateUser)
+        {
             var updateResult = await _identityUserManager.UpdateAsync(user);
             if (!updateResult.Succeeded)
             {

@@ -20,6 +20,8 @@ namespace OrderXChange.HttpApi.Host.Controllers;
 [Route("api/tenant-admin")]
 public class TenantAdminController : AbpControllerBase
 {
+    private const string ForcePasswordChangeAfterLoginPropertyName = "ForcePasswordChangeAfterLogin";
+
     private readonly ITenantRepository _tenantRepository;
     private readonly ICurrentTenant _currentTenant;
     private readonly IdentityUserManager _identityUserManager;
@@ -61,9 +63,23 @@ public class TenantAdminController : AbpControllerBase
                 throw new UserFriendlyException(string.Join("; ", resetResult.Errors.Select(e => e.Description)));
             }
 
-            if (!adminUser.ShouldChangePasswordOnNextLogin)
+            var shouldUpdateUser = false;
+
+            // Keep ABP flag disabled for password-grant login flow.
+            if (adminUser.ShouldChangePasswordOnNextLogin)
             {
-                adminUser.SetShouldChangePasswordOnNextLogin(true);
+                adminUser.SetShouldChangePasswordOnNextLogin(false);
+                shouldUpdateUser = true;
+            }
+
+            if (!adminUser.GetProperty<bool>(ForcePasswordChangeAfterLoginPropertyName, defaultValue: false))
+            {
+                adminUser.SetProperty(ForcePasswordChangeAfterLoginPropertyName, true);
+                shouldUpdateUser = true;
+            }
+
+            if (shouldUpdateUser)
+            {
                 var updateResult = await _identityUserManager.UpdateAsync(adminUser);
                 if (!updateResult.Succeeded)
                 {
