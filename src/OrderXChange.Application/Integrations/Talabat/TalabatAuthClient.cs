@@ -29,6 +29,7 @@ public class TalabatAuthClient : ITransientDependency
     private readonly IConfiguration _configuration;
     private readonly IMemoryCache _cache;
     private readonly TalabatAccountService _accountService;
+    private readonly TalabatRequestSigner _requestSigner;
     private readonly ILogger<TalabatAuthClient> _logger;
 
     private const string TokenCacheKey = "Talabat:JwtAccessToken";
@@ -42,12 +43,14 @@ public class TalabatAuthClient : ITransientDependency
         IConfiguration configuration,
         IMemoryCache cache,
         TalabatAccountService accountService,
+        TalabatRequestSigner requestSigner,
         ILogger<TalabatAuthClient> logger)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _cache = cache;
         _accountService = accountService;
+        _requestSigner = requestSigner;
         _logger = logger;
 
         var baseUrl = configuration["Talabat:BaseUrl"];
@@ -312,7 +315,7 @@ public class TalabatAuthClient : ITransientDependency
             // Don't set Accept header for login endpoint (form-urlencoded)
             // The server will return JSON response, but we don't need to specify Accept header
 
-            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            using var response = await SendWithSignatureAsync(request, cancellationToken);
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
             
             // Log response details
@@ -410,6 +413,14 @@ public class TalabatAuthClient : ITransientDependency
     private static string EnsureEndsWithSlash(string url)
     {
         return url.EndsWith("/") ? url : url + "/";
+    }
+
+    private async Task<HttpResponseMessage> SendWithSignatureAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        await _requestSigner.SignAsync(request, cancellationToken);
+        return await _httpClient.SendAsync(request, cancellationToken);
     }
 }
 

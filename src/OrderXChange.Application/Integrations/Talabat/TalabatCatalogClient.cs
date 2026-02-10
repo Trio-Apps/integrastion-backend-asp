@@ -27,17 +27,20 @@ public class TalabatCatalogClient : ITransientDependency
 {
     private readonly HttpClient _httpClient;
     private readonly TalabatAuthClient _authClient;
+    private readonly TalabatRequestSigner _requestSigner;
     private readonly IConfiguration _configuration;
     private readonly ILogger<TalabatCatalogClient> _logger;
 
     public TalabatCatalogClient(
         HttpClient httpClient,
         TalabatAuthClient authClient,
+        TalabatRequestSigner requestSigner,
         IConfiguration configuration,
         ILogger<TalabatCatalogClient> logger)
     {
         _httpClient = httpClient;
         _authClient = authClient;
+        _requestSigner = requestSigner;
         _configuration = configuration;
         _logger = logger;
 
@@ -112,7 +115,7 @@ public class TalabatCatalogClient : ITransientDependency
             httpRequest.Headers.Authorization = new AuthenticationHeaderValue(_authClient.GetAuthHeaderType(), accessToken);
             httpRequest.Content = JsonContent.Create(request, options: jsonOptions);
 
-            using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+            using var response = await SendWithSignatureAsync(httpRequest, cancellationToken);
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
             // Handle auth errors - invalidate token and retry once
@@ -132,7 +135,7 @@ public class TalabatCatalogClient : ITransientDependency
                 retryRequest.Headers.Authorization = new AuthenticationHeaderValue(_authClient.GetAuthHeaderType(), accessToken);
                 retryRequest.Content = JsonContent.Create(request, options: jsonOptions);
 
-                using var retryResponse = await _httpClient.SendAsync(retryRequest, cancellationToken);
+                using var retryResponse = await SendWithSignatureAsync(retryRequest, cancellationToken);
                 var retryResponseBody = await retryResponse.Content.ReadAsStringAsync(cancellationToken);
 
                 if (retryResponse.StatusCode == HttpStatusCode.Unauthorized)
@@ -208,7 +211,7 @@ public class TalabatCatalogClient : ITransientDependency
                 DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
             });
 
-            using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+            using var response = await SendWithSignatureAsync(httpRequest, cancellationToken);
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
             // Handle auth errors - invalidate token and retry once
@@ -231,7 +234,7 @@ public class TalabatCatalogClient : ITransientDependency
                     DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
                 });
 
-                using var retryResponse = await _httpClient.SendAsync(retryRequest, cancellationToken);
+                using var retryResponse = await SendWithSignatureAsync(retryRequest, cancellationToken);
                 var retryResponseBody = await retryResponse.Content.ReadAsStringAsync(cancellationToken);
 
                 if (retryResponse.StatusCode == HttpStatusCode.Unauthorized)
@@ -431,7 +434,7 @@ public class TalabatCatalogClient : ITransientDependency
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Authorization = new AuthenticationHeaderValue(_authClient.GetAuthHeaderType(), accessToken);
 
-            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            using var response = await SendWithSignatureAsync(request, cancellationToken);
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
@@ -490,7 +493,7 @@ public class TalabatCatalogClient : ITransientDependency
             httpRequest.Headers.Authorization = new AuthenticationHeaderValue(_authClient.GetAuthHeaderType(), accessToken);
             httpRequest.Content = JsonContent.Create(request);
 
-            using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+            using var response = await SendWithSignatureAsync(httpRequest, cancellationToken);
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
@@ -556,7 +559,7 @@ public class TalabatCatalogClient : ITransientDependency
             httpRequest.Headers.Authorization = new AuthenticationHeaderValue(_authClient.GetAuthHeaderType(), accessToken);
             httpRequest.Content = JsonContent.Create(request);
 
-            using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+            using var response = await SendWithSignatureAsync(httpRequest, cancellationToken);
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
@@ -605,7 +608,7 @@ public class TalabatCatalogClient : ITransientDependency
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Authorization = new AuthenticationHeaderValue(_authClient.GetAuthHeaderType(), accessToken);
 
-            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            using var response = await SendWithSignatureAsync(request, cancellationToken);
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
@@ -688,7 +691,7 @@ public class TalabatCatalogClient : ITransientDependency
             httpRequest.Headers.Authorization = new AuthenticationHeaderValue(_authClient.GetAuthHeaderType(), accessToken);
             httpRequest.Content = JsonContent.Create(request);
 
-            using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+            using var response = await SendWithSignatureAsync(httpRequest, cancellationToken);
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
             _logger.LogInformation("Talabat V2 availability raw response. StatusCode={StatusCode}, Body={Body}", (int)response.StatusCode, responseBody);
@@ -707,7 +710,7 @@ public class TalabatCatalogClient : ITransientDependency
                 using var retryRequest = new HttpRequestMessage(HttpMethod.Put, url);
                 retryRequest.Headers.Authorization = new AuthenticationHeaderValue(_authClient.GetAuthHeaderType(), accessToken);
                 retryRequest.Content = JsonContent.Create(request);
-                using var retryResponse = await _httpClient.SendAsync(retryRequest, cancellationToken);
+                using var retryResponse = await SendWithSignatureAsync(retryRequest, cancellationToken);
                 var retryBody = await retryResponse.Content.ReadAsStringAsync(cancellationToken);
 
                 _logger.LogInformation("Talabat V2 availability retry raw response. StatusCode={StatusCode}, Body={Body}", (int)retryResponse.StatusCode, retryBody);
@@ -809,7 +812,7 @@ public class TalabatCatalogClient : ITransientDependency
 
             httpRequest.Content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+            var response = await SendWithSignatureAsync(httpRequest, cancellationToken);
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
             if (!response.IsSuccessStatusCode)
@@ -955,7 +958,7 @@ public class TalabatCatalogClient : ITransientDependency
             using var httpRequest = new HttpRequestMessage(HttpMethod.Get, url);
             httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-            var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+            var response = await SendWithSignatureAsync(httpRequest, cancellationToken);
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
             if (!response.IsSuccessStatusCode)
@@ -1030,6 +1033,14 @@ public class TalabatCatalogClient : ITransientDependency
     }
 
     #endregion
+
+    private async Task<HttpResponseMessage> SendWithSignatureAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        await _requestSigner.SignAsync(request, cancellationToken);
+        return await _httpClient.SendAsync(request, cancellationToken);
+    }
 
     private static T? TryParseResponse<T>(string json) where T : class
     {
