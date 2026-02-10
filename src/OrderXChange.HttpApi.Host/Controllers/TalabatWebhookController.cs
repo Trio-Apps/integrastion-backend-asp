@@ -14,6 +14,7 @@ using OrderXChange.Application.Contracts.Integrations.Talabat;
 using OrderXChange.Application.Integrations.Talabat;
 using OrderXChange.Domain.Staging;
 using OrderXChange.Integrations.Talabat;
+using OrderXChange.Security;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Distributed;
 using Volo.Abp.MultiTenancy;
@@ -39,6 +40,7 @@ public class TalabatWebhookController : AbpController
     private readonly IRepository<TalabatOrderSyncLog, Guid> _orderSyncLogRepository;
     private readonly IDistributedEventBus _eventBus;
     private readonly ICurrentTenant _currentTenant;
+    private readonly TalabatWebhookSecurityValidator _webhookSecurityValidator;
     private readonly ILogger<TalabatWebhookController> _logger;
 
     public TalabatWebhookController(
@@ -48,6 +50,7 @@ public class TalabatWebhookController : AbpController
         IRepository<TalabatOrderSyncLog, Guid> orderSyncLogRepository,
         IDistributedEventBus eventBus,
         ICurrentTenant currentTenant,
+        TalabatWebhookSecurityValidator webhookSecurityValidator,
         ILogger<TalabatWebhookController> logger)
     {
         _configuration = configuration;
@@ -56,6 +59,7 @@ public class TalabatWebhookController : AbpController
         _orderSyncLogRepository = orderSyncLogRepository;
         _eventBus = eventBus;
         _currentTenant = currentTenant;
+        _webhookSecurityValidator = webhookSecurityValidator;
         _logger = logger;
     }
 
@@ -87,6 +91,12 @@ public class TalabatWebhookController : AbpController
                 correlationId,
                 clientIp,
                 rawBody.Length);
+            
+            var webhookSecurityFailure = ValidateWebhookSecurityOrUnauthorized(rawBody, correlationId);
+            if (webhookSecurityFailure != null)
+            {
+                return webhookSecurityFailure;
+            }
 
             // Validate IP whitelist (optional but recommended)
             if (!ValidateIpWhitelist(clientIp))
@@ -201,6 +211,12 @@ public class TalabatWebhookController : AbpController
                 "Received Talabat menu import request webhook. CorrelationId={CorrelationId}, ClientIP={ClientIP}",
                 correlationId,
                 clientIp);
+            
+            var webhookSecurityFailure = ValidateWebhookSecurityOrUnauthorized(rawBody, correlationId);
+            if (webhookSecurityFailure != null)
+            {
+                return webhookSecurityFailure;
+            }
 
             var webhook = JsonSerializer.Deserialize<TalabatMenuImportRequestWebhook>(rawBody, new JsonSerializerOptions
             {
@@ -270,6 +286,12 @@ public class TalabatWebhookController : AbpController
                 correlationId,
                 clientIp,
                 rawBody.Length);
+            
+            var webhookSecurityFailure = ValidateWebhookSecurityOrUnauthorized(rawBody, correlationId);
+            if (webhookSecurityFailure != null)
+            {
+                return webhookSecurityFailure;
+            }
 
             if (!ValidateIpWhitelist(clientIp))
             {
@@ -401,6 +423,27 @@ public class TalabatWebhookController : AbpController
     }
 
     #region Private Methods
+    
+    private IActionResult? ValidateWebhookSecurityOrUnauthorized(string rawBody, string correlationId)
+    {
+        var validation = _webhookSecurityValidator.Validate(Request, rawBody, correlationId);
+        if (validation.IsValid)
+        {
+            return null;
+        }
+
+        _logger.LogWarning(
+            "Talabat webhook security validation failed. CorrelationId={CorrelationId}, Error={Error}",
+            correlationId,
+            validation.Error ?? "<unknown>");
+
+        return Unauthorized(new
+        {
+            success = false,
+            correlationId,
+            error = validation.Error ?? "Invalid webhook authentication."
+        });
+    }
 
     private async Task HandleCatalogImportCompletedAsync(
         TalabatCatalogStatusWebhook webhook, 
