@@ -100,8 +100,9 @@ services:
       - Talabat__Password=Lw5afsmkEY
       - Talabat__Secret=SnyteunCeerhicJofI
       - Talabat__WebhookSecurity__Enabled=true
-      - Talabat__WebhookSecurity__Mode=signature
+      - Talabat__WebhookSecurity__Mode=secret
       - Talabat__WebhookSecurity__SecretKey=SnyteunCeerhicJofI
+      - Talabat__WebhookSecurity__SecretHeader=X-Secret-Key
       - Talabat__WebhookSecurity__RequireTimestamp=false
       - Talabat__WebhookSecurity__MaxSkewSeconds=300
       - Talabat__StaticToken=eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjU3MjMyNTIsImV4cCI6MTc2NTczMDQ1MiwiaXNzIjoibWlkZGxld2FyZSIsInN1YiI6Im1lLXBsdWdpbi1iZW9uLWl0LTAwMSJ9.tNAyUgk1qnLWb5mYBE_K2r3OJBE7cths58PlaUYxLwDoGAdz749gOOqXGEgog59E

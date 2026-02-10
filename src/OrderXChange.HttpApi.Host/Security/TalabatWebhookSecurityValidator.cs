@@ -34,7 +34,7 @@ public class TalabatWebhookSecurityValidator : ITransientDependency
         }
 
         var mode = GetMode();
-        var secretKey = ResolveSecretKey();
+        var secretKey = ResolveSecretKey()?.Trim();
         if (string.IsNullOrWhiteSpace(secretKey))
         {
             _logger.LogWarning(
@@ -71,6 +71,7 @@ public class TalabatWebhookSecurityValidator : ITransientDependency
             return TalabatWebhookSecurityValidationResult.InvalidResult(
                 $"Missing signature header '{signatureHeaderName}'.");
         }
+        providedSignature = NormalizeProvidedSignature(providedSignature);
 
         var timestamp = request.Headers[timestampHeaderName].ToString();
         var requireTimestamp = _configuration.GetValue<bool?>("Talabat:WebhookSecurity:RequireTimestamp") ?? false;
@@ -131,12 +132,12 @@ public class TalabatWebhookSecurityValidator : ITransientDependency
         string correlationId)
     {
         var secretHeaderName = GetSecretHeaderName();
-        var providedSecret = request.Headers[secretHeaderName].ToString();
+        var providedSecret = ResolveProvidedSecret(request, secretHeaderName);
 
         if (string.IsNullOrWhiteSpace(providedSecret))
         {
             return TalabatWebhookSecurityValidationResult.InvalidResult(
-                $"Missing secret header '{secretHeaderName}'.");
+                $"Missing webhook secret. Expected header '{secretHeaderName}' or 'X-Webhook-Secret' or 'X-Secret-Key' or query 'secret_key'.");
         }
 
         if (!SecureEquals(providedSecret, secretKey, ignoreCase: false))
@@ -151,16 +152,63 @@ public class TalabatWebhookSecurityValidator : ITransientDependency
         return TalabatWebhookSecurityValidationResult.ValidResult();
     }
 
+    private static string? ResolveProvidedSecret(HttpRequest request, string configuredHeaderName)
+    {
+        var candidates = new[]
+        {
+            configuredHeaderName,
+            "X-Webhook-Secret",
+            "X-Secret-Key",
+            "secret_key"
+        };
+
+        foreach (var headerName in candidates)
+        {
+            if (string.IsNullOrWhiteSpace(headerName))
+            {
+                continue;
+            }
+
+            var value = request.Headers[headerName].ToString();
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        var querySecret = request.Query["secret_key"].ToString();
+        if (!string.IsNullOrWhiteSpace(querySecret))
+        {
+            return querySecret.Trim();
+        }
+
+        return null;
+    }
+
     private static bool IsSignatureMatch(string providedSignature, string payload, string secretKey)
     {
+        providedSignature = NormalizeProvidedSignature(providedSignature);
+
         var expectedBase64 = ComputeHmacSha256Base64(payload, secretKey);
         if (SecureEquals(providedSignature, expectedBase64, ignoreCase: false))
         {
             return true;
         }
 
+        var expectedBase64Url = ConvertToBase64Url(expectedBase64);
+        if (SecureEquals(providedSignature, expectedBase64Url, ignoreCase: false))
+        {
+            return true;
+        }
+
         var expectedHex = ComputeHmacSha256Hex(payload, secretKey);
-        return SecureEquals(providedSignature, expectedHex, ignoreCase: true);
+        if (SecureEquals(providedSignature, expectedHex, ignoreCase: true))
+        {
+            return true;
+        }
+
+        var normalizedBase64UrlProvided = NormalizeBase64UrlSignature(providedSignature);
+        return SecureEquals(normalizedBase64UrlProvided, expectedBase64, ignoreCase: false);
     }
 
     private static string ComputeHmacSha256Base64(string payload, string secretKey)
@@ -198,6 +246,45 @@ public class TalabatWebhookSecurityValidator : ITransientDependency
 
         return leftBytes.Length == rightBytes.Length &&
                CryptographicOperations.FixedTimeEquals(leftBytes, rightBytes);
+    }
+
+    private static string NormalizeProvidedSignature(string providedSignature)
+    {
+        if (string.IsNullOrWhiteSpace(providedSignature))
+        {
+            return string.Empty;
+        }
+
+        var normalized = providedSignature.Trim().Trim('"');
+
+        const string sha256Prefix = "sha256=";
+        if (normalized.StartsWith(sha256Prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized[sha256Prefix.Length..];
+        }
+
+        return normalized.Trim();
+    }
+
+    private static string ConvertToBase64Url(string base64)
+    {
+        return base64.TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    }
+
+    private static string NormalizeBase64UrlSignature(string signature)
+    {
+        var normalized = signature.Replace('-', '+').Replace('_', '/');
+        var mod = normalized.Length % 4;
+        if (mod == 2)
+        {
+            normalized += "==";
+        }
+        else if (mod == 3)
+        {
+            normalized += "=";
+        }
+
+        return normalized;
     }
 
     private bool IsEnabled()
