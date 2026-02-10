@@ -26,6 +26,8 @@ public class OrderDispatchDistributedEventHandler
       IDistributedEventHandler<OrderDispatchRetryEto>,
       ITransientDependency
 {
+    private static readonly JsonSerializerOptions TalabatWebhookJsonOptions = CreateTalabatWebhookJsonOptions();
+
     private readonly IRepository<TalabatOrderSyncLog, Guid> _orderSyncLogRepository;
     private readonly TalabatAccountService _talabatAccountService;
     private readonly TalabatOrderToFoodicsMapper _orderMapper;
@@ -39,6 +41,17 @@ public class OrderDispatchDistributedEventHandler
     private readonly IDistributedEventBus _eventBus;
     private readonly IBackgroundJobClient _backgroundJobs;
     private readonly ILogger<OrderDispatchDistributedEventHandler> _logger;
+
+    private static JsonSerializerOptions CreateTalabatWebhookJsonOptions()
+    {
+        var options = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
+        options.Converters.Add(new TalabatFlexibleStringJsonConverter());
+        return options;
+    }
 
     public OrderDispatchDistributedEventHandler(
         IRepository<TalabatOrderSyncLog, Guid> orderSyncLogRepository,
@@ -139,10 +152,9 @@ public class OrderDispatchDistributedEventHandler
                     throw new InvalidOperationException("Order payload is missing from log. Enable order payload persistence.");
                 }
 
-                var webhook = JsonSerializer.Deserialize<TalabatOrderWebhook>(orderLog.WebhookPayloadJson, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+                var webhook = JsonSerializer.Deserialize<TalabatOrderWebhook>(
+                    orderLog.WebhookPayloadJson,
+                    TalabatWebhookJsonOptions);
 
                 if (webhook == null)
                 {
