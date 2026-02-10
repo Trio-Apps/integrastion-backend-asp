@@ -176,11 +176,9 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
         string adminEmail,
         string adminPassword)
     {
-        var user = _identityUserManager.Users
-            .FirstOrDefault(u => u.TenantId == tenantId && u.Email == adminEmail);
+        var user = await _identityUserManager.FindByEmailAsync(adminEmail);
 
-        user ??= _identityUserManager.Users
-            .FirstOrDefault(u => u.TenantId == tenantId && u.UserName == "admin");
+        user ??= await _identityUserManager.FindByNameAsync("admin");
 
         if (user == null)
         {

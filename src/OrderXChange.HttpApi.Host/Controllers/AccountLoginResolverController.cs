@@ -2,7 +2,6 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Volo.Abp;
 using Volo.Abp.AspNetCore.Mvc;
 using Volo.Abp.Identity;
@@ -63,11 +62,9 @@ public class AccountLoginResolverController : AbpControllerBase
 
         using (_currentTenant.Change(tenant.Id))
         {
-            var user = await _identityUserManager.Users
-                .FirstOrDefaultAsync(u => u.TenantId == tenant.Id && u.Email == normalizedLogin);
+            var user = await _identityUserManager.FindByEmailAsync(normalizedLogin);
 
-            user ??= await _identityUserManager.Users
-                .FirstOrDefaultAsync(u => u.TenantId == tenant.Id && u.UserName == normalizedLogin);
+            user ??= await _identityUserManager.FindByNameAsync(normalizedLogin);
 
             if (user == null || user.UserName.IsNullOrWhiteSpace())
             {

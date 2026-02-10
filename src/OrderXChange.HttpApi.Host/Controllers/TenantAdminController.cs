@@ -6,10 +6,10 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
-using Microsoft.EntityFrameworkCore;
 using OrderXChange.HttpApi.Host.Services;
 using Volo.Abp;
 using Volo.Abp.AspNetCore.Mvc;
+using Volo.Abp.Data;
 using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.TenantManagement;
@@ -48,7 +48,7 @@ public class TenantAdminController : AbpControllerBase
 
         using (_currentTenant.Change(tenantId))
         {
-            var adminUser = await FindTenantAdminUserAsync(tenantId);
+            var adminUser = await FindTenantAdminUserAsync(tenant);
             if (adminUser == null || adminUser.Email.IsNullOrWhiteSpace())
             {
                 throw new UserFriendlyException("Tenant admin user was not found.");
@@ -79,20 +79,22 @@ public class TenantAdminController : AbpControllerBase
         }
     }
 
-    private async Task<IdentityUser?> FindTenantAdminUserAsync(Guid tenantId)
+    private async Task<IdentityUser?> FindTenantAdminUserAsync(Tenant tenant)
     {
-        var adminByUserName = await _identityUserManager.Users
-            .FirstOrDefaultAsync(u => u.TenantId == tenantId && u.UserName == "admin");
+        var adminByUserName = await _identityUserManager.FindByNameAsync("admin");
 
         if (adminByUserName != null)
         {
             return adminByUserName;
         }
 
-        return await _identityUserManager.Users
-            .Where(u => u.TenantId == tenantId)
-            .OrderBy(u => u.CreationTime)
-            .FirstOrDefaultAsync();
+        var adminEmail = tenant.GetProperty<string>("AdminEmail");
+        if (!adminEmail.IsNullOrWhiteSpace())
+        {
+            return await _identityUserManager.FindByEmailAsync(adminEmail);
+        }
+
+        return null;
     }
 
     private static string GeneratePassword(string tenantName)

@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
-using Microsoft.EntityFrameworkCore;
 using OrderXChange.HttpApi.Host.Services;
 using Volo.Abp;
 using Volo.Abp.AspNetCore.Mvc;
@@ -62,8 +61,7 @@ public class AccountPasswordRecoveryController : AbpControllerBase
 
         using (_currentTenant.Change(tenantId))
         {
-            var user = await _identityUserManager.Users
-                .FirstOrDefaultAsync(u => u.TenantId == tenantId && u.Email == email);
+            var user = await _identityUserManager.FindByEmailAsync(email);
 
             if (user == null || user.Email.IsNullOrWhiteSpace())
             {
