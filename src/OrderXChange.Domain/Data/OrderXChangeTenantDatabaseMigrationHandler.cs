@@ -200,23 +200,19 @@ public class OrderXChangeTenantDatabaseMigrationHandler :
                 string.Join("; ", resetResult.Errors.Select(e => e.Description))
             );
         }
-        else if (user.ShouldChangePasswordOnNextLogin)
+        if (!user.ShouldChangePasswordOnNextLogin)
         {
-            user.SetShouldChangePasswordOnNextLogin(false);
+            user.SetShouldChangePasswordOnNextLogin(true);
             var updateResult = await _identityUserManager.UpdateAsync(user);
             if (!updateResult.Succeeded)
             {
                 _logger.LogWarning(
-                    "Failed to clear password-change flag for admin {AdminEmail} in tenant {TenantId}: {Errors}",
+                    "Failed to enable password-change flag for admin {AdminEmail} in tenant {TenantId}: {Errors}",
                     adminEmail,
                     tenantId,
                     string.Join("; ", updateResult.Errors.Select(e => e.Description))
                 );
             }
         }
-
-        // NOTE:
-        // We intentionally do NOT set ShouldChangePasswordOnNextLogin here,
-        // because it can block password-grant login flow for tenant users.
     }
 }

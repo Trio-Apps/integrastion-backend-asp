@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { AuthService, RestService } from '@abp/ng.core';
+import { RestService } from '@abp/ng.core';
 import { catchError, map, of } from 'rxjs';
 
 interface PasswordChangeRequiredResponse {
@@ -8,13 +8,8 @@ interface PasswordChangeRequiredResponse {
 }
 
 export const passwordChangeRequiredGuard: CanActivateFn = (_, state) => {
-  const authService = inject(AuthService);
   const restService = inject(RestService);
   const router = inject(Router);
-
-  if (!authService.isAuthenticated) {
-    return of(true);
-  }
 
   // Avoid a redirect loop when user is already on the forced change page.
   if (state.url.startsWith('/account/force-change-password')) {
