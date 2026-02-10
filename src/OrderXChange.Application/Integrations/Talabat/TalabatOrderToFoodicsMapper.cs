@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OrderXChange.Application.Contracts.Integrations.Talabat;
 using OrderXChange.Application.Integrations.Foodics;
+using OrderXChange.Domain.Versioning;
 using Volo.Abp.DependencyInjection;
 
 namespace OrderXChange.Application.Integrations.Talabat;
@@ -75,7 +76,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             RoundingAmount = 0,
             BranchId = branchId,
             Products = products,
-            DueAt = dueAt?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+            DueAt = FormatDueAt(dueAt, businessDateTimeZone),
             Meta = BuildMeta(webhook, vendorCode, businessDateTimeZone, businessDateSource)
         };
 
@@ -90,7 +91,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         {
             // For Foodics create-order, product_id must come from POS/remote mapping.
             // Talabat "id" is platform-specific and should not be used as Foodics product id.
-            var productId = product.RemoteCode;
+            var productId = ResolveFoodicsEntityId(product.RemoteCode, MenuMappingEntityType.Product);
             if (string.IsNullOrWhiteSpace(productId))
             {
                 _logger.LogWarning(
@@ -135,7 +136,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         {
             // For Foodics create-order, modifier_option_id must come from POS/remote mapping.
             // Talabat "id" is platform-specific and should not be used as Foodics modifier option id.
-            var optionId = topping.RemoteCode;
+            var optionId = ResolveFoodicsEntityId(topping.RemoteCode, MenuMappingEntityType.ModifierOption);
             if (string.IsNullOrWhiteSpace(optionId))
             {
                 _logger.LogDebug(
@@ -265,5 +266,120 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         return decimal.TryParse(normalized, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed)
             ? parsed
             : null;
+    }
+
+    private string? ResolveFoodicsEntityId(string? talabatRemoteCode, string expectedEntityType)
+    {
+        if (string.IsNullOrWhiteSpace(talabatRemoteCode))
+        {
+            return null;
+        }
+
+        var normalized = StripTalabatWrapperPrefixes(talabatRemoteCode.Trim());
+        var detectedType = MenuMappingStrategy.ExtractEntityType(normalized);
+        var extracted = MenuMappingStrategy.ExtractFoodicsId(normalized);
+
+        // Stable remote codes are generated as: P_<foodicsId>, O_<foodicsId>, etc.
+        if (!string.IsNullOrWhiteSpace(extracted))
+        {
+            if (!string.IsNullOrWhiteSpace(detectedType) &&
+                !string.Equals(detectedType, expectedEntityType, StringComparison.Ordinal))
+            {
+                _logger.LogDebug(
+                    "Talabat remoteCode entity type mismatch. RemoteCode={RemoteCode}, Expected={Expected}, Actual={Actual}",
+                    talabatRemoteCode,
+                    expectedEntityType,
+                    detectedType);
+            }
+
+            if (!string.Equals(extracted, talabatRemoteCode, StringComparison.Ordinal))
+            {
+                _logger.LogDebug(
+                    "Resolved Talabat remoteCode to FoodicsId. RemoteCode={RemoteCode}, FoodicsId={FoodicsId}",
+                    talabatRemoteCode,
+                    extracted);
+            }
+
+            return extracted;
+        }
+
+        // Legacy mode: remoteCode may already be the raw Foodics ID.
+        return normalized;
+    }
+
+    private static string StripTalabatWrapperPrefixes(string value)
+    {
+        var result = value;
+
+        // V2 payloads can wrap stable IDs in helper prefixes.
+        if (result.StartsWith("topping-", StringComparison.OrdinalIgnoreCase))
+        {
+            result = result["topping-".Length..];
+        }
+        else if (result.StartsWith("product-", StringComparison.OrdinalIgnoreCase))
+        {
+            result = result["product-".Length..];
+        }
+        else if (result.StartsWith("option-", StringComparison.OrdinalIgnoreCase))
+        {
+            result = result["option-".Length..];
+        }
+
+        return result;
+    }
+
+    private string? FormatDueAt(DateTime? dueAt, string? businessDateTimeZone)
+    {
+        if (!dueAt.HasValue)
+        {
+            return null;
+        }
+
+        var dueAtValue = dueAt.Value;
+        if (string.IsNullOrWhiteSpace(businessDateTimeZone))
+        {
+            return dueAtValue.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        }
+
+        try
+        {
+            var utcDueAt = dueAtValue.Kind switch
+            {
+                DateTimeKind.Utc => dueAtValue,
+                DateTimeKind.Local => dueAtValue.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(dueAtValue, DateTimeKind.Utc)
+            };
+
+            var timezone = ResolveTimeZoneInfo(businessDateTimeZone);
+            var localDueAt = TimeZoneInfo.ConvertTimeFromUtc(utcDueAt, timezone);
+            return localDueAt.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to convert due_at to business timezone. TimeZone={TimeZone}. Falling back to original timestamp.",
+                businessDateTimeZone);
+
+            return dueAtValue.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        }
+    }
+
+    private static TimeZoneInfo ResolveTimeZoneInfo(string timezoneId)
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(timezoneId);
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            // Cross-platform alias for Asia/Kuwait when running on Windows.
+            if (string.Equals(timezoneId, "Asia/Kuwait", StringComparison.OrdinalIgnoreCase))
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById("Arab Standard Time");
+            }
+
+            throw;
+        }
     }
 }
