@@ -51,10 +51,10 @@
   >
     <ng-template pTemplate="header">
       <tr>
+        <th pSortableColumn="orderToken">Order ID <p-sortIcon field="orderToken"></p-sortIcon></th>
         <th pSortableColumn="receivedAt">Received <p-sortIcon field="receivedAt"></p-sortIcon></th>
         <th pSortableColumn="vendorCode">Vendor <p-sortIcon field="vendorCode"></p-sortIcon></th>
         <th>Order</th>
-        <th pSortableColumn="orderToken">Token <p-sortIcon field="orderToken"></p-sortIcon></th>
         <th>Status</th>
         <th pSortableColumn="attempts">Attempts <p-sortIcon field="attempts"></p-sortIcon></th>
         <th>Last Error</th>
@@ -64,6 +64,7 @@
 
     <ng-template pTemplate="body" let-row>
       <tr>
+        <td class="token-cell" [title]="row.orderToken || ''">{{ row.orderToken || '-' }}</td>
         <td>
           <div class="date-cell">{{ row.receivedAt || row.creationTime | date: 'short' }}</div>
         </td>
@@ -74,7 +75,6 @@
             <p-tag *ngIf="row.isTestOrder" value="TEST" severity="warn"></p-tag>
           </div>
         </td>
-        <td class="token-cell" [title]="row.orderToken || ''">{{ row.orderToken || '-' }}</td>
         <td>
           <p-tag [severity]="getStatusSeverity(row.status)" [value]="row.status || 'Unknown'"></p-tag>
         </td>
