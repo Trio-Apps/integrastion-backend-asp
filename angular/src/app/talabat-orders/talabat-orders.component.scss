@@ -53,6 +53,14 @@
   font-weight: 600;
 }
 
+.token-cell {
+  max-width: 240px;
+  font-family: Consolas, "Courier New", monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .date-cell {
   white-space: nowrap;
 }

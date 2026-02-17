@@ -54,6 +54,7 @@
         <th pSortableColumn="receivedAt">Received <p-sortIcon field="receivedAt"></p-sortIcon></th>
         <th pSortableColumn="vendorCode">Vendor <p-sortIcon field="vendorCode"></p-sortIcon></th>
         <th>Order</th>
+        <th pSortableColumn="orderToken">Token <p-sortIcon field="orderToken"></p-sortIcon></th>
         <th pSortableColumn="productsCount">Products <p-sortIcon field="productsCount"></p-sortIcon></th>
         <th pSortableColumn="categoriesCount">Categories <p-sortIcon field="categoriesCount"></p-sortIcon></th>
         <th>Status</th>
@@ -75,6 +76,7 @@
             <p-tag *ngIf="row.isTestOrder" value="TEST" severity="warn"></p-tag>
           </div>
         </td>
+        <td class="token-cell" [title]="row.orderToken || ''">{{ row.orderToken || '-' }}</td>
         <td>{{ row.productsCount ?? 0 }}</td>
         <td>{{ row.categoriesCount ?? 0 }}</td>
         <td>
@@ -110,7 +112,7 @@
 
     <ng-template pTemplate="emptymessage">
       <tr>
-        <td colspan="9">No orders recorded yet.</td>
+        <td colspan="10">No orders recorded yet.</td>
       </tr>
     </ng-template>
   </p-table>
