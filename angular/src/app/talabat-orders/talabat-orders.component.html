@@ -55,8 +55,6 @@
         <th pSortableColumn="vendorCode">Vendor <p-sortIcon field="vendorCode"></p-sortIcon></th>
         <th>Order</th>
         <th pSortableColumn="orderToken">Token <p-sortIcon field="orderToken"></p-sortIcon></th>
-        <th pSortableColumn="productsCount">Products <p-sortIcon field="productsCount"></p-sortIcon></th>
-        <th pSortableColumn="categoriesCount">Categories <p-sortIcon field="categoriesCount"></p-sortIcon></th>
         <th>Status</th>
         <th pSortableColumn="attempts">Attempts <p-sortIcon field="attempts"></p-sortIcon></th>
         <th>Last Error</th>
@@ -77,8 +75,6 @@
           </div>
         </td>
         <td class="token-cell" [title]="row.orderToken || ''">{{ row.orderToken || '-' }}</td>
-        <td>{{ row.productsCount ?? 0 }}</td>
-        <td>{{ row.categoriesCount ?? 0 }}</td>
         <td>
           <p-tag [severity]="getStatusSeverity(row.status)" [value]="row.status || 'Unknown'"></p-tag>
         </td>
@@ -112,7 +108,7 @@
 
     <ng-template pTemplate="emptymessage">
       <tr>
-        <td colspan="10">No orders recorded yet.</td>
+        <td colspan="8">No orders recorded yet.</td>
       </tr>
     </ng-template>
   </p-table>
