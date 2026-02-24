@@ -101,9 +101,8 @@ services:
       - Talabat__Username=me-plugin-beon-it-001
       - Talabat__Password=Lw5afsmkEY
       - Talabat__Secret=SnyteunCeerhicJofI
-      - Talabat__WebhookSecurity__Enabled=true
+      - Talabat__WebhookSecurity__Enabled=false
       - Talabat__WebhookSecurity__Mode=secret
-      - Talabat__WebhookSecurity__SecretKey=SnyteunCeerhicJofI
       - Talabat__WebhookSecurity__SecretHeader=X-Secret-Key
       - Talabat__WebhookSecurity__RequireTimestamp=false
       - Talabat__WebhookSecurity__MaxSkewSeconds=300
