@@ -36,7 +36,6 @@ export class TalabatOrdersComponent {
   private readonly orderLogsService = inject(TalabatOrderLogsService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly messageService = inject(MessageService);
-  readonly saudiTimeZone = '+0300';
 
   readonly loading = signal<boolean>(false);
   readonly logs = signal<TalabatOrderLogDto[]>([]);
@@ -118,6 +117,42 @@ export class TalabatOrdersComponent {
   getOrderCode(log: TalabatOrderLogDto): string {
     return log.shortCode || log.orderCode || log.orderToken || '-';
   }
+
+  formatReceivedAt(log: TalabatOrderLogDto): string {
+    const parsed = this.parsePossiblyUtcDate(log.receivedAt || log.creationTime);
+    return parsed ? this.saudiDateTimeFormatter.format(parsed) : '-';
+  }
+
+  private parsePossiblyUtcDate(value?: string | Date): Date | null {
+    if (!value) {
+      return null;
+    }
+
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? null : value;
+    }
+
+    const raw = value.trim();
+    if (!raw) {
+      return null;
+    }
+
+    const hasExplicitTimezone = /(?:[zZ]|[+\-]\d{2}:\d{2})$/.test(raw);
+    const normalized = hasExplicitTimezone ? raw : `${raw}Z`;
+    const parsed = new Date(normalized);
+
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  private readonly saudiDateTimeFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Riyadh',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
 
   openErrorDialog(log: TalabatOrderLogDto): void {
     const message = log.lastError?.trim();
