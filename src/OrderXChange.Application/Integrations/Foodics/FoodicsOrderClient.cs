@@ -54,9 +54,10 @@ public class FoodicsOrderClient
         EnsureBusinessDate(request);
 
         _logger.LogInformation(
-            "Sending Foodics create order. BranchId={BranchId}, BusinessDate={BusinessDate}, DueAt={DueAt}, ProductCount={ProductCount}",
+            "Sending Foodics create order. BranchId={BranchId}, BusinessDate={BusinessDate}, CreatedAt={CreatedAt}, DueAt={DueAt}, ProductCount={ProductCount}",
             request.BranchId,
             request.BusinessDate,
+            request.CreatedAt,
             request.DueAt,
             request.Products?.Count ?? 0);
 

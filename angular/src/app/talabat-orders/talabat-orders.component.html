@@ -51,7 +51,7 @@
   >
     <ng-template pTemplate="header">
       <tr>
-        <th pSortableColumn="orderToken">Order ID <p-sortIcon field="orderToken"></p-sortIcon></th>
+        <th pSortableColumn="orderCode">Order ID <p-sortIcon field="orderCode"></p-sortIcon></th>
         <th pSortableColumn="receivedAt">Received <p-sortIcon field="receivedAt"></p-sortIcon></th>
         <th pSortableColumn="vendorCode">Vendor <p-sortIcon field="vendorCode"></p-sortIcon></th>
         <th>Order</th>
@@ -64,9 +64,9 @@
 
     <ng-template pTemplate="body" let-row>
       <tr>
-        <td class="token-cell" [title]="row.orderToken || ''">{{ row.orderToken || '-' }}</td>
+        <td class="token-cell" [title]="row.orderCode || ''">{{ row.orderCode || '-' }}</td>
         <td>
-          <div class="date-cell">{{ row.receivedAt || row.creationTime | date: 'short' }}</div>
+          <div class="date-cell">{{ row.receivedAt || row.creationTime | date: 'short' : saudiTimeZone }}</div>
         </td>
         <td>{{ row.vendorCode || '-' }}</td>
         <td>

@@ -43,8 +43,9 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         var guests = ResolveIntSetting("Foodics:OrderGuests", 1);
         var discountType = ResolveIntSetting("Foodics:OrderDiscountType", 1);
 
+        var createdAt = webhook.CreatedAt ?? DateTime.UtcNow;
         var resolvedBusinessDate = businessDate
-            ?? (webhook.CreatedAt ?? DateTime.UtcNow).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            ?? createdAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var dueAt = webhook.Delivery?.ExpectedDeliveryTime
             ?? webhook.Delivery?.RiderPickupTime
             ?? webhook.ExpiryDate;
@@ -69,6 +70,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             KitchenNotes = webhook.Comments?.VendorComment,
             CustomerNotes = webhook.Comments?.CustomerComment,
             BusinessDate = resolvedBusinessDate,
+            CreatedAt = FormatCreatedAt(createdAt, businessDateTimeZone),
             SubtotalPrice = subtotal,
             DiscountAmount = discountAmount,
             TotalPrice = total,
@@ -326,6 +328,37 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         }
 
         return result;
+    }
+
+    private string FormatCreatedAt(DateTime createdAt, string? businessDateTimeZone)
+    {
+        if (string.IsNullOrWhiteSpace(businessDateTimeZone))
+        {
+            return createdAt.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        }
+
+        try
+        {
+            var utcCreatedAt = createdAt.Kind switch
+            {
+                DateTimeKind.Utc => createdAt,
+                DateTimeKind.Local => createdAt.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(createdAt, DateTimeKind.Utc)
+            };
+
+            var timezone = ResolveTimeZoneInfo(businessDateTimeZone);
+            var localCreatedAt = TimeZoneInfo.ConvertTimeFromUtc(utcCreatedAt, timezone);
+            return localCreatedAt.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to convert created_at to business timezone. TimeZone={TimeZone}. Falling back to original timestamp.",
+                businessDateTimeZone);
+
+            return createdAt.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        }
     }
 
     private string? FormatDueAt(DateTime? dueAt, string? businessDateTimeZone)

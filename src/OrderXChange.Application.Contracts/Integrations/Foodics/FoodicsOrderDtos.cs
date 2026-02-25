@@ -33,6 +33,9 @@ public class FoodicsOrderCreateRequest
     [JsonPropertyName("business_date")]
     public string? BusinessDate { get; set; }
 
+    [JsonPropertyName("created_at")]
+    public string? CreatedAt { get; set; }
+
     [JsonPropertyName("subtotal_price")]
     public decimal? SubtotalPrice { get; set; }
 

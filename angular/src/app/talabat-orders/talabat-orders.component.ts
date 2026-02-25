@@ -36,6 +36,7 @@ export class TalabatOrdersComponent {
   private readonly orderLogsService = inject(TalabatOrderLogsService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly messageService = inject(MessageService);
+  readonly saudiTimeZone = '+0300';
 
   readonly loading = signal<boolean>(false);
   readonly logs = signal<TalabatOrderLogDto[]>([]);
