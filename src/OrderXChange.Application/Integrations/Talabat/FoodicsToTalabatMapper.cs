@@ -933,7 +933,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
             {
                 var modifierSummary = product.Modifiers == null || product.Modifiers.Count == 0
                     ? "<no-modifiers>"
-                    : string.Join(" | ", product.Modifiers.Select(m => $"{m.Id}:min={m.MinAllowed?.ToString() ?? "null"},max={m.MaxAllowed?.ToString() ?? "null"},options={m.Options?.Count ?? 0}"));
+                    : string.Join(" | ", product.Modifiers.Select(m => $"{m.Id}:rawMin={m.RawMinAllowed?.ToString() ?? "null"},rawMax={m.RawMaxAllowed?.ToString() ?? "null"},pivotMin={m.Pivot?.MinimumOptions?.ToString() ?? "null"},pivotMax={m.Pivot?.MaximumOptions?.ToString() ?? "null"},effectiveMin={m.MinAllowed?.ToString() ?? "null"},effectiveMax={m.MaxAllowed?.ToString() ?? "null"},options={m.Options?.Count ?? 0}"));
 
                 _logger.LogWarning(
                     "Talabat debug product mapping start. ProductId={ProductId}, ProductRemoteCode={ProductRemoteCode}, Name={ProductName}, ModifierSummary={ModifierSummary}",
@@ -1001,11 +1001,15 @@ public class FoodicsToTalabatMapper : ITransientDependency
                         var optionIds = string.Join(",", modifier.Options.Select(o => o.Id));
 
                         _logger.LogWarning(
-                            "Talabat debug product modifier mapping. ProductId={ProductId}, ProductRemoteCode={ProductRemoteCode}, ModifierId={ModifierId}, ModifierRemoteCode={ModifierRemoteCode}, MinAllowed={MinAllowed}, MaxAllowed={MaxAllowed}, ResolvedMin={ResolvedMin}, ResolvedMax={ResolvedMax}, OptionsCount={OptionsCount}, OptionIds={OptionIds}, ToppingId={ToppingId}",
+                            "Talabat debug product modifier mapping. ProductId={ProductId}, ProductRemoteCode={ProductRemoteCode}, ModifierId={ModifierId}, ModifierRemoteCode={ModifierRemoteCode}, RawMinAllowed={RawMinAllowed}, RawMaxAllowed={RawMaxAllowed}, PivotMin={PivotMin}, PivotMax={PivotMax}, EffectiveMin={EffectiveMin}, EffectiveMax={EffectiveMax}, ResolvedMin={ResolvedMin}, ResolvedMax={ResolvedMax}, OptionsCount={OptionsCount}, OptionIds={OptionIds}, ToppingId={ToppingId}",
                             product.Id,
                             productMapping.TalabatRemoteCode,
                             modifier.Id,
                             modifierMapping.TalabatRemoteCode,
+                            modifier.RawMinAllowed,
+                            modifier.RawMaxAllowed,
+                            modifier.Pivot?.MinimumOptions,
+                            modifier.Pivot?.MaximumOptions,
                             modifier.MinAllowed,
                             modifier.MaxAllowed,
                             resolvedMin,

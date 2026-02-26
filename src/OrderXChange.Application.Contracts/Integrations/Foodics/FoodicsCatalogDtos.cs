@@ -202,6 +202,9 @@ public class FoodicsIngredientDto
 
 public class FoodicsModifierDto
 {
+	private int? _minAllowed;
+	private int? _maxAllowed;
+
 	[JsonPropertyName("id")]
 	public string Id { get; set; } = string.Empty;
 
@@ -212,13 +215,51 @@ public class FoodicsModifierDto
 	public string? NameLocalized { get; set; }
 
 	[JsonPropertyName("min_allowed")]
-	public int? MinAllowed { get; set; }
+	public int? MinAllowed
+	{
+		get => _minAllowed ?? Pivot?.MinimumOptions;
+		set => _minAllowed = value;
+	}
 
 	[JsonPropertyName("max_allowed")]
-	public int? MaxAllowed { get; set; }
+	public int? MaxAllowed
+	{
+		get => _maxAllowed ?? Pivot?.MaximumOptions;
+		set => _maxAllowed = value;
+	}
+
+	[JsonPropertyName("pivot")]
+	public FoodicsModifierPivotDto? Pivot { get; set; }
+
+	[JsonIgnore]
+	public int? RawMinAllowed => _minAllowed;
+
+	[JsonIgnore]
+	public int? RawMaxAllowed => _maxAllowed;
 
 	[JsonPropertyName("options")]
 	public List<FoodicsModifierOptionDto>? Options { get; set; }
+}
+
+public class FoodicsModifierPivotDto
+{
+	[JsonPropertyName("minimum_options")]
+	public int? MinimumOptions { get; set; }
+
+	[JsonPropertyName("maximum_options")]
+	public int? MaximumOptions { get; set; }
+
+	[JsonPropertyName("free_options")]
+	public int? FreeOptions { get; set; }
+
+	[JsonPropertyName("unique_options")]
+	public bool? UniqueOptions { get; set; }
+
+	[JsonPropertyName("default_options_ids")]
+	public List<string>? DefaultOptionIds { get; set; }
+
+	[JsonPropertyName("excluded_options_ids")]
+	public List<string>? ExcludedOptionIds { get; set; }
 }
 
 public class FoodicsModifierOptionDto
