@@ -876,6 +876,15 @@ public class FoodicsToTalabatMapper : ITransientDependency
         CancellationToken cancellationToken = default)
     {
         var productsList = products.ToList();
+        var debugProductIds = GetDebugProductIds();
+
+        if (debugProductIds.Count > 0)
+        {
+            _logger.LogWarning(
+                "Talabat product debug logging enabled. ProductIds={ProductIds}",
+                string.Join(",", debugProductIds));
+        }
+
         
         _logger.LogInformation(
             "Mapping {ProductCount} Foodics products to Talabat V2 catalog format for chain {ChainCode} using stable ID-based mapping. AccountId={AccountId}, BranchId={BranchId}, VendorCode={VendorCode}",
@@ -918,6 +927,21 @@ public class FoodicsToTalabatMapper : ITransientDependency
 
             var productItem = CreateProductItemWithStableId(product, productMapping);
             items[productMapping.TalabatRemoteCode] = productItem; // Use stable remote code as key
+
+            var isDebugProduct = debugProductIds.Contains(product.Id);
+            if (isDebugProduct)
+            {
+                var modifierSummary = product.Modifiers == null || product.Modifiers.Count == 0
+                    ? "<no-modifiers>"
+                    : string.Join(" | ", product.Modifiers.Select(m => $"{m.Id}:min={m.MinAllowed?.ToString() ?? "null"},max={m.MaxAllowed?.ToString() ?? "null"},options={m.Options?.Count ?? 0}"));
+
+                _logger.LogWarning(
+                    "Talabat debug product mapping start. ProductId={ProductId}, ProductRemoteCode={ProductRemoteCode}, Name={ProductName}, ModifierSummary={ModifierSummary}",
+                    product.Id,
+                    productMapping.TalabatRemoteCode,
+                    product.Name,
+                    modifierSummary);
+            }
 
             // Create image item if product has image
             if (!string.IsNullOrWhiteSpace(product.Image))
@@ -970,6 +994,26 @@ public class FoodicsToTalabatMapper : ITransientDependency
                     }
 
                     var toppingId = BuildProductScopedToppingId(productMapping.TalabatRemoteCode, modifierMapping.TalabatRemoteCode);
+
+                    if (isDebugProduct)
+                    {
+                        var (resolvedMin, resolvedMax) = ResolveModifierSelectionBounds(modifier);
+                        var optionIds = string.Join(",", modifier.Options.Select(o => o.Id));
+
+                        _logger.LogWarning(
+                            "Talabat debug product modifier mapping. ProductId={ProductId}, ProductRemoteCode={ProductRemoteCode}, ModifierId={ModifierId}, ModifierRemoteCode={ModifierRemoteCode}, MinAllowed={MinAllowed}, MaxAllowed={MaxAllowed}, ResolvedMin={ResolvedMin}, ResolvedMax={ResolvedMax}, OptionsCount={OptionsCount}, OptionIds={OptionIds}, ToppingId={ToppingId}",
+                            product.Id,
+                            productMapping.TalabatRemoteCode,
+                            modifier.Id,
+                            modifierMapping.TalabatRemoteCode,
+                            modifier.MinAllowed,
+                            modifier.MaxAllowed,
+                            resolvedMin,
+                            resolvedMax,
+                            modifier.Options.Count,
+                            optionIds,
+                            toppingId);
+                    }
                     
                     // Create topping item if not exists
                     if (!toppingMap.ContainsKey(toppingId))
@@ -1840,6 +1884,21 @@ public class FoodicsToTalabatMapper : ITransientDependency
         return $"tt-{productKey}-{modifierKey}";
     }
 
+    private HashSet<string> GetDebugProductIds()
+    {
+        var raw = _configuration["Talabat:DebugProductIds"];
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return raw
+            .Split(new[] { ",", ";", "\r", "\n", "\t", " " }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(id => id.Trim())
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
     /// <summary>
     /// Resolves modifier selection bounds from Foodics min/max while keeping values valid for Talabat.
     /// Ensures required modifiers remain required when MinAllowed > 0.
@@ -1897,3 +1956,4 @@ public class FoodicsToTalabatMapper : ITransientDependency
         };
     }
 }
+
