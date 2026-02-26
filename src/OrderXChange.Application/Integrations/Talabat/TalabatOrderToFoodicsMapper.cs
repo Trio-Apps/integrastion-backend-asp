@@ -88,6 +88,11 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
     private List<FoodicsOrderProductRequest> MapProducts(List<TalabatOrderProduct> talabatProducts, int discountType)
     {
         var result = new List<FoodicsOrderProductRequest>();
+        var lineTemplates = BuildOptionTemplates(talabatProducts, useLineKey: true);
+        var productTemplates = BuildOptionTemplates(talabatProducts, useLineKey: false);
+        var lineCounts = talabatProducts
+            .GroupBy(GetProductLineKey)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 
         foreach (var product in talabatProducts)
         {
@@ -108,7 +113,47 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             var totalPrice = unitPrice * quantity;
             var discountAmount = ParseDecimal(product.DiscountAmount);
 
-            var options = MapOptions(product.SelectedToppings);
+            var options = MapOptions(product.SelectedToppings, product.SelectedChoices);
+            var lineKey = GetProductLineKey(product);
+            var productKey = GetProductRemoteCodeKey(product);
+
+            // Some Talabat orders split the same product into multiple lines (often with discounts).
+            // Reuse collected options to prevent sending empty options for required modifiers.
+            if (options.Count == 0 &&
+                lineTemplates.TryGetValue(lineKey, out var lineTemplate) &&
+                lineTemplate.Count > 0)
+            {
+                options = CloneOptions(lineTemplate);
+                _logger.LogWarning(
+                    "Order line missing selected toppings. Reusing options from sibling line. ProductName={ProductName}, ProductKey={ProductKey}, OptionCount={OptionCount}",
+                    product.Name,
+                    lineKey,
+                    options.Count);
+            }
+            else if (options.Count == 0 &&
+                     productTemplates.TryGetValue(productKey, out var productTemplate) &&
+                     productTemplate.Count > 0)
+            {
+                options = CloneOptions(productTemplate);
+                _logger.LogWarning(
+                    "Order line missing selected toppings. Reusing options from same product. ProductName={ProductName}, ProductRemoteCode={ProductRemoteCode}, OptionCount={OptionCount}",
+                    product.Name,
+                    product.RemoteCode,
+                    options.Count);
+            }
+            else if (options.Count > 0 &&
+                     lineCounts.TryGetValue(lineKey, out var siblingCount) &&
+                     siblingCount > 1 &&
+                     lineTemplates.TryGetValue(lineKey, out var mergedLineTemplate) &&
+                     mergedLineTemplate.Count > options.Count)
+            {
+                options = MergeOptions(options, mergedLineTemplate);
+                _logger.LogInformation(
+                    "Enriched options from sibling lines for split product. ProductName={ProductName}, ProductKey={ProductKey}, OptionCount={OptionCount}",
+                    product.Name,
+                    lineKey,
+                    options.Count);
+            }
 
             result.Add(new FoodicsOrderProductRequest
             {
@@ -126,41 +171,78 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         return result;
     }
 
-    private List<FoodicsOrderProductOptionRequest> MapOptions(List<TalabatOrderTopping>? toppings)
+    private List<FoodicsOrderProductOptionRequest> MapOptions(List<TalabatOrderTopping>? toppings, List<TalabatOrderChoice>? choices)
     {
         var result = new List<FoodicsOrderProductOptionRequest>();
-        if (toppings == null || toppings.Count == 0)
-        {
-            return result;
-        }
+        var optionsById = new Dictionary<string, FoodicsOrderProductOptionRequest>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var topping in FlattenToppings(toppings))
+        if (toppings != null && toppings.Count > 0)
         {
-            // For Foodics create-order, modifier_option_id must come from POS/remote mapping.
-            // Talabat "id" is platform-specific and should not be used as Foodics modifier option id.
-            var optionId = ResolveFoodicsEntityId(topping.RemoteCode, MenuMappingEntityType.ModifierOption);
-            if (string.IsNullOrWhiteSpace(optionId))
+            foreach (var topping in FlattenToppings(toppings))
             {
-                _logger.LogDebug(
-                    "Skipping Talabat topping without remoteCode. ToppingName={Name}, TalabatId={TalabatId}",
-                    topping.Name,
-                    topping.Id);
-                continue;
+                // For Foodics create-order, modifier_option_id must come from POS/remote mapping.
+                // Talabat "id" is platform-specific and should not be used as Foodics modifier option id.
+                var optionId = ResolveFoodicsEntityId(topping.RemoteCode, MenuMappingEntityType.ModifierOption);
+                if (string.IsNullOrWhiteSpace(optionId))
+                {
+                    _logger.LogDebug(
+                        "Skipping Talabat topping without remoteCode. ToppingName={Name}, TalabatId={TalabatId}",
+                        topping.Name,
+                        topping.Id);
+                    continue;
+                }
+
+                var quantity = topping.Quantity.GetValueOrDefault(1);
+                var unitPrice = ParseDecimal(topping.Price) ?? 0m;
+                var totalPrice = unitPrice * quantity;
+
+                optionsById[optionId] = new FoodicsOrderProductOptionRequest
+                {
+                    ModifierOptionId = optionId,
+                    Quantity = quantity,
+                    UnitPrice = unitPrice,
+                    TotalPrice = totalPrice
+                };
             }
-
-            var quantity = topping.Quantity.GetValueOrDefault(1);
-            var unitPrice = ParseDecimal(topping.Price) ?? 0m;
-            var totalPrice = unitPrice * quantity;
-
-            result.Add(new FoodicsOrderProductOptionRequest
-            {
-                ModifierOptionId = optionId,
-                Quantity = quantity,
-                UnitPrice = unitPrice,
-                TotalPrice = totalPrice
-            });
         }
 
+        // Talabat may send fallback choice values instead of selectedToppings for some flows.
+        if (choices != null && choices.Count > 0)
+        {
+            foreach (var choice in choices)
+            {
+                var candidateRemoteCode = TryExtractOptionRemoteCode(choice.Value) ?? TryExtractOptionRemoteCode(choice.Name);
+                if (string.IsNullOrWhiteSpace(candidateRemoteCode))
+                {
+                    continue;
+                }
+
+                var optionId = ResolveFoodicsEntityId(candidateRemoteCode, MenuMappingEntityType.ModifierOption);
+                if (string.IsNullOrWhiteSpace(optionId))
+                {
+                    continue;
+                }
+
+                if (!optionsById.ContainsKey(optionId))
+                {
+                    optionsById[optionId] = new FoodicsOrderProductOptionRequest
+                    {
+                        ModifierOptionId = optionId,
+                        Quantity = 1,
+                        UnitPrice = 0m,
+                        TotalPrice = 0m
+                    };
+
+                    _logger.LogInformation(
+                        "Mapped order option from selectedChoices fallback. ChoiceName={ChoiceName}, ChoiceValue={ChoiceValue}, ModifierOptionId={ModifierOptionId}",
+                        choice.Name,
+                        choice.Value,
+                        optionId);
+                }
+            }
+        }
+
+        result.AddRange(optionsById.Values);
         return result;
     }
 
@@ -330,6 +412,124 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         return result;
     }
 
+    private static string GetProductLineKey(TalabatOrderProduct product)
+    {
+        var productId = string.IsNullOrWhiteSpace(product.Id) ? "<no-id>" : product.Id.Trim();
+        var remoteCode = string.IsNullOrWhiteSpace(product.RemoteCode) ? "<no-remote>" : product.RemoteCode.Trim();
+        return $"{productId}|{remoteCode}";
+    }
+
+    private static string GetProductRemoteCodeKey(TalabatOrderProduct product)
+    {
+        return string.IsNullOrWhiteSpace(product.RemoteCode)
+            ? "<no-remote>"
+            : product.RemoteCode.Trim();
+    }
+
+    private Dictionary<string, List<FoodicsOrderProductOptionRequest>> BuildOptionTemplates(
+        List<TalabatOrderProduct> products,
+        bool useLineKey)
+    {
+        var grouped = useLineKey
+            ? products.GroupBy(GetProductLineKey)
+            : products.GroupBy(GetProductRemoteCodeKey);
+
+        var result = new Dictionary<string, List<FoodicsOrderProductOptionRequest>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var group in grouped)
+        {
+            var merged = new List<FoodicsOrderProductOptionRequest>();
+            foreach (var product in group)
+            {
+                var mapped = MapOptions(product.SelectedToppings, product.SelectedChoices);
+                merged = MergeOptions(merged, mapped);
+            }
+
+            if (merged.Count > 0)
+            {
+                result[group.Key] = merged;
+            }
+        }
+
+        return result;
+    }
+
+    private static List<FoodicsOrderProductOptionRequest> MergeOptions(
+        IEnumerable<FoodicsOrderProductOptionRequest> existing,
+        IEnumerable<FoodicsOrderProductOptionRequest> incoming)
+    {
+        var merged = new Dictionary<string, FoodicsOrderProductOptionRequest>(StringComparer.OrdinalIgnoreCase);
+
+        static FoodicsOrderProductOptionRequest Clone(FoodicsOrderProductOptionRequest source)
+        {
+            return new FoodicsOrderProductOptionRequest
+            {
+                ModifierOptionId = source.ModifierOptionId,
+                Quantity = source.Quantity,
+                UnitPrice = source.UnitPrice,
+                TotalPrice = source.TotalPrice
+            };
+        }
+
+        foreach (var option in existing.Concat(incoming))
+        {
+            if (string.IsNullOrWhiteSpace(option.ModifierOptionId))
+            {
+                continue;
+            }
+
+            if (merged.TryGetValue(option.ModifierOptionId, out var current))
+            {
+                current.Quantity = Math.Max(current.Quantity, option.Quantity);
+                if (current.UnitPrice == 0m && option.UnitPrice > 0m)
+                {
+                    current.UnitPrice = option.UnitPrice;
+                }
+
+                current.TotalPrice = current.UnitPrice * current.Quantity;
+                continue;
+            }
+
+            merged[option.ModifierOptionId] = Clone(option);
+        }
+
+        return merged.Values.ToList();
+    }
+
+    private static List<FoodicsOrderProductOptionRequest> CloneOptions(IEnumerable<FoodicsOrderProductOptionRequest> source)
+    {
+        return source.Select(x => new FoodicsOrderProductOptionRequest
+        {
+            ModifierOptionId = x.ModifierOptionId,
+            Quantity = x.Quantity,
+            UnitPrice = x.UnitPrice,
+            TotalPrice = x.TotalPrice
+        }).ToList();
+    }
+
+    private static string? TryExtractOptionRemoteCode(string? rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return null;
+        }
+
+        var value = rawValue.Trim();
+        var prefixes = new[] { "topping-O_", "option-O_", "O_" };
+        foreach (var prefix in prefixes)
+        {
+            var index = value.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+            if (index < 0)
+            {
+                continue;
+            }
+
+            var token = value[index..];
+            var end = token.IndexOfAny(new[] { ' ', ',', ';', '|', ')', ']', '}', '"', '\'' });
+            return end >= 0 ? token[..end] : token;
+        }
+
+        return null;
+    }
     private string FormatCreatedAt(DateTime createdAt, string? businessDateTimeZone)
     {
         if (string.IsNullOrWhiteSpace(businessDateTimeZone))

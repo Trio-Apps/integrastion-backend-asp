@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -288,7 +289,7 @@ public class OrderDispatchDistributedEventHandler
                 Message = eventData,
                 Attempts = currentAttempt,
                 ErrorCode = ex.GetType().Name,
-                ErrorMessage = ex.Message,
+                ErrorMessage = BuildDetailedErrorMessage(ex),
                 LastAttemptUtc = DateTime.UtcNow,
                 RetryDelaySeconds = delaySeconds,
                 FailureType = "Transient"
@@ -314,8 +315,13 @@ public class OrderDispatchDistributedEventHandler
             {
                 var log = await _orderSyncLogRepository.GetAsync(orderLogId);
                 log.Status = "Failed";
-                log.ErrorMessage = ex.Message;
-                log.ErrorCode = ex.GetType().Name;
+                log.ErrorMessage = BuildDetailedErrorMessage(ex);
+                log.ErrorCode = BuildErrorCode(ex);
+                if (ex is FoodicsApiException foodicsEx && !string.IsNullOrWhiteSpace(foodicsEx.ResponseBody))
+                {
+                    log.FoodicsResponseJson = foodicsEx.ResponseBody;
+                }
+
                 log.Attempts = attempts;
                 log.LastAttemptUtc = DateTime.UtcNow;
                 await _orderSyncLogRepository.UpdateAsync(log, autoSave: true);
@@ -437,7 +443,7 @@ public class OrderDispatchDistributedEventHandler
                 AccountId = eventData.AccountId,
                 OriginalMessage = JsonSerializer.Serialize(eventData),
                 ErrorCode = ex.GetType().Name,
-                ErrorMessage = ex.Message,
+                ErrorMessage = BuildDetailedErrorMessage(ex),
                 Attempts = attempts,
                 LastAttemptUtc = DateTime.UtcNow,
                 FirstAttemptUtc = eventData.OccurredAt,
@@ -460,6 +466,95 @@ public class OrderDispatchDistributedEventHandler
         }
     }
 
+    private static string BuildErrorCode(Exception ex)
+    {
+        if (ex is FoodicsApiException foodicsEx)
+        {
+            return $"{nameof(FoodicsApiException)}:{(int)foodicsEx.StatusCode}";
+        }
+
+        return ex.GetType().Name;
+    }
+
+    private static string BuildDetailedErrorMessage(Exception ex)
+    {
+        if (ex is not FoodicsApiException foodicsEx)
+        {
+            return ex.Message;
+        }
+
+        if (string.IsNullOrWhiteSpace(foodicsEx.ResponseBody))
+        {
+            return ex.Message;
+        }
+
+        var parsed = ParseFoodicsErrorBody(foodicsEx.ResponseBody);
+        if (string.IsNullOrWhiteSpace(parsed))
+        {
+            return $"{ex.Message}{Environment.NewLine}Foodics response: {foodicsEx.ResponseBody}";
+        }
+
+        return $"{ex.Message}{Environment.NewLine}{parsed}";
+    }
+
+    private static string? ParseFoodicsErrorBody(string responseBody)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(responseBody);
+            var root = doc.RootElement;
+            var lines = new List<string>();
+
+            if (root.TryGetProperty("message", out var messageElement) && messageElement.ValueKind == JsonValueKind.String)
+            {
+                var message = messageElement.GetString();
+                if (!string.IsNullOrWhiteSpace(message))
+                {
+                    lines.Add(message);
+                }
+            }
+
+            if (root.TryGetProperty("errors", out var errorsElement) && errorsElement.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var error in errorsElement.EnumerateObject())
+                {
+                    if (error.Value.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in error.Value.EnumerateArray())
+                        {
+                            if (item.ValueKind == JsonValueKind.String)
+                            {
+                                var value = item.GetString();
+                                if (!string.IsNullOrWhiteSpace(value))
+                                {
+                                    lines.Add($"{error.Name}: {value}");
+                                }
+                            }
+                        }
+                    }
+                    else if (error.Value.ValueKind == JsonValueKind.String)
+                    {
+                        var value = error.Value.GetString();
+                        if (!string.IsNullOrWhiteSpace(value))
+                        {
+                            lines.Add($"{error.Name}: {value}");
+                        }
+                    }
+                }
+            }
+
+            if (lines.Count == 0)
+            {
+                return null;
+            }
+
+            return "Foodics response:" + Environment.NewLine + string.Join(Environment.NewLine, lines);
+        }
+        catch
+        {
+            return null;
+        }
+    }
     private static bool IsTransientError(Exception ex)
     {
         if (ex is FoodicsApiException apiEx)
