@@ -969,7 +969,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
                         continue;
                     }
 
-                    var toppingId = $"tt-{modifierMapping.TalabatRemoteCode}";
+                    var toppingId = BuildProductScopedToppingId(productMapping.TalabatRemoteCode, modifierMapping.TalabatRemoteCode);
                     
                     // Create topping item if not exists
                     if (!toppingMap.ContainsKey(toppingId))
@@ -1275,7 +1275,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
                     if (string.IsNullOrWhiteSpace(modifier.Id) || modifier.Options == null || modifier.Options.Count == 0)
                         continue;
 
-                    var toppingId = $"tt-{modifier.Id}";
+                    var toppingId = BuildProductScopedToppingId(product.Id, modifier.Id);
                     
                     // Create topping item if not exists
                     if (!toppingMap.ContainsKey(toppingId))
@@ -1833,6 +1833,11 @@ public class FoodicsToTalabatMapper : ITransientDependency
         }
 
         return (toppingItem, optionProducts);
+    }
+
+    private static string BuildProductScopedToppingId(string productKey, string modifierKey)
+    {
+        return $"tt-{productKey}-{modifierKey}";
     }
 
     /// <summary>
