@@ -434,17 +434,21 @@ public class FoodicsToTalabatMapper : ITransientDependency
 
         return modifiers
             .Where(m => m.Options != null && m.Options.Count > 0)
-            .Select((m, idx) => new TalabatModifierGroup
+            .Select((m, idx) =>
             {
-                RemoteCode = m.Id,
-                Name = m.Name ?? $"Modifier-{m.Id}",
-                NameTranslations = BuildNameTranslations(m.NameLocalized),
-                MinSelection = 0, // Foodics doesn't provide this by default
-                MaxSelection = m.Options?.Count ?? 1,
-                SortOrder = idx,
-                Modifiers = m.Options?
-                    .Select((o, oIdx) => MapModifierLegacy(o, oIdx))
-                    .ToList() ?? new List<TalabatModifier>()
+                var (minSelection, maxSelection) = ResolveModifierSelectionBounds(m);
+                return new TalabatModifierGroup
+                {
+                    RemoteCode = m.Id,
+                    Name = m.Name ?? $"Modifier-{m.Id}",
+                    NameTranslations = BuildNameTranslations(m.NameLocalized),
+                    MinSelection = minSelection,
+                    MaxSelection = maxSelection,
+                    SortOrder = idx,
+                    Modifiers = m.Options?
+                        .Select((o, oIdx) => MapModifierLegacy(o, oIdx))
+                        .ToList() ?? new List<TalabatModifier>()
+                };
             })
             .ToList();
     }
@@ -626,13 +630,15 @@ public class FoodicsToTalabatMapper : ITransientDependency
                 continue;
             }
 
+            var (minSelection, maxSelection) = ResolveModifierSelectionBounds(modifier);
+
             var modifierGroup = new TalabatModifierGroup
             {
                 RemoteCode = modifierMapping.TalabatRemoteCode, // Use stable remote code
                 Name = modifier.Name ?? $"Modifier-{modifier.Id}",
                 NameTranslations = BuildNameTranslations(modifier.NameLocalized),
-                MinSelection = 0, // Foodics doesn't provide this by default
-                MaxSelection = modifier.Options.Count,
+                MinSelection = minSelection,
+                MaxSelection = maxSelection,
                 SortOrder = groupSortOrder++,
                 Modifiers = new List<TalabatModifier>()
             };
@@ -1529,6 +1535,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
         Dictionary<string, TalabatV2CatalogItem>? imageMap = null,
         Dictionary<string, TalabatV2CatalogItem>? items = null)
     {
+        var (minimumSelection, maximumSelection) = ResolveModifierSelectionBounds(modifier);
+
         var toppingItem = new TalabatV2CatalogItem
         {
             Id = toppingId,
@@ -1540,10 +1548,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
             },
             Quantity = new TalabatV2Quantity
             {
-                // Use actual MinAllowed/MaxAllowed from Foodics
-                // This is critical for required choices (MinAllowed > 0)
-                Minimum = modifier.MinAllowed ?? 0,
-                Maximum = modifier.MaxAllowed ?? modifier.Options?.Count ?? 1
+                Minimum = minimumSelection,
+                Maximum = maximumSelection
             },
             Products = new Dictionary<string, TalabatV2ItemReference>()
         };
@@ -1729,6 +1735,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
         Dictionary<string, TalabatV2CatalogItem>? imageMap = null,
         Dictionary<string, TalabatV2CatalogItem>? items = null)
     {
+        var (minimumSelection, maximumSelection) = ResolveModifierSelectionBounds(modifier);
+
         var toppingItem = new TalabatV2CatalogItem
         {
             Id = toppingId,
@@ -1740,10 +1748,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
             },
             Quantity = new TalabatV2Quantity
             {
-                // Use actual MinAllowed/MaxAllowed from Foodics
-                // This is critical for required choices (MinAllowed > 0)
-                Minimum = modifier.MinAllowed ?? 0,
-                Maximum = modifier.MaxAllowed ?? modifier.Options?.Count ?? 1
+                Minimum = minimumSelection,
+                Maximum = maximumSelection
             },
             Products = new Dictionary<string, TalabatV2ItemReference>()
         };
@@ -1829,6 +1835,46 @@ public class FoodicsToTalabatMapper : ITransientDependency
         return (toppingItem, optionProducts);
     }
 
+    /// <summary>
+    /// Resolves modifier selection bounds from Foodics min/max while keeping values valid for Talabat.
+    /// Ensures required modifiers remain required when MinAllowed > 0.
+    /// </summary>
+    private (int MinSelection, int MaxSelection) ResolveModifierSelectionBounds(FoodicsModifierDto modifier)
+    {
+        var optionsCount = modifier.Options?.Count ?? 0;
+        var minSelection = modifier.MinAllowed ?? 0;
+        var maxSelection = modifier.MaxAllowed ?? optionsCount;
+
+        if (minSelection < 0)
+        {
+            minSelection = 0;
+        }
+
+        if (maxSelection < 0)
+        {
+            maxSelection = 0;
+        }
+
+        if (maxSelection == 0 && optionsCount > 0 && !modifier.MaxAllowed.HasValue)
+        {
+            maxSelection = optionsCount;
+        }
+
+        if (maxSelection < minSelection)
+        {
+            _logger.LogWarning(
+                "Modifier min/max bounds are inconsistent. ModifierId={ModifierId}, MinAllowed={MinAllowed}, MaxAllowed={MaxAllowed}, OptionsCount={OptionsCount}. Adjusting max to min.",
+                modifier.Id,
+                modifier.MinAllowed,
+                modifier.MaxAllowed,
+                optionsCount);
+
+            maxSelection = minSelection;
+        }
+
+        return (minSelection, maxSelection);
+    }
+
     private TalabatV2CatalogItem? CreateImageItem(string imageId, string imageUrl, string? altText = null)
     {
         var normalizedUrl = NormalizeImageUrl(imageUrl);
@@ -1846,4 +1892,3 @@ public class FoodicsToTalabatMapper : ITransientDependency
         };
     }
 }
-

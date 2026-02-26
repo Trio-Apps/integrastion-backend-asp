@@ -23,8 +23,7 @@ export class TalabatOrderLogsService {
     this.restService.request<any, void>(
       {
         method: 'POST',
-        url: `/api/app/talabat-order-log/retry`,
-        params: { id },
+        url: `/api/app/talabat-order-log/${id}/retry`,
       },
       { apiName: this.apiName, ...config }
     );
