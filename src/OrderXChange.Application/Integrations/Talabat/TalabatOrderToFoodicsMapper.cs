@@ -55,8 +55,6 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         var grandTotal = ParseDecimal(webhook.Price?.GrandTotal);
         var total = totalNet ?? subtotal ?? grandTotal;
         var discountAmount = ParseDecimal(webhook.Price?.DiscountAmountTotal);
-        var paymentMethodId = ResolvePaymentMethodId(webhook);
-        var paymentAmount = ResolvePaymentAmount(webhook, total, subtotal);
 
         var products = MapProducts(webhook.Products, discountType);
 
@@ -81,7 +79,6 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             TaxExclusiveDiscountAmount = null,
             RoundingAmount = 0,
             BranchId = branchId,
-            Payments = BuildPayments(resolvedBusinessDate, paymentMethodId, paymentAmount),
             Products = products,
             DueAt = FormatDueAt(dueAt, businessDateTimeZone),
             Meta = BuildMeta(webhook, vendorCode, businessDateTimeZone, businessDateSource)
