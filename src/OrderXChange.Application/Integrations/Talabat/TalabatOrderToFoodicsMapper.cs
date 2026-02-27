@@ -51,7 +51,9 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             ?? webhook.ExpiryDate;
 
         var subtotal = ParseDecimal(webhook.Price?.SubTotal);
-        var total = ParseDecimal(webhook.Price?.GrandTotal);
+        var totalNet = ParseDecimal(webhook.Price?.TotalNet);
+        var grandTotal = ParseDecimal(webhook.Price?.GrandTotal);
+        var total = totalNet ?? subtotal ?? grandTotal;
         var discountAmount = ParseDecimal(webhook.Price?.DiscountAmountTotal);
         var paymentMethodId = ResolvePaymentMethodId(webhook);
         var paymentAmount = ResolvePaymentAmount(webhook, total, subtotal);
@@ -277,20 +279,20 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
 
     private string? ResolvePaymentMethodId(TalabatOrderWebhook webhook)
     {
-        var talabatCreditPaymentMethodId = _configuration["Foodics:TalabatCreditPaymentMethodId"];
-        if (!string.IsNullOrWhiteSpace(talabatCreditPaymentMethodId))
+        var paymentMethodId = _configuration["Foodics:TalabatCreditPaymentMethodId"];
+        if (!string.IsNullOrWhiteSpace(paymentMethodId))
         {
-            return talabatCreditPaymentMethodId;
+            return paymentMethodId;
         }
 
-        var defaultPaymentMethodId = _configuration["Foodics:OrderPaymentMethodId"];
-        if (!string.IsNullOrWhiteSpace(defaultPaymentMethodId))
+        paymentMethodId = _configuration["Foodics:OrderPaymentMethodId"];
+        if (!string.IsNullOrWhiteSpace(paymentMethodId))
         {
-            return defaultPaymentMethodId;
+            return paymentMethodId;
         }
 
-        _logger.LogDebug(
-            "No Foodics payment method configured for Talabat order. OrderCode={OrderCode}, PaymentType={PaymentType}, PaymentRemoteCode={PaymentRemoteCode}",
+        _logger.LogWarning(
+            "Talabat payment method is required but not configured. Configure Foodics:TalabatCreditPaymentMethodId. OrderCode={OrderCode}, PaymentType={PaymentType}, PaymentRemoteCode={PaymentRemoteCode}",
             webhook.Code,
             webhook.Payment?.Type,
             webhook.Payment?.RemoteCode);
@@ -300,12 +302,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
 
     private static decimal? ResolvePaymentAmount(TalabatOrderWebhook webhook, decimal? total, decimal? subtotal)
     {
-        var collectFromCustomer = ParseDecimal(webhook.Price?.CollectFromCustomer);
-        if (collectFromCustomer.HasValue && collectFromCustomer.Value > 0m)
-        {
-            return collectFromCustomer;
-        }
-
+        // Keep payment amount aligned with sent order totals to avoid Foodics validation mismatch.
         if (total.HasValue && total.Value > 0m)
         {
             return total;
@@ -314,6 +311,12 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         if (subtotal.HasValue && subtotal.Value > 0m)
         {
             return subtotal;
+        }
+
+        var collectFromCustomer = ParseDecimal(webhook.Price?.CollectFromCustomer);
+        if (collectFromCustomer.HasValue && collectFromCustomer.Value > 0m)
+        {
+            return collectFromCustomer;
         }
 
         return null;
