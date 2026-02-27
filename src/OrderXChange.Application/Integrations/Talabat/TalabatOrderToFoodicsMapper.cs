@@ -53,6 +53,8 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         var subtotal = ParseDecimal(webhook.Price?.SubTotal);
         var total = ParseDecimal(webhook.Price?.GrandTotal);
         var discountAmount = ParseDecimal(webhook.Price?.DiscountAmountTotal);
+        var paymentMethodId = ResolvePaymentMethodId(webhook);
+        var paymentAmount = ResolvePaymentAmount(webhook, total, subtotal);
 
         var products = MapProducts(webhook.Products, discountType);
 
@@ -77,6 +79,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             TaxExclusiveDiscountAmount = null,
             RoundingAmount = 0,
             BranchId = branchId,
+            Payments = BuildPayments(resolvedBusinessDate, paymentMethodId, paymentAmount),
             Products = products,
             DueAt = FormatDueAt(dueAt, businessDateTimeZone),
             Meta = BuildMeta(webhook, vendorCode, businessDateTimeZone, businessDateSource)
@@ -246,6 +249,75 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         return result;
     }
 
+    private List<FoodicsOrderPaymentRequest>? BuildPayments(
+        string businessDate,
+        string? paymentMethodId,
+        decimal? paymentAmount)
+    {
+        if (string.IsNullOrWhiteSpace(paymentMethodId))
+        {
+            return null;
+        }
+
+        if (!paymentAmount.HasValue || paymentAmount.Value <= 0m)
+        {
+            return null;
+        }
+
+        return new List<FoodicsOrderPaymentRequest>
+        {
+            new()
+            {
+                BusinessDate = businessDate,
+                PaymentMethodId = paymentMethodId,
+                Amount = paymentAmount
+            }
+        };
+    }
+
+    private string? ResolvePaymentMethodId(TalabatOrderWebhook webhook)
+    {
+        var talabatCreditPaymentMethodId = _configuration["Foodics:TalabatCreditPaymentMethodId"];
+        if (!string.IsNullOrWhiteSpace(talabatCreditPaymentMethodId))
+        {
+            return talabatCreditPaymentMethodId;
+        }
+
+        var defaultPaymentMethodId = _configuration["Foodics:OrderPaymentMethodId"];
+        if (!string.IsNullOrWhiteSpace(defaultPaymentMethodId))
+        {
+            return defaultPaymentMethodId;
+        }
+
+        _logger.LogDebug(
+            "No Foodics payment method configured for Talabat order. OrderCode={OrderCode}, PaymentType={PaymentType}, PaymentRemoteCode={PaymentRemoteCode}",
+            webhook.Code,
+            webhook.Payment?.Type,
+            webhook.Payment?.RemoteCode);
+
+        return null;
+    }
+
+    private static decimal? ResolvePaymentAmount(TalabatOrderWebhook webhook, decimal? total, decimal? subtotal)
+    {
+        var collectFromCustomer = ParseDecimal(webhook.Price?.CollectFromCustomer);
+        if (collectFromCustomer.HasValue && collectFromCustomer.Value > 0m)
+        {
+            return collectFromCustomer;
+        }
+
+        if (total.HasValue && total.Value > 0m)
+        {
+            return total;
+        }
+
+        if (subtotal.HasValue && subtotal.Value > 0m)
+        {
+            return subtotal;
+        }
+
+        return null;
+    }
     private static IEnumerable<TalabatOrderTopping> FlattenToppings(IEnumerable<TalabatOrderTopping> toppings)
     {
         foreach (var topping in toppings)
