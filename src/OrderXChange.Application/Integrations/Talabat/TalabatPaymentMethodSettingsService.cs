@@ -9,6 +9,7 @@ using OrderXChange.Settings;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Settings;
+using Volo.Abp.SettingManagement;
 
 namespace OrderXChange.Application.Integrations.Talabat;
 
@@ -138,3 +139,4 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
         return value.Trim();
     }
 }
+
