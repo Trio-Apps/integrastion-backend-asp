@@ -96,6 +96,15 @@ function configureRoutes() {
       requiredPolicy: 'OrderXChange.Dashboard.Tenant',
     },
     {
+      path: '/talabat-payment-methods',
+      name: 'Payment Methods',
+      parentName: '::Menu:Dashboard',
+      iconClass: 'pi pi-credit-card',
+      order: 6,
+      layout: eLayoutType.application,
+      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+    },
+    {
       path: '/talabat-dashboard',
       name: '::Menu:TalabatDashboard',
       parentName: '::Menu:Dashboard',
@@ -115,3 +124,5 @@ function configureRoutes() {
     },
   ]);
 }
+
+

@@ -37,6 +37,7 @@ public class OrderDispatchDistributedEventHandler
     private readonly FoodicsCatalogClient _foodicsCatalogClient;
     private readonly FoodicsBusinessDateResolver _businessDateResolver;
     private readonly FoodicsAccountTokenService _tokenService;
+    private readonly TalabatPaymentMethodSettingsService _talabatPaymentMethodSettingsService;
     private readonly IConfiguration _configuration;
     private readonly IdempotencyService _idempotencyService;
     private readonly ICurrentTenant _currentTenant;
@@ -63,6 +64,7 @@ public class OrderDispatchDistributedEventHandler
         FoodicsCatalogClient foodicsCatalogClient,
         FoodicsBusinessDateResolver businessDateResolver,
         FoodicsAccountTokenService tokenService,
+        TalabatPaymentMethodSettingsService talabatPaymentMethodSettingsService,
         IConfiguration configuration,
         IdempotencyService idempotencyService,
         ICurrentTenant currentTenant,
@@ -77,6 +79,7 @@ public class OrderDispatchDistributedEventHandler
         _foodicsCatalogClient = foodicsCatalogClient;
         _businessDateResolver = businessDateResolver;
         _tokenService = tokenService;
+        _talabatPaymentMethodSettingsService = talabatPaymentMethodSettingsService;
         _configuration = configuration;
         _idempotencyService = idempotencyService;
         _currentTenant = currentTenant;
@@ -207,13 +210,16 @@ public class OrderDispatchDistributedEventHandler
                     businessDate.TimeZone,
                     businessDate.Source);
 
+                var activePaymentMethodId = await _talabatPaymentMethodSettingsService.GetActivePaymentMethodIdAsync();
+
                 var request = _orderMapper.MapToCreateOrder(
                     webhook,
                     account.FoodicsBranchId,
                     account.VendorCode,
                     businessDate.BusinessDate,
                     businessDate.TimeZone,
-                    businessDate.Source);
+                    businessDate.Source,
+                    activePaymentMethodId);
 
                 FoodicsOrderResponseDto? response;
                 try
@@ -603,3 +609,5 @@ public class OrderDispatchDistributedEventHandler
         return false;
     }
 }
+
+

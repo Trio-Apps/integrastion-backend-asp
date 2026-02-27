@@ -42,6 +42,14 @@ export const APP_ROUTES: Routes = [
     },
   },
   {
+    path: 'talabat-payment-methods',
+    loadComponent: () => import('./talabat-payment-methods/talabat-payment-methods.component').then(c => c.TalabatPaymentMethodsComponent),
+    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    data: {
+      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+    },
+  },
+  {
     path: 'categories',
     loadComponent: () => import('./menu-demo/menu-demo.component').then(c => c.MenuDemoComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
@@ -144,3 +152,5 @@ export const APP_ROUTES: Routes = [
     redirectTo: 'dashboard',
   },
 ];
+
+

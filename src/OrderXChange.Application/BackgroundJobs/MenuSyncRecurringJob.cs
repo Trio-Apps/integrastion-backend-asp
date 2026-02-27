@@ -42,6 +42,7 @@ public class MenuSyncRecurringJob : ITransientDependency
     private readonly IDataFilter _dataFilter;
     private readonly IdempotencyService _idempotencyService;
     private readonly IConfiguration _configuration;
+    private readonly TalabatPaymentMethodSettingsService _talabatPaymentMethodSettingsService;
     private readonly ILogger<MenuSyncRecurringJob> _logger;
     
     // ✨ NEW: Menu Versioning Services
@@ -60,6 +61,7 @@ public class MenuSyncRecurringJob : ITransientDependency
         IDataFilter dataFilter,
         IdempotencyService idempotencyService,
         IConfiguration configuration,
+        TalabatPaymentMethodSettingsService talabatPaymentMethodSettingsService,
         ILogger<MenuSyncRecurringJob> logger,
         MenuVersioningService menuVersioningService,
         MenuSyncRunManager syncRunManager)
@@ -75,6 +77,7 @@ public class MenuSyncRecurringJob : ITransientDependency
         _dataFilter = dataFilter;
         _idempotencyService = idempotencyService;
         _configuration = configuration;
+        _talabatPaymentMethodSettingsService = talabatPaymentMethodSettingsService;
         _logger = logger;
         _menuVersioningService = menuVersioningService;
         _syncRunManager = syncRunManager;
@@ -366,6 +369,22 @@ public class MenuSyncRecurringJob : ITransientDependency
                     await _syncRunManager.FailSyncRunAsync(syncRun.Id, "Failed to get access token", ex, cancellationToken: cancellationToken);
                 }
                 throw;
+            }
+
+            try
+            {
+                var paymentMethodCount = await _talabatPaymentMethodSettingsService.PrefetchPaymentMethodsAsync(foodicsAccountId, cancellationToken);
+                _logger.LogInformation(
+                    "Fetched Foodics payment methods during menu sync. FoodicsAccountId={FoodicsAccountId}, Count={Count}",
+                    foodicsAccountId,
+                    paymentMethodCount);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to fetch Foodics payment methods during menu sync. FoodicsAccountId={FoodicsAccountId}",
+                    foodicsAccountId);
             }
 
             // ✨ Update progress: Fetching data
@@ -1002,4 +1021,7 @@ public class MenuSyncRecurringJob : ITransientDependency
         return (configChainCode, configVendorCode);
     }
 }
+
+
+
 

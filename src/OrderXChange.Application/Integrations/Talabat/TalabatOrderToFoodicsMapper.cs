@@ -30,7 +30,8 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         string vendorCode,
         string? businessDate = null,
         string? businessDateTimeZone = null,
-        string? businessDateSource = null)
+        string? businessDateSource = null,
+        string? activePaymentMethodId = null)
     {
         if (webhook.Products == null || webhook.Products.Count == 0)
         {
@@ -55,6 +56,8 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         var grandTotal = ParseDecimal(webhook.Price?.GrandTotal);
         var total = totalNet ?? subtotal ?? grandTotal;
         var discountAmount = ParseDecimal(webhook.Price?.DiscountAmountTotal);
+        var paymentMethodId = ResolvePaymentMethodId(webhook, activePaymentMethodId);
+        var paymentAmount = ResolvePaymentAmount(webhook, total, subtotal);
 
         var products = MapProducts(webhook.Products, discountType);
 
@@ -80,6 +83,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             RoundingAmount = 0,
             BranchId = branchId,
             Products = products,
+            Payments = BuildPayments(resolvedBusinessDate, paymentMethodId, paymentAmount),
             DueAt = FormatDueAt(dueAt, businessDateTimeZone),
             Meta = BuildMeta(webhook, vendorCode, businessDateTimeZone, businessDateSource)
         };
@@ -274,9 +278,17 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         };
     }
 
-    private string? ResolvePaymentMethodId(TalabatOrderWebhook webhook)
+    private string? ResolvePaymentMethodId(TalabatOrderWebhook webhook, string? activePaymentMethodId)
     {
-        var paymentMethodId = _configuration["Foodics:TalabatCreditPaymentMethodId"];
+        var paymentMethodId = string.IsNullOrWhiteSpace(activePaymentMethodId)
+            ? null
+            : activePaymentMethodId.Trim();
+        if (!string.IsNullOrWhiteSpace(paymentMethodId))
+        {
+            return paymentMethodId;
+        }
+
+        paymentMethodId = _configuration["Foodics:TalabatCreditPaymentMethodId"];
         if (!string.IsNullOrWhiteSpace(paymentMethodId))
         {
             return paymentMethodId;
@@ -288,8 +300,8 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             return paymentMethodId;
         }
 
-        _logger.LogWarning(
-            "Talabat payment method is required but not configured. Configure Foodics:TalabatCreditPaymentMethodId. OrderCode={OrderCode}, PaymentType={PaymentType}, PaymentRemoteCode={PaymentRemoteCode}",
+        _logger.LogDebug(
+            "No Foodics payment method configured for Talabat order. OrderCode={OrderCode}, PaymentType={PaymentType}, PaymentRemoteCode={PaymentRemoteCode}",
             webhook.Code,
             webhook.Payment?.Type,
             webhook.Payment?.RemoteCode);
@@ -688,3 +700,5 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         }
     }
 }
+
+
