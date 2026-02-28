@@ -91,6 +91,50 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
         return Normalize(configured);
     }
 
+    public async Task<string?> GetOrderPaymentMethodIdAsync(
+        Guid? foodicsAccountId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var activePaymentMethodId = await GetActivePaymentMethodIdAsync();
+        if (string.IsNullOrWhiteSpace(activePaymentMethodId))
+        {
+            return null;
+        }
+
+        var (accessToken, _) = await ResolveAccessTokenAsync(foodicsAccountId, cancellationToken);
+        var paymentMethods = await _foodicsPaymentMethodClient.GetPaymentMethodsAsync(accessToken, cancellationToken);
+        var activePaymentMethod = paymentMethods.FirstOrDefault(x => x.Id == activePaymentMethodId);
+
+        if (activePaymentMethod == null)
+        {
+            return null;
+        }
+
+        if (activePaymentMethod.Type == 7)
+        {
+            return activePaymentMethod.Id;
+        }
+
+        var apiPaymentMethodCode = BuildApiPaymentMethodCode(activePaymentMethod);
+        var existingApiPaymentMethod = paymentMethods.FirstOrDefault(x =>
+            x.Type == 7 &&
+            string.Equals(x.Code, apiPaymentMethodCode, StringComparison.OrdinalIgnoreCase));
+
+        if (existingApiPaymentMethod != null)
+        {
+            return existingApiPaymentMethod.Id;
+        }
+
+        var createdPaymentMethod = await _foodicsPaymentMethodClient.CreatePaymentMethodAsync(
+            accessToken,
+            BuildApiPaymentMethodName(activePaymentMethod),
+            apiPaymentMethodCode,
+            7,
+            cancellationToken);
+
+        return createdPaymentMethod.Id;
+    }
+
     private async Task<(string AccessToken, string Source)> ResolveAccessTokenAsync(
         Guid? foodicsAccountId,
         CancellationToken cancellationToken)
@@ -127,6 +171,27 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
 
         throw new UserFriendlyException(
             "No Foodics access token is available. Configure a Foodics account token or enable the order test token override.");
+    }
+
+    private static string BuildApiPaymentMethodCode(TalabatPaymentMethodDto paymentMethod)
+    {
+        var normalizedId = new string(paymentMethod.Id.Where(char.IsLetterOrDigit).ToArray());
+        if (normalizedId.Length > 12)
+        {
+            normalizedId = normalizedId[..12];
+        }
+
+        return "ApiPay" + normalizedId;
+    }
+
+    private static string BuildApiPaymentMethodName(TalabatPaymentMethodDto paymentMethod)
+    {
+        if (string.IsNullOrWhiteSpace(paymentMethod.Name))
+        {
+            return "API Payment";
+        }
+
+        return $"API {paymentMethod.Name}";
     }
 
     private static string? Normalize(string? value)

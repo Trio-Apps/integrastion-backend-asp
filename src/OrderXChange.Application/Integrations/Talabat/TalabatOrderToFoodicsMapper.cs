@@ -273,7 +273,9 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             {
                 BusinessDate = businessDate,
                 PaymentMethodId = paymentMethodId,
-                Amount = paymentAmount
+                Amount = paymentAmount,
+                Tendered = paymentAmount,
+                Tips = 0m
             }
         };
     }
@@ -288,20 +290,8 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             return paymentMethodId;
         }
 
-        paymentMethodId = _configuration["Foodics:TalabatCreditPaymentMethodId"];
-        if (!string.IsNullOrWhiteSpace(paymentMethodId))
-        {
-            return paymentMethodId;
-        }
-
-        paymentMethodId = _configuration["Foodics:OrderPaymentMethodId"];
-        if (!string.IsNullOrWhiteSpace(paymentMethodId))
-        {
-            return paymentMethodId;
-        }
-
         _logger.LogDebug(
-            "No Foodics payment method configured for Talabat order. OrderCode={OrderCode}, PaymentType={PaymentType}, PaymentRemoteCode={PaymentRemoteCode}",
+            "No active Foodics payment method selected in dashboard for Talabat order. OrderCode={OrderCode}, PaymentType={PaymentType}, PaymentRemoteCode={PaymentRemoteCode}",
             webhook.Code,
             webhook.Payment?.Type,
             webhook.Payment?.RemoteCode);
@@ -700,5 +690,4 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         }
     }
 }
-
 

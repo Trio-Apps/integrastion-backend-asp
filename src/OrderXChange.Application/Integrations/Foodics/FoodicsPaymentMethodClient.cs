@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -66,18 +67,65 @@ public class FoodicsPaymentMethodClient : ITransientDependency
                 continue;
             }
 
-            result.Add(new TalabatPaymentMethodDto
-            {
-                Id = item.Id,
-                Name = item.Name ?? item.Code ?? item.Id,
-                NameLocalized = item.NameLocalized,
-                Code = item.Code,
-                Type = item.Type,
-                IsActive = item.IsActive
-            });
+            result.Add(MapPaymentMethod(item));
         }
 
         return result;
+    }
+
+    public async Task<TalabatPaymentMethodDto> CreatePaymentMethodAsync(
+        string accessToken,
+        string name,
+        string code,
+        int type,
+        CancellationToken cancellationToken = default)
+    {
+        var payload = JsonSerializer.Serialize(new
+        {
+            name,
+            code,
+            type
+        });
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(new Uri(_baseUrl), "payment_methods"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new FoodicsApiException(
+                response.StatusCode,
+                body,
+                $"Foodics create payment method failed with status {(int)response.StatusCode}.");
+        }
+
+        var result = JsonSerializer.Deserialize<FoodicsSingleEnvelope<FoodicsPaymentMethodItem>>(body, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+
+        if (result?.Data == null || string.IsNullOrWhiteSpace(result.Data.Id))
+        {
+            throw new InvalidOperationException("Foodics create payment method response is missing the created item.");
+        }
+
+        return MapPaymentMethod(result.Data);
+    }
+
+    private static TalabatPaymentMethodDto MapPaymentMethod(FoodicsPaymentMethodItem item)
+    {
+        return new TalabatPaymentMethodDto
+        {
+            Id = item.Id!,
+            Name = item.Name ?? item.Code ?? item.Id!,
+            NameLocalized = item.NameLocalized,
+            Code = item.Code,
+            Type = item.Type,
+            IsActive = item.IsActive
+        };
     }
 
     private sealed class FoodicsPaymentMethodEnvelope
@@ -107,3 +155,4 @@ public class FoodicsPaymentMethodClient : ITransientDependency
         public bool IsActive { get; set; }
     }
 }
+

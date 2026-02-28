@@ -210,7 +210,7 @@ public class OrderDispatchDistributedEventHandler
                     businessDate.TimeZone,
                     businessDate.Source);
 
-                var activePaymentMethodId = await _talabatPaymentMethodSettingsService.GetActivePaymentMethodIdAsync();
+                var activePaymentMethodId = await _talabatPaymentMethodSettingsService.GetOrderPaymentMethodIdAsync(eventData.FoodicsAccountId);
 
                 var request = _orderMapper.MapToCreateOrder(
                     webhook,
@@ -609,5 +609,4 @@ public class OrderDispatchDistributedEventHandler
         return false;
     }
 }
-
 

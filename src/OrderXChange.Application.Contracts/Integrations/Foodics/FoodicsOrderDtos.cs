@@ -123,6 +123,9 @@ public class FoodicsOrderPaymentRequest
     [JsonPropertyName("amount")]
     public decimal? Amount { get; set; }
 
+    [JsonPropertyName("tendered")]
+    public decimal? Tendered { get; set; }
+
     [JsonPropertyName("tips")]
     public decimal? Tips { get; set; }
 
@@ -270,3 +273,4 @@ public class FoodicsOrderResponseDto
     [JsonPropertyName("id")]
     public string? Id { get; set; }
 }
+
