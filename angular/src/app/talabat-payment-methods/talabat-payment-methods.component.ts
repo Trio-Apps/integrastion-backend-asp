@@ -30,7 +30,9 @@ export class TalabatPaymentMethodsComponent implements OnInit {
   readonly loading = signal<boolean>(false);
   readonly savingPaymentMethodId = signal<string | null>(null);
   readonly settings = signal<TalabatPaymentMethodSettingsDto | null>(null);
-  readonly paymentMethods = computed(() => this.settings()?.paymentMethods ?? []);
+  readonly paymentMethods = computed(() =>
+    (this.settings()?.paymentMethods ?? []).filter(method => this.isVisibleMethod(method)),
+  );
 
   ngOnInit(): void {
     this.refresh();
@@ -110,5 +112,21 @@ export class TalabatPaymentMethodsComponent implements OnInit {
 
   isClearing(): boolean {
     return this.savingPaymentMethodId() === '__clear__';
+  }
+
+  private isVisibleMethod(method: TalabatPaymentMethodDto): boolean {
+    if (!method.isActive) {
+      return false;
+    }
+
+    if (this.isGeneratedApiMethod(method)) {
+      return this.isActive(method);
+    }
+
+    return true;
+  }
+
+  private isGeneratedApiMethod(method: TalabatPaymentMethodDto): boolean {
+    return (method.code ?? '').startsWith('ApiPay');
   }
 }
