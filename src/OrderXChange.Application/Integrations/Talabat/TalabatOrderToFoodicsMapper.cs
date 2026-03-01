@@ -59,9 +59,9 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             ParseDecimal(webhook.Price?.DiscountAmountTotal),
             webhook.Discounts);
         var paymentMethodId = ResolvePaymentMethodId(webhook, activePaymentMethodId);
-        var paymentAmount = ResolvePaymentAmount(webhook, total, subtotal);
 
         var products = MapProducts(webhook.Products, discountType);
+        var paymentAmount = ResolvePaymentAmount(webhook, products, discountAmount, total, subtotal);
 
         if (products.Count == 0)
         {
@@ -303,9 +303,31 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         return null;
     }
 
-    private static decimal? ResolvePaymentAmount(TalabatOrderWebhook webhook, decimal? total, decimal? subtotal)
+    private static decimal? ResolvePaymentAmount(
+        TalabatOrderWebhook webhook,
+        IReadOnlyCollection<FoodicsOrderProductRequest> products,
+        decimal? orderDiscountAmount,
+        decimal? total,
+        decimal? subtotal)
     {
-        // Keep payment amount aligned with sent order totals to avoid Foodics validation mismatch.
+        var explicitTotal = ResolveExplicitPaymentAmount(webhook, total, subtotal);
+        var mappedNetTotal = CalculateMappedNetTotal(products, orderDiscountAmount);
+
+        if (mappedNetTotal.HasValue && explicitTotal.HasValue)
+        {
+            return Math.Min(mappedNetTotal.Value, explicitTotal.Value);
+        }
+
+        if (mappedNetTotal.HasValue)
+        {
+            return mappedNetTotal;
+        }
+
+        return explicitTotal;
+    }
+
+    private static decimal? ResolveExplicitPaymentAmount(TalabatOrderWebhook webhook, decimal? total, decimal? subtotal)
+    {
         if (total.HasValue && total.Value > 0m)
         {
             return total;
@@ -323,6 +345,56 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         }
 
         return null;
+    }
+
+    private static decimal? CalculateMappedNetTotal(
+        IReadOnlyCollection<FoodicsOrderProductRequest> products,
+        decimal? orderDiscountAmount)
+    {
+        if (products == null || products.Count == 0)
+        {
+            return null;
+        }
+
+        decimal grossTotal = 0m;
+        decimal lineDiscountTotal = 0m;
+        var hasAnyAmount = false;
+
+        foreach (var product in products)
+        {
+            if (product.TotalPrice.HasValue)
+            {
+                grossTotal += product.TotalPrice.Value;
+                hasAnyAmount = true;
+            }
+
+            if (product.Options != null)
+            {
+                foreach (var option in product.Options)
+                {
+                    if (!option.TotalPrice.HasValue)
+                    {
+                        continue;
+                    }
+
+                    grossTotal += option.TotalPrice.Value;
+                    hasAnyAmount = true;
+                }
+            }
+
+            if (product.DiscountAmount.HasValue)
+            {
+                lineDiscountTotal += product.DiscountAmount.Value;
+            }
+        }
+
+        if (!hasAnyAmount)
+        {
+            return null;
+        }
+
+        var netTotal = grossTotal - lineDiscountTotal - (orderDiscountAmount ?? 0m);
+        return netTotal > 0m ? netTotal : 0m;
     }
 
     private static decimal? ResolveDiscountAmount(decimal? directAmount, List<TalabatOrderDiscount>? discounts)
@@ -739,5 +811,6 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         }
     }
 }
+
 
 
