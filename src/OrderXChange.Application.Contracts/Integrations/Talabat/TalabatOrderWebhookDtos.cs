@@ -154,6 +154,7 @@ public class TalabatOrderProduct
 	public string? Comment { get; set; }
 	public string? Description { get; set; }
 	public string? DiscountAmount { get; set; }
+	public List<TalabatOrderDiscount>? Discounts { get; set; }
 	public bool? HalfHalf { get; set; }
 	public string? Id { get; set; }
 	public List<TalabatOrderChoice>? SelectedChoices { get; set; }
@@ -196,3 +197,4 @@ public class TalabatOrderCallbackUrls
 	public string? OrderPickedUpUrl { get; set; }
 	public string? OrderPreparedUrl { get; set; }
 }
+

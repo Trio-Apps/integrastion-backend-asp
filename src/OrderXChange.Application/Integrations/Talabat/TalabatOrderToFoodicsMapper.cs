@@ -55,7 +55,9 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         var totalNet = ParseDecimal(webhook.Price?.TotalNet);
         var grandTotal = ParseDecimal(webhook.Price?.GrandTotal);
         var total = totalNet ?? subtotal ?? grandTotal;
-        var discountAmount = ParseDecimal(webhook.Price?.DiscountAmountTotal);
+        var discountAmount = ResolveDiscountAmount(
+            ParseDecimal(webhook.Price?.DiscountAmountTotal),
+            webhook.Discounts);
         var paymentMethodId = ResolvePaymentMethodId(webhook, activePaymentMethodId);
         var paymentAmount = ResolvePaymentAmount(webhook, total, subtotal);
 
@@ -117,7 +119,9 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             var quantity = ParseInt(product.Quantity, 1);
             var unitPrice = ParseDecimal(product.PaidPrice) ?? ParseDecimal(product.UnitPrice) ?? 0m;
             var totalPrice = unitPrice * quantity;
-            var discountAmount = ParseDecimal(product.DiscountAmount);
+            var discountAmount = ResolveDiscountAmount(
+                ParseDecimal(product.DiscountAmount),
+                product.Discounts);
 
             var options = MapOptions(product.SelectedToppings, product.SelectedChoices);
             var lineKey = GetProductLineKey(product);
@@ -320,6 +324,50 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
 
         return null;
     }
+
+    private static decimal? ResolveDiscountAmount(decimal? directAmount, List<TalabatOrderDiscount>? discounts)
+    {
+        if (directAmount.HasValue && directAmount.Value > 0m)
+        {
+            return directAmount;
+        }
+
+        var aggregatedDiscount = SumDiscountAmounts(discounts);
+        if (aggregatedDiscount.HasValue && aggregatedDiscount.Value > 0m)
+        {
+            return aggregatedDiscount;
+        }
+
+        return null;
+    }
+
+    private static decimal? SumDiscountAmounts(List<TalabatOrderDiscount>? discounts)
+    {
+        if (discounts == null || discounts.Count == 0)
+        {
+            return null;
+        }
+
+        decimal total = 0m;
+        var hasAnyValue = false;
+
+        foreach (var discount in discounts)
+        {
+            var amount = ParseDecimal(discount.Amount);
+            if (!amount.HasValue)
+            {
+                continue;
+            }
+
+            total += Math.Abs(amount.Value);
+            hasAnyValue = true;
+        }
+
+        return hasAnyValue && total > 0m
+            ? total
+            : null;
+    }
+
     private static IEnumerable<TalabatOrderTopping> FlattenToppings(IEnumerable<TalabatOrderTopping> toppings)
     {
         foreach (var topping in toppings)
@@ -691,4 +739,5 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         }
     }
 }
+
 
