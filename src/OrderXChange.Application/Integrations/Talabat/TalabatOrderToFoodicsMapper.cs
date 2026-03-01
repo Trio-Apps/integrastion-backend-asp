@@ -355,7 +355,8 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             ["platform_restaurant_id"] = webhook.PlatformRestaurant?.Id,
             ["test_order"] = webhook.Test,
             ["business_date_timezone"] = businessDateTimeZone,
-            ["business_date_source"] = businessDateSource
+            ["business_date_source"] = businessDateSource,
+            ["external_order_source"] = "foodics_kiosk"
         };
 
         if (webhook.Customer != null)
