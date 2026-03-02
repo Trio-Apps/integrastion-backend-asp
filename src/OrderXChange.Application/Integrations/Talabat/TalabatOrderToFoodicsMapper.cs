@@ -55,13 +55,14 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         var totalNet = ParseDecimal(webhook.Price?.TotalNet);
         var grandTotal = ParseDecimal(webhook.Price?.GrandTotal);
         var total = totalNet ?? subtotal ?? grandTotal;
-        var discountAmount = ResolveDiscountAmount(
+        var reportedOrderDiscountAmount = ResolveDiscountAmount(
             ParseDecimal(webhook.Price?.DiscountAmountTotal),
             webhook.Discounts);
+        var reportedItemDiscountAmount = CalculateTalabatItemDiscountAmount(webhook.Products);
         var paymentMethodId = ResolvePaymentMethodId(webhook, activePaymentMethodId);
 
         var products = MapProducts(webhook.Products, discountType);
-        var paymentAmount = ResolvePaymentAmount(webhook, products, discountAmount, total, subtotal);
+        var paymentAmount = ResolvePaymentAmount(webhook, products, null, total, subtotal);
 
         if (products.Count == 0)
         {
@@ -79,7 +80,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             BusinessDate = resolvedBusinessDate,
             CreatedAt = FormatCreatedAt(createdAt, businessDateTimeZone),
             SubtotalPrice = subtotal,
-            DiscountAmount = discountAmount,
+            DiscountAmount = null,
             TotalPrice = total,
             TaxExclusiveDiscountAmount = null,
             RoundingAmount = 0,
@@ -87,7 +88,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             Products = products,
             Payments = BuildPayments(resolvedBusinessDate, paymentMethodId, paymentAmount),
             DueAt = FormatDueAt(dueAt, businessDateTimeZone),
-            Meta = BuildMeta(webhook, vendorCode, businessDateTimeZone, businessDateSource)
+            Meta = BuildMeta(webhook, vendorCode, businessDateTimeZone, businessDateSource, reportedOrderDiscountAmount, reportedItemDiscountAmount)
         };
 
         return request;
@@ -119,9 +120,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             var quantity = ParseInt(product.Quantity, 1);
             var unitPrice = ParseDecimal(product.PaidPrice) ?? ParseDecimal(product.UnitPrice) ?? 0m;
             var totalPrice = unitPrice * quantity;
-            var discountAmount = ResolveDiscountAmount(
-                ParseDecimal(product.DiscountAmount),
-                product.Discounts);
+            var discountAmount = (decimal?)null;
 
             var options = MapOptions(product.SelectedToppings, product.SelectedChoices);
             var lineKey = GetProductLineKey(product);
@@ -171,7 +170,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
                 Quantity = quantity,
                 UnitPrice = unitPrice,
                 TotalPrice = totalPrice,
-                DiscountAmount = discountAmount,
+                DiscountAmount = null,
                 DiscountType = discountAmount.HasValue ? discountType : null,
                 KitchenNotes = product.Comment,
                 Options = options.Count == 0 ? null : options
@@ -440,6 +439,36 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             : null;
     }
 
+    private static decimal? CalculateTalabatItemDiscountAmount(IEnumerable<TalabatOrderProduct>? products)
+    {
+        if (products == null)
+        {
+            return null;
+        }
+
+        decimal total = 0m;
+        var hasAnyValue = false;
+
+        foreach (var product in products)
+        {
+            var lineDiscount = ResolveDiscountAmount(
+                ParseDecimal(product.DiscountAmount),
+                product.Discounts);
+
+            if (!lineDiscount.HasValue || lineDiscount.Value <= 0m)
+            {
+                continue;
+            }
+
+            total += lineDiscount.Value;
+            hasAnyValue = true;
+        }
+
+        return hasAnyValue && total > 0m
+            ? total
+            : null;
+    }
+
     private static IEnumerable<TalabatOrderTopping> FlattenToppings(IEnumerable<TalabatOrderTopping> toppings)
     {
         foreach (var topping in toppings)
@@ -462,7 +491,9 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         TalabatOrderWebhook webhook,
         string vendorCode,
         string? businessDateTimeZone,
-        string? businessDateSource)
+        string? businessDateSource,
+        decimal? reportedOrderDiscountAmount,
+        decimal? reportedItemDiscountAmount)
     {
         var meta = new Dictionary<string, object?>
         {
@@ -478,6 +509,16 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             ["business_date_source"] = businessDateSource,
             ["external_order_source"] = "foodics_kiosk"
         };
+
+        if (reportedOrderDiscountAmount.HasValue && reportedOrderDiscountAmount.Value > 0m)
+        {
+            meta["talabat_order_discount_amount"] = reportedOrderDiscountAmount;
+        }
+
+        if (reportedItemDiscountAmount.HasValue && reportedItemDiscountAmount.Value > 0m)
+        {
+            meta["talabat_item_discount_amount"] = reportedItemDiscountAmount;
+        }
 
         if (webhook.Customer != null)
         {
@@ -811,6 +852,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         }
     }
 }
+
 
 
 
