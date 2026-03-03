@@ -571,13 +571,14 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
             includeInactive: false,
             cancellationToken: CancellationToken.None);
         
-        // Extract unique ACTIVE branches from products
+        // Foodics returns branch availability for product listings in pivot.is_active.
+        // The top-level branch is_active is often null in this endpoint, so do not filter on it.
         var branches = allProducts.Values
             .Where(p => p.Branches != null && p.Branches.Count > 0)
             .SelectMany(p => p.Branches!)
             .GroupBy(b => b.Id)
             .Select(g => g.First())
-            .Where(b => !string.IsNullOrEmpty(b.Id) && b.IsActive == true) // Only active branches
+            .Where(b => !string.IsNullOrEmpty(b.Id) && b.Pivot?.IsActive != false)
             .OrderBy(b => b.Name)
             .ToList();
         
