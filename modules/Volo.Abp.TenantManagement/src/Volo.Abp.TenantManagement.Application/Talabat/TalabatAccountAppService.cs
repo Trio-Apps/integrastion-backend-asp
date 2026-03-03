@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using OrderXChange.BackgroundJobs;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.Data;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.TenantManagement;
@@ -26,17 +27,20 @@ namespace Volo.Abp.TenantManagement.Talabat
         private readonly IRepository<TalabatAccount> _talabatAccountRepository;
         private readonly IRepository<FoodicsAccount, Guid> _foodicsAccountRepository;
         private readonly IMenuSyncAppService _menuSyncAppService;
+        private readonly IDataFilter _dataFilter;
 
         public TalabatAccountAppService(
             ITenantRepository tenantRepository,
             IRepository<TalabatAccount> talabatAccountRepository,
             IRepository<FoodicsAccount, Guid> foodicsAccountRepository,
-            IMenuSyncAppService menuSyncAppService)
+            IMenuSyncAppService menuSyncAppService,
+            IDataFilter dataFilter)
         {
             _tenantRepository = tenantRepository;
             _talabatAccountRepository = talabatAccountRepository;
             _foodicsAccountRepository = foodicsAccountRepository;
             _menuSyncAppService = menuSyncAppService;
+            _dataFilter = dataFilter;
         }
 
         public async Task<TalabatAccountDto> CreateAsync(CreateUpdateTalabatAccountDto input)
@@ -56,50 +60,45 @@ namespace Volo.Abp.TenantManagement.Talabat
                 throw new UserFriendlyException("PlatformRestaurantId is required.");
             }
 
-            // Enforce VendorCode uniqueness per tenant
-            var vendorCodeLower = vendorCode.ToLowerInvariant();
-            var exists = await _talabatAccountRepository.AnyAsync(x =>
-                x.VendorCode != null && x.VendorCode.ToLower() == vendorCodeLower);
-            if (exists)
-            {
-                throw new UserFriendlyException($"VendorCode '{vendorCode}' already exists.");
-            }
-
             await ValidateFoodicsAccountLinkAsync(input.FoodicsAccountId);
 
             // Validate branch configuration
             ValidateBranchConfiguration(input);
 
-            // ✅ Create TalabatAccount with TenantId
+            // Enforce VendorCode uniqueness per tenant, including soft-deleted rows.
+            var vendorCodeLower = vendorCode.ToLowerInvariant();
+            var existingAccount = await FindAccountByVendorCodeAsync(vendorCodeLower);
+            if (existingAccount != null)
+            {
+                if (!existingAccount.IsDeleted)
+                {
+                    throw new UserFriendlyException($"VendorCode '{vendorCode}' already exists.");
+                }
+
+                ApplyAccountChanges(existingAccount, input, vendorCode, platformRestaurantId);
+                existingAccount.IsDeleted = false;
+                existingAccount.DeleterId = null;
+                existingAccount.DeletionTime = null;
+
+                await _talabatAccountRepository.UpdateAsync(existingAccount, autoSave: true);
+                await TriggerMenuSyncIfLinkedAsync(existingAccount.FoodicsAccountId);
+
+                return await MapToDto(existingAccount);
+            }
+
+            // Create TalabatAccount with TenantId
             var talabatAccount = new TalabatAccount
             {
-                Name = input.Name,
-                VendorCode = vendorCode,
-                ChainCode = input.ChainCode,
-                ApiKey = input.ApiKey,
-                ApiSecret = input.ApiSecret,
-                IsActive = input.IsActive,
-                UserName = input.UserName,
-                Password = input.Password,
-                PlatformKey = input.PlatformKey,
-                PlatformRestaurantId = platformRestaurantId,
-                FoodicsAccountId = input.FoodicsAccountId,
-                FoodicsBranchId = input.SyncAllBranches ? null : input.FoodicsBranchId,
-                FoodicsBranchName = input.SyncAllBranches ? null : input.FoodicsBranchName,
-                SyncAllBranches = input.SyncAllBranches,
-                FoodicsGroupId = input.FoodicsGroupId,
-                FoodicsGroupName = input.FoodicsGroupName,
-                TenantId = CurrentTenant.Id.Value  // ✅ Important: Set TenantId explicitly
+                TenantId = CurrentTenant.Id.Value
             };
+            ApplyAccountChanges(talabatAccount, input, vendorCode, platformRestaurantId);
 
             EntityHelper.TrySetId(talabatAccount, GuidGenerator.Create, true);
 
-            // ✅ Fixed: Insert directly using repository - more reliable than Tenant collection
             await _talabatAccountRepository.InsertAsync(talabatAccount, autoSave: true);
 
             await TriggerMenuSyncIfLinkedAsync(talabatAccount.FoodicsAccountId);
 
-            // ✅ Return the saved entity - no need to reload from database
             return await MapToDto(talabatAccount);
         }
 
@@ -128,40 +127,19 @@ namespace Volo.Abp.TenantManagement.Talabat
 
             // Enforce VendorCode uniqueness per tenant (excluding current entity)
             var vendorCodeLower = vendorCode.ToLowerInvariant();
-            var exists = await _talabatAccountRepository.AnyAsync(x =>
-                x.Id != id &&
-                x.VendorCode != null &&
-                x.VendorCode.ToLower() == vendorCodeLower);
-            if (exists)
+            var existingAccount = await FindAccountByVendorCodeAsync(vendorCodeLower, id);
+            if (existingAccount != null)
             {
+                if (existingAccount.IsDeleted)
+                {
+                    throw new UserFriendlyException(
+                        $"VendorCode '{vendorCode}' is already used by a deleted Talabat account. Delete it permanently or choose a different VendorCode.");
+                }
+
                 throw new UserFriendlyException($"VendorCode '{vendorCode}' already exists.");
             }
-            
-            talabatAccount.Name = input.Name;
-            talabatAccount.VendorCode = vendorCode;
-            talabatAccount.ChainCode = input.ChainCode;
-            if (input.ApiKey != null)
-            {
-                talabatAccount.ApiKey = input.ApiKey;
-            }
-            if (input.ApiSecret != null)
-            {
-                talabatAccount.ApiSecret = input.ApiSecret;
-            }
-            talabatAccount.IsActive = input.IsActive;
-            talabatAccount.UserName = input.UserName;
-            if (!string.IsNullOrWhiteSpace(input.Password))
-            {
-                talabatAccount.Password = input.Password;
-            }
-            talabatAccount.PlatformKey = input.PlatformKey;
-            talabatAccount.PlatformRestaurantId = platformRestaurantId;
-            talabatAccount.FoodicsAccountId = input.FoodicsAccountId;
-            talabatAccount.FoodicsBranchId = input.SyncAllBranches ? null : input.FoodicsBranchId;
-            talabatAccount.FoodicsBranchName = input.SyncAllBranches ? null : input.FoodicsBranchName;
-            talabatAccount.SyncAllBranches = input.SyncAllBranches;
-            talabatAccount.FoodicsGroupId = input.FoodicsGroupId;
-            talabatAccount.FoodicsGroupName = input.FoodicsGroupName;
+
+            ApplyAccountChanges(talabatAccount, input, vendorCode, platformRestaurantId);
 
             await _talabatAccountRepository.UpdateAsync(talabatAccount, autoSave: true);
 
@@ -187,6 +165,50 @@ namespace Volo.Abp.TenantManagement.Talabat
             {
                 throw new UserFriendlyException("FoodicsAccount does not belong to the current tenant.");
             }
+        }
+
+        private async Task<TalabatAccount?> FindAccountByVendorCodeAsync(string vendorCodeLower, Guid? excludeId = null)
+        {
+            using (_dataFilter.Disable<ISoftDelete>())
+            {
+                return await _talabatAccountRepository.FirstOrDefaultAsync(x =>
+                    x.VendorCode != null &&
+                    x.VendorCode.ToLower() == vendorCodeLower &&
+                    (!excludeId.HasValue || x.Id != excludeId.Value));
+            }
+        }
+
+        private static void ApplyAccountChanges(
+            TalabatAccount talabatAccount,
+            CreateUpdateTalabatAccountDto input,
+            string vendorCode,
+            string platformRestaurantId)
+        {
+            talabatAccount.Name = input.Name;
+            talabatAccount.VendorCode = vendorCode;
+            talabatAccount.ChainCode = input.ChainCode;
+            if (input.ApiKey != null)
+            {
+                talabatAccount.ApiKey = input.ApiKey;
+            }
+            if (input.ApiSecret != null)
+            {
+                talabatAccount.ApiSecret = input.ApiSecret;
+            }
+            talabatAccount.IsActive = input.IsActive;
+            talabatAccount.UserName = input.UserName;
+            if (!string.IsNullOrWhiteSpace(input.Password))
+            {
+                talabatAccount.Password = input.Password;
+            }
+            talabatAccount.PlatformKey = input.PlatformKey;
+            talabatAccount.PlatformRestaurantId = platformRestaurantId;
+            talabatAccount.FoodicsAccountId = input.FoodicsAccountId;
+            talabatAccount.FoodicsBranchId = input.SyncAllBranches ? null : input.FoodicsBranchId;
+            talabatAccount.FoodicsBranchName = input.SyncAllBranches ? null : input.FoodicsBranchName;
+            talabatAccount.SyncAllBranches = input.SyncAllBranches;
+            talabatAccount.FoodicsGroupId = input.FoodicsGroupId;
+            talabatAccount.FoodicsGroupName = input.FoodicsGroupName;
         }
 
         /// <summary>
@@ -290,4 +312,3 @@ namespace Volo.Abp.TenantManagement.Talabat
         }
     }
 }
-
