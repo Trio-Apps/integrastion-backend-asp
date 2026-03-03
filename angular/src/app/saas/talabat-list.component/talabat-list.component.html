@@ -279,6 +279,36 @@
         </p-select>
       </div>
 
+      <!-- Link to Foodics Branch (depends on Foodics Account selection) -->
+      <div class="field dialog-field" *ngIf="accountForm.get('foodicsAccountId')?.value">
+        <label for="foodicsBranchId" class="field-label">
+          <i class="pi pi-sitemap me-1"></i>Foodics Branch
+        </label>
+        <p-select
+          id="foodicsBranchId"
+          formControlName="foodicsBranchId"
+          [options]="foodicsBranches"
+          optionLabel="name"
+          optionValue="id"
+          placeholder="Select branch (leave empty for all branches)"
+          [showClear]="true"
+          [disabled]="branchesLoading"
+          class="w-full"
+          styleClass="w-full"
+          (onChange)="onFoodicsBranchChange($event.value)">
+          <ng-template let-branch pTemplate="item">
+            <div class="flex items-center justify-between w-full">
+              <div class="flex items-center gap-2">
+                <i class="pi pi-map-marker text-primary"></i>
+                <span>{{ branch.name || branch.name_localized || branch.id }}</span>
+              </div>
+              <span class="text-surface-500 text-sm" *ngIf="branch.is_active">Active</span>
+            </div>
+          </ng-template>
+        </p-select>
+        <small class="field-help">Select a branch to sync branch-specific availability. Clear it to sync all branches.</small>
+      </div>
+
       <!-- Link to Foodics Group (depends on Foodics Account selection) -->
       <div class="field dialog-field" *ngIf="accountForm.get('foodicsAccountId')?.value">
         <label for="foodicsGroupId" class="field-label">

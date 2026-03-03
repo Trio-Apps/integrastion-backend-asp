@@ -25,6 +25,7 @@ import { FoodicsService } from '../../proxy/foodics/foodics.service';
 import { FoodicsAccountDto } from '../../proxy/foodics/models';
 import { MenuSyncService } from '../../proxy/background-jobs/menu-sync.service';
 import { FoodicsGroupWithProductCountDto } from '../../proxy/background-jobs/models';
+import { FoodicsBranchDto } from '../../proxy/application/integrations/foodics/models';
 import { LocalizationModule, LocalizationService } from '@abp/ng.core';
 
 /**
@@ -75,7 +76,9 @@ export class TalabatListComponent implements OnInit {
   // Table data
   accounts: TalabatAccountDto[] = [];
   foodicsAccounts: FoodicsAccountDto[] = [];
+  foodicsBranches: FoodicsBranchDto[] = [];
   foodicsGroups: FoodicsGroupWithProductCountDto[] = [];
+  branchesLoading: boolean = false;
   groupsLoading: boolean = false;
   totalRecords: number = 0;
   loading: boolean = false;
@@ -123,20 +126,50 @@ export class TalabatListComponent implements OnInit {
       platformKey: ['TB', [Validators.maxLength(50)]],
       platformRestaurantId: ['', [Validators.required, Validators.maxLength(100)]],
       foodicsAccountId: [null],
+      foodicsBranchId: [null],
+      foodicsBranchName: [null],
       foodicsGroupId: [null],
       foodicsGroupName: [null]
     });
 
-    // When Foodics account changes: load its groups and reset selection
+    // When Foodics account changes: load its branches/groups and reset selection
     this.accountForm.get('foodicsAccountId')?.valueChanges.subscribe((foodicsAccountId: string | null) => {
+      this.foodicsBranches = [];
       this.foodicsGroups = [];
-      this.accountForm.patchValue({ foodicsGroupId: null, foodicsGroupName: null }, { emitEvent: false });
+      this.accountForm.patchValue({
+        foodicsBranchId: null,
+        foodicsBranchName: null,
+        foodicsGroupId: null,
+        foodicsGroupName: null
+      }, { emitEvent: false });
 
       if (!foodicsAccountId) {
         return;
       }
 
+      this.loadFoodicsBranches(foodicsAccountId);
       this.loadFoodicsGroups(foodicsAccountId);
+    });
+  }
+
+  loadFoodicsBranches(foodicsAccountId: string): void {
+    this.branchesLoading = true;
+
+    this.menuSyncService.getBranchesForAccount(foodicsAccountId).subscribe({
+      next: (branches) => {
+        this.foodicsBranches = branches || [];
+        this.branchesLoading = false;
+      },
+      error: (error) => {
+        console.error('Error loading Foodics branches:', error);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'Failed to load Foodics branches'
+        });
+        this.foodicsBranches = [];
+        this.branchesLoading = false;
+      }
     });
   }
 
@@ -170,6 +203,17 @@ export class TalabatListComponent implements OnInit {
     const selected = this.foodicsGroups.find(g => (g.id || '').toLowerCase() === groupId.toLowerCase());
     const name = selected?.name || selected?.nameLocalized || groupId;
     this.accountForm.patchValue({ foodicsGroupId: groupId, foodicsGroupName: name }, { emitEvent: false });
+  }
+
+  onFoodicsBranchChange(branchId: string | null): void {
+    if (!branchId) {
+      this.accountForm.patchValue({ foodicsBranchId: null, foodicsBranchName: null }, { emitEvent: false });
+      return;
+    }
+
+    const selected = this.foodicsBranches.find(b => (b.id || '').toLowerCase() === branchId.toLowerCase());
+    const name = selected?.name || selected?.name_localized || branchId;
+    this.accountForm.patchValue({ foodicsBranchId: branchId, foodicsBranchName: name }, { emitEvent: false });
   }
 
   /**
@@ -235,11 +279,14 @@ export class TalabatListComponent implements OnInit {
   createAccount(): void {
     this.isEditMode = false;
     this.selectedAccountId = undefined;
+    this.foodicsBranches = [];
     this.foodicsGroups = [];
     this.accountForm.reset({
       isActive: true,
       platformKey: 'TB',
       chainCode: 'tlbt-pick',
+      foodicsBranchId: null,
+      foodicsBranchName: null,
       foodicsGroupId: null,
       foodicsGroupName: null
     });
@@ -262,14 +309,18 @@ export class TalabatListComponent implements OnInit {
       platformKey: account.platformKey || 'TB',
       platformRestaurantId: account.platformRestaurantId,
       foodicsAccountId: account.foodicsAccountId,
+      foodicsBranchId: account.foodicsBranchId ?? null,
+      foodicsBranchName: account.foodicsBranchName ?? null,
       foodicsGroupId: account.foodicsGroupId ?? null,
       foodicsGroupName: account.foodicsGroupName ?? null
     });
 
-    // Load groups for the selected Foodics account (so the dropdown is populated in edit mode)
+    // Load branches and groups for the selected Foodics account (so dropdowns are populated in edit mode)
     if (account.foodicsAccountId) {
+      this.loadFoodicsBranches(account.foodicsAccountId);
       this.loadFoodicsGroups(account.foodicsAccountId);
     } else {
+      this.foodicsBranches = [];
       this.foodicsGroups = [];
     }
 
@@ -288,6 +339,9 @@ export class TalabatListComponent implements OnInit {
     this.submitting = true;
     const formValue = this.accountForm.value;
     const password = (formValue.password || '').trim();
+    const selectedBranchId = formValue.foodicsBranchId || undefined;
+    const selectedBranch = this.foodicsBranches.find(b => (b.id || '').toLowerCase() === (selectedBranchId || '').toLowerCase());
+    const selectedBranchName = selectedBranch?.name || selectedBranch?.name_localized || formValue.foodicsBranchName || undefined;
     const dto: CreateUpdateTalabatAccountDto = {
       name: formValue.name,
       vendorCode: formValue.vendorCode,
@@ -298,9 +352,11 @@ export class TalabatListComponent implements OnInit {
       platformKey: formValue.platformKey,
       platformRestaurantId: formValue.platformRestaurantId,
       foodicsAccountId: formValue.foodicsAccountId,
+      foodicsBranchId: selectedBranchId,
+      foodicsBranchName: selectedBranchName,
+      syncAllBranches: !selectedBranchId,
       foodicsGroupId: formValue.foodicsGroupId ?? undefined,
-      foodicsGroupName: formValue.foodicsGroupName ?? undefined,
-      syncAllBranches: true // Default to true since branch selection is removed
+      foodicsGroupName: formValue.foodicsGroupName ?? undefined
     };
 
     const request = this.isEditMode && this.selectedAccountId
