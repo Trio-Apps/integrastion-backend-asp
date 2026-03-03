@@ -65,20 +65,7 @@ namespace Volo.Abp.TenantManagement.Talabat
                 throw new UserFriendlyException($"VendorCode '{vendorCode}' already exists.");
             }
 
-            // Validate FoodicsAccountId if provided
-            if (input.FoodicsAccountId.HasValue)
-            {
-                var foodicsAccount = await _foodicsAccountRepository.FindAsync(input.FoodicsAccountId.Value);
-                if (foodicsAccount == null)
-                {
-                    throw new UserFriendlyException($"FoodicsAccount with Id {input.FoodicsAccountId.Value} not found.");
-                }
-
-                if (foodicsAccount.TenantId != CurrentTenant.Id)
-                {
-                    throw new UserFriendlyException("FoodicsAccount does not belong to the current tenant.");
-                }
-            }
+            await ValidateFoodicsAccountLinkAsync(input.FoodicsAccountId);
 
             // Validate branch configuration
             ValidateBranchConfiguration(input);
@@ -135,6 +122,7 @@ namespace Volo.Abp.TenantManagement.Talabat
 
             // Validate branch configuration
             ValidateBranchConfiguration(input);
+            await ValidateFoodicsAccountLinkAsync(input.FoodicsAccountId);
 
             var talabatAccount = await _talabatAccountRepository.GetAsync(x => x.Id == id);
 
@@ -152,8 +140,14 @@ namespace Volo.Abp.TenantManagement.Talabat
             talabatAccount.Name = input.Name;
             talabatAccount.VendorCode = vendorCode;
             talabatAccount.ChainCode = input.ChainCode;
-            talabatAccount.ApiKey = input.ApiKey;
-            talabatAccount.ApiSecret = input.ApiSecret;
+            if (input.ApiKey != null)
+            {
+                talabatAccount.ApiKey = input.ApiKey;
+            }
+            if (input.ApiSecret != null)
+            {
+                talabatAccount.ApiSecret = input.ApiSecret;
+            }
             talabatAccount.IsActive = input.IsActive;
             talabatAccount.UserName = input.UserName;
             if (!string.IsNullOrWhiteSpace(input.Password))
@@ -174,6 +168,25 @@ namespace Volo.Abp.TenantManagement.Talabat
             await TriggerMenuSyncIfLinkedAsync(talabatAccount.FoodicsAccountId);
 
             return await MapToDto(talabatAccount);
+        }
+
+        private async Task ValidateFoodicsAccountLinkAsync(Guid? foodicsAccountId)
+        {
+            if (!foodicsAccountId.HasValue)
+            {
+                return;
+            }
+
+            var foodicsAccount = await _foodicsAccountRepository.FindAsync(foodicsAccountId.Value);
+            if (foodicsAccount == null)
+            {
+                throw new UserFriendlyException($"FoodicsAccount with Id {foodicsAccountId.Value} not found.");
+            }
+
+            if (foodicsAccount.TenantId != CurrentTenant.Id)
+            {
+                throw new UserFriendlyException("FoodicsAccount does not belong to the current tenant.");
+            }
         }
 
         /// <summary>
@@ -218,7 +231,16 @@ namespace Volo.Abp.TenantManagement.Talabat
 
         public async Task DeleteAsync([Required] Guid id)
         {
-            await _talabatAccountRepository.DeleteAsync(x => x.Id == id);
+            if (!CurrentTenant.IsAvailable)
+                throw new UserFriendlyException(L["onlyTenantAvailable"]);
+
+            var talabatAccount = await _talabatAccountRepository.FindAsync(x => x.Id == id);
+            if (talabatAccount == null)
+            {
+                throw new EntityNotFoundException(typeof(TalabatAccount), id);
+            }
+
+            await _talabatAccountRepository.DeleteAsync(talabatAccount);
         }
 
         /// <summary>
