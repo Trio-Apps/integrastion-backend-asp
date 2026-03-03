@@ -314,12 +314,8 @@ export class TalabatListComponent implements OnInit {
       foodicsGroupId: account.foodicsGroupId ?? null,
       foodicsGroupName: account.foodicsGroupName ?? null
     });
-
-    // Load branches and groups for the selected Foodics account (so dropdowns are populated in edit mode)
-    if (account.foodicsAccountId) {
-      this.loadFoodicsBranches(account.foodicsAccountId);
-      this.loadFoodicsGroups(account.foodicsAccountId);
-    } else {
+    // foodicsAccountId patch above triggers valueChanges, which loads branches/groups once.
+    if (!account.foodicsAccountId) {
       this.foodicsBranches = [];
       this.foodicsGroups = [];
     }

@@ -69,6 +69,19 @@ public class MenuSyncController : AbpController
     }
 
     /// <summary>
+    /// Gets available active branches for a specific FoodicsAccount.
+    /// Used for dropdown selection when configuring TalabatAccount branch filtering.
+    /// </summary>
+    [HttpGet("branches-for-account")]
+    public async Task<IActionResult> GetBranchesForAccountAsync(
+        [FromQuery] Guid foodicsAccountId,
+        CancellationToken cancellationToken = default)
+    {
+        var branches = await _menuSyncAppService.GetBranchesForAccountAsync(foodicsAccountId);
+        return Ok(branches);
+    }
+
+    /// <summary>
     /// Gets available groups for a specific FoodicsAccount.
     /// Used for dropdown selection when configuring TalabatAccount group filtering.
     /// </summary>
@@ -131,4 +144,3 @@ public class MenuSyncReplayInput
     /// </summary>
     public string OriginalMessageJson { get; set; } = string.Empty;
 }
-

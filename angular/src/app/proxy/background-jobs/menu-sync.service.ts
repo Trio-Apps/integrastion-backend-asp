@@ -48,7 +48,7 @@ export class MenuSyncService {
   getBranchesForAccount = (foodicsAccountId: string, config?: Partial<Rest.Config>) =>
     this.restService.request<any, FoodicsBranchDto[]>({
       method: 'GET',
-      url: '/api/app/menu-sync/branches-for-account',
+      url: '/api/menu-sync/branches-for-account',
       params: { foodicsAccountId },
     },
     { apiName: this.apiName,...config });
