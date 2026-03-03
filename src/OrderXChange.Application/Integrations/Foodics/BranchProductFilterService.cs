@@ -95,17 +95,17 @@ public class BranchProductFilterService : ITransientDependency
                 continue;
             }
 
-            // Check if product is available in target branch AND is_active in that branch
+            // Check if product is available in target branch and is active/in stock there
             var branchInfo = product.Branches.FirstOrDefault(branch => 
                 string.Equals(branch.Id, targetBranchId, StringComparison.OrdinalIgnoreCase));
 
             if (branchInfo != null)
             {
-                // Product is assigned to target branch
-                // Check if it's active in that branch (pivot.is_active)
+                // Foodics branch pivots carry the effective availability for that branch.
                 var isActiveInBranch = branchInfo.Pivot?.IsActive ?? true;
-                
-                if (isActiveInBranch)
+                var isInStockInBranch = branchInfo.Pivot?.IsInStock ?? true;
+
+                if (isActiveInBranch && isInStockInBranch)
                 {
                     filteredProducts.Add(product);
                     productsInTargetBranch++;
@@ -114,11 +114,11 @@ public class BranchProductFilterService : ITransientDependency
                 {
                     productsNotInTargetBranch++;
                     _logger.LogDebug(
-                        "🏢 [Branch Filter] Product is INACTIVE in target branch - EXCLUDED. " +
+                        "🏢 [Branch Filter] Product is unavailable in target branch - EXCLUDED. " +
                         "ProductId={ProductId}, ProductName={ProductName}, " +
-                        "TargetBranch={TargetBranch}, IsActiveInBranch={IsActive}, " +
+                        "TargetBranch={TargetBranch}, IsActiveInBranch={IsActive}, IsInStockInBranch={IsInStock}, " +
                         "CorrelationId={CorrelationId}",
-                        product.Id, product.Name, targetBranchId, isActiveInBranch, correlationId);
+                        product.Id, product.Name, targetBranchId, isActiveInBranch, isInStockInBranch, correlationId);
                 }
             }
             else

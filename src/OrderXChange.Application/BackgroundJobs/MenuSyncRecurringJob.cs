@@ -43,6 +43,7 @@ public class MenuSyncRecurringJob : ITransientDependency
     private readonly IdempotencyService _idempotencyService;
     private readonly IConfiguration _configuration;
     private readonly TalabatPaymentMethodSettingsService _talabatPaymentMethodSettingsService;
+    private readonly BranchProductFilterService _branchFilterService;
     private readonly ILogger<MenuSyncRecurringJob> _logger;
     
     // ✨ NEW: Menu Versioning Services
@@ -62,6 +63,7 @@ public class MenuSyncRecurringJob : ITransientDependency
         IdempotencyService idempotencyService,
         IConfiguration configuration,
         TalabatPaymentMethodSettingsService talabatPaymentMethodSettingsService,
+        BranchProductFilterService branchProductFilterService,
         ILogger<MenuSyncRecurringJob> logger,
         MenuVersioningService menuVersioningService,
         MenuSyncRunManager syncRunManager)
@@ -78,6 +80,7 @@ public class MenuSyncRecurringJob : ITransientDependency
         _idempotencyService = idempotencyService;
         _configuration = configuration;
         _talabatPaymentMethodSettingsService = talabatPaymentMethodSettingsService;
+        _branchFilterService = branchProductFilterService;
         _logger = logger;
         _menuVersioningService = menuVersioningService;
         _syncRunManager = syncRunManager;
@@ -665,6 +668,36 @@ public class MenuSyncRecurringJob : ITransientDependency
                 {
                     var talabatChainCode = talabatTarget.ChainCode;
                     var talabatVendorCode = talabatTarget.VendorCode;
+                    var correlationId = syncRun?.CorrelationId ?? Guid.NewGuid().ToString();
+
+                    if (!talabatTarget.SyncAllBranches && string.IsNullOrWhiteSpace(talabatTarget.FoodicsBranchId) && string.IsNullOrWhiteSpace(branchId))
+                    {
+                        _logger.LogWarning(
+                            "Skipping Talabat sync because target branch is not configured. FoodicsAccount={AccountId}, VendorCode={VendorCode}",
+                            foodicsAccountId,
+                            talabatVendorCode);
+                        continue;
+                    }
+
+                    var effectiveBranchId = !string.IsNullOrWhiteSpace(branchId)
+                        ? branchId
+                        : (talabatTarget.SyncAllBranches ? null : talabatTarget.FoodicsBranchId);
+                    var syncAllBranchesForRun = string.IsNullOrWhiteSpace(branchId) && talabatTarget.SyncAllBranches;
+                    var branchFilterResult = _branchFilterService.FilterProductsByBranch(
+                        allProducts,
+                        effectiveBranchId,
+                        syncAllBranchesForRun,
+                        correlationId);
+
+                    if (branchFilterResult.FilteredCount == 0)
+                    {
+                        _logger.LogWarning(
+                            "No products available for Talabat target after branch filtering. FoodicsAccount={AccountId}, VendorCode={VendorCode}, TargetBranch={TargetBranch}",
+                            foodicsAccountId,
+                            talabatVendorCode,
+                            effectiveBranchId ?? "<all>");
+                        continue;
+                    }
 
                     // ✨ Update progress: Talabat sync
                     if (syncRun != null)
@@ -679,20 +712,20 @@ public class MenuSyncRecurringJob : ITransientDependency
                     }
 
                     _logger.LogInformation(
-                        "Pushing catalog to Talabat. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}, ProductCount={ProductCount}",
+                        "Pushing catalog to Talabat. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}, TargetBranch={TargetBranch}, ProductCount={ProductCount}",
                         foodicsAccountId,
                         talabatChainCode,
                         talabatVendorCode,
-                        allProducts.Count);
+                        effectiveBranchId ?? "<all>",
+                        branchFilterResult.FilteredCount);
 
                     try
                     {
-                        var correlationId = syncRun?.CorrelationId ?? Guid.NewGuid().ToString();
                         var talabatResult = await _talabatSyncService.SyncCatalogV2Async(
-                            allProducts.Values,
+                            branchFilterResult.FilteredProducts,
                             talabatChainCode,
                             foodicsAccountId,
-                            branchId,
+                            effectiveBranchId,
                             correlationId,
                             talabatVendorCode,
                             cancellationToken);
@@ -980,7 +1013,7 @@ public class MenuSyncRecurringJob : ITransientDependency
     /// Gets all Talabat sync targets for a FoodicsAccount.
     /// Prefers linked TalabatAccounts, filtered by branch if needed, then falls back to legacy configuration.
     /// </summary>
-    private async Task<List<(string ChainCode, string VendorCode)>> GetTalabatSyncTargetsAsync(
+    private async Task<List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches)>> GetTalabatSyncTargetsAsync(
         Guid foodicsAccountId,
         string? branchId,
         CancellationToken cancellationToken)
@@ -1005,12 +1038,12 @@ public class MenuSyncRecurringJob : ITransientDependency
                         foodicsAccountId,
                         branchId);
 
-                    return new List<(string ChainCode, string VendorCode)>();
+                    return new List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches)>();
                 }
 
                 return linkedAccounts
                     .Where(x => !string.IsNullOrWhiteSpace(x.ChainCode) && !string.IsNullOrWhiteSpace(x.VendorCode))
-                    .Select(x => (x.ChainCode!, x.VendorCode!))
+                    .Select(x => (x.ChainCode!, x.VendorCode!, x.FoodicsBranchId, x.SyncAllBranches))
                     .Distinct()
                     .ToList();
             }
@@ -1021,7 +1054,7 @@ public class MenuSyncRecurringJob : ITransientDependency
             if (!string.IsNullOrWhiteSpace(vendorCode))
             {
                 var chainCode = _configuration["Talabat:ChainCode"] ?? "tlbt-pick";
-                return new List<(string ChainCode, string VendorCode)> { (chainCode, vendorCode) };
+                return new List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches)> { (chainCode, vendorCode, null, true) };
             }
         }
         catch (Exception ex)
@@ -1041,10 +1074,10 @@ public class MenuSyncRecurringJob : ITransientDependency
                 configChainCode,
                 configVendorCode);
 
-            return new List<(string ChainCode, string VendorCode)> { (configChainCode, configVendorCode) };
+            return new List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches)> { (configChainCode, configVendorCode, null, true) };
         }
 
-        return new List<(string ChainCode, string VendorCode)>();
+        return new List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches)>();
     }
 }
 
