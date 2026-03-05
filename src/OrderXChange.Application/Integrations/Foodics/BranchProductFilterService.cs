@@ -85,10 +85,12 @@ public class BranchProductFilterService : ITransientDependency
             if (product.Branches == null || !product.Branches.Any())
             {
                 productsWithoutBranches++;
-                // FIXED: Products with NO branch assignments should be EXCLUDED when filtering by specific branch
-                // A product with empty branches means it's not assigned to ANY branch
+                // Foodics can return active products with no branch relationships in payload.
+                // Keep these products to avoid over-filtering the catalog.
+                filteredProducts.Add(product);
+                productsInTargetBranch++;
                 _logger.LogDebug(
-                    "🏢 [Branch Filter] Product has no branch assignments - EXCLUDED. " +
+                    "[Branch Filter] Product has no branch assignments - INCLUDED (fallback). " +
                     "ProductId={ProductId}, ProductName={ProductName}, " +
                     "TargetBranch={TargetBranch}, CorrelationId={CorrelationId}",
                     product.Id, product.Name, targetBranchId, correlationId);
@@ -146,7 +148,7 @@ public class BranchProductFilterService : ITransientDependency
         _logger.LogInformation(
             "🏢 [Branch Filter] Filtering completed. " +
             "TotalProducts={TotalProducts}, ProductsInTargetBranch={ProductsInTargetBranch}, " +
-            "ProductsWithoutBranches={ProductsWithoutBranches} (EXCLUDED), " +
+            "ProductsWithoutBranches={ProductsWithoutBranches} (INCLUDED as fallback), " +
             "ProductsNotInTargetBranch={ProductsNotInTargetBranch} (EXCLUDED), " +
             "TargetBranch={TargetBranch}, CorrelationId={CorrelationId}",
             result.TotalProducts, result.FilteredCount, result.ProductsWithoutBranches,
