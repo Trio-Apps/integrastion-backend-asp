@@ -13,16 +13,17 @@ namespace OrderXChange.Application.Integrations.Talabat;
 
 public class TalabatOrderToFoodicsMapper : ITransientDependency
 {
-    private readonly IConfiguration _configuration;
     private readonly ILogger<TalabatOrderToFoodicsMapper> _logger;
 
     public TalabatOrderToFoodicsMapper(
         IConfiguration configuration,
         ILogger<TalabatOrderToFoodicsMapper> logger)
     {
-        _configuration = configuration;
         _logger = logger;
+        _configuration = configuration;
     }
+
+    private readonly IConfiguration _configuration;
 
     public FoodicsOrderCreateRequest MapToCreateOrder(
         TalabatOrderWebhook webhook,
@@ -31,7 +32,8 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         string? businessDate = null,
         string? businessDateTimeZone = null,
         string? businessDateSource = null,
-        string? activePaymentMethodId = null)
+        string? activePaymentMethodId = null,
+        string? deliveryChargeId = null)
     {
         if (webhook.Products == null || webhook.Products.Count == 0)
         {
@@ -55,7 +57,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         var totalNet = ParseDecimal(webhook.Price?.TotalNet);
         var grandTotal = ParseDecimal(webhook.Price?.GrandTotal);
         var deliveryFeeAmount = ResolveDeliveryFeeAmount(webhook.Price);
-        var charges = BuildCharges(deliveryFeeAmount);
+        var charges = BuildCharges(deliveryFeeAmount, deliveryChargeId);
         var chargesTotal = SumChargeAmounts(charges);
         var total = totalNet ?? subtotal ?? grandTotal;
         var foodicsTotalPrice = ResolveFoodicsTotalPrice(subtotal, total, chargesTotal);
@@ -288,18 +290,17 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         };
     }
 
-    private List<FoodicsOrderChargeRequest>? BuildCharges(decimal? deliveryFeeAmount)
+    private List<FoodicsOrderChargeRequest>? BuildCharges(decimal? deliveryFeeAmount, string? deliveryChargeId)
     {
         if (!deliveryFeeAmount.HasValue || deliveryFeeAmount.Value <= 0m)
         {
             return null;
         }
 
-        var deliveryChargeId = _configuration["Foodics:TalabatDeliveryChargeId"];
         if (string.IsNullOrWhiteSpace(deliveryChargeId))
         {
             _logger.LogWarning(
-                "Talabat order contains delivery fee {DeliveryFeeAmount} but Foodics:TalabatDeliveryChargeId is not configured. Delivery fee will not be sent as a separate charge.",
+                "Talabat order contains delivery fee {DeliveryFeeAmount} but no Foodics delivery charge is available. Delivery fee will not be sent as a separate charge.",
                 deliveryFeeAmount.Value);
             return null;
         }

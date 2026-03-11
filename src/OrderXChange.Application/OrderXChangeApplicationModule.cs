@@ -46,6 +46,9 @@ public class OrderXChangeApplicationModule : AbpModule
         context.Services.AddHttpClient<FoodicsOrderClient>()
             .AddPolicyHandler(GetRetryPolicy());
 
+        context.Services.AddHttpClient<FoodicsChargeClient>()
+            .AddPolicyHandler(GetRetryPolicy());
+
         context.Services.AddHttpClient<FoodicsAuthClient>()
             .AddPolicyHandler(GetRetryPolicy());
     }
