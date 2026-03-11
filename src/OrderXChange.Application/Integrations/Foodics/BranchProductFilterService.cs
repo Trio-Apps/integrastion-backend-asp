@@ -125,7 +125,10 @@ public class BranchProductFilterService : ITransientDependency
             }
             else
             {
-                productsNotInTargetBranch++;
+                // When a branch is missing from the override list, Foodics treats the
+                // product as available there with its default branch behavior.
+                filteredProducts.Add(product);
+                productsInTargetBranch++;
                 
                 _logger.LogDebug(
                     "🏢 [Branch Filter] Product not available in target branch. " +

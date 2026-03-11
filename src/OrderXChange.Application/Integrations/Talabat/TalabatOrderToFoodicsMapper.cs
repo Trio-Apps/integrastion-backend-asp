@@ -54,7 +54,11 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         var subtotal = ParseDecimal(webhook.Price?.SubTotal);
         var totalNet = ParseDecimal(webhook.Price?.TotalNet);
         var grandTotal = ParseDecimal(webhook.Price?.GrandTotal);
+        var deliveryFeeAmount = ResolveDeliveryFeeAmount(webhook.Price);
+        var charges = BuildCharges(deliveryFeeAmount);
+        var chargesTotal = SumChargeAmounts(charges);
         var total = totalNet ?? subtotal ?? grandTotal;
+        var foodicsTotalPrice = ResolveFoodicsTotalPrice(subtotal, total, chargesTotal);
         var reportedOrderDiscountAmount = ResolveDiscountAmount(
             ParseDecimal(webhook.Price?.DiscountAmountTotal),
             webhook.Discounts);
@@ -62,7 +66,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         var paymentMethodId = ResolvePaymentMethodId(webhook, activePaymentMethodId);
 
         var products = MapProducts(webhook.Products, discountType);
-        var paymentAmount = ResolvePaymentAmount(webhook, products, null, total, subtotal);
+        var paymentAmount = ResolvePaymentAmount(webhook, products, null, total, subtotal, chargesTotal);
 
         if (products.Count == 0)
         {
@@ -81,14 +85,15 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             CreatedAt = FormatCreatedAt(createdAt, businessDateTimeZone),
             SubtotalPrice = subtotal,
             DiscountAmount = null,
-            TotalPrice = total,
+            TotalPrice = foodicsTotalPrice,
             TaxExclusiveDiscountAmount = null,
             RoundingAmount = 0,
             BranchId = branchId,
             Products = products,
             Payments = BuildPayments(resolvedBusinessDate, paymentMethodId, paymentAmount),
+            Charges = charges,
             DueAt = FormatDueAt(dueAt, businessDateTimeZone),
-            Meta = BuildMeta(webhook, vendorCode, businessDateTimeZone, businessDateSource, reportedOrderDiscountAmount, reportedItemDiscountAmount)
+            Meta = BuildMeta(webhook, vendorCode, businessDateTimeZone, businessDateSource, reportedOrderDiscountAmount, reportedItemDiscountAmount, deliveryFeeAmount)
         };
 
         return request;
@@ -283,6 +288,58 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         };
     }
 
+    private List<FoodicsOrderChargeRequest>? BuildCharges(decimal? deliveryFeeAmount)
+    {
+        if (!deliveryFeeAmount.HasValue || deliveryFeeAmount.Value <= 0m)
+        {
+            return null;
+        }
+
+        var deliveryChargeId = _configuration["Foodics:TalabatDeliveryChargeId"];
+        if (string.IsNullOrWhiteSpace(deliveryChargeId))
+        {
+            _logger.LogWarning(
+                "Talabat order contains delivery fee {DeliveryFeeAmount} but Foodics:TalabatDeliveryChargeId is not configured. Delivery fee will not be sent as a separate charge.",
+                deliveryFeeAmount.Value);
+            return null;
+        }
+
+        return new List<FoodicsOrderChargeRequest>
+        {
+            new()
+            {
+                ChargeId = deliveryChargeId.Trim(),
+                Amount = deliveryFeeAmount.Value
+            }
+        };
+    }
+
+    private static decimal? SumChargeAmounts(IReadOnlyCollection<FoodicsOrderChargeRequest>? charges)
+    {
+        if (charges == null || charges.Count == 0)
+        {
+            return null;
+        }
+
+        decimal total = 0m;
+        var hasAnyAmount = false;
+
+        foreach (var charge in charges)
+        {
+            if (!charge.Amount.HasValue)
+            {
+                continue;
+            }
+
+            total += charge.Amount.Value;
+            hasAnyAmount = true;
+        }
+
+        return hasAnyAmount
+            ? total
+            : null;
+    }
+
     private string? ResolvePaymentMethodId(TalabatOrderWebhook webhook, string? activePaymentMethodId)
     {
         var paymentMethodId = string.IsNullOrWhiteSpace(activePaymentMethodId)
@@ -307,10 +364,15 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         IReadOnlyCollection<FoodicsOrderProductRequest> products,
         decimal? orderDiscountAmount,
         decimal? total,
-        decimal? subtotal)
+        decimal? subtotal,
+        decimal? chargesTotal)
     {
         var explicitTotal = ResolveExplicitPaymentAmount(webhook, total, subtotal);
         var mappedNetTotal = CalculateMappedNetTotal(products, orderDiscountAmount);
+        if (mappedNetTotal.HasValue && chargesTotal.HasValue && chargesTotal.Value > 0m)
+        {
+            mappedNetTotal += chargesTotal.Value;
+        }
 
         if (mappedNetTotal.HasValue && explicitTotal.HasValue)
         {
@@ -341,6 +403,66 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         if (collectFromCustomer.HasValue && collectFromCustomer.Value > 0m)
         {
             return collectFromCustomer;
+        }
+
+        return null;
+    }
+
+    private static decimal? ResolveDeliveryFeeAmount(TalabatOrderPrice? price)
+    {
+        if (price == null)
+        {
+            return null;
+        }
+
+        var directDeliveryFee = ParseDecimal(price.DeliveryFee);
+        if (directDeliveryFee.HasValue && directDeliveryFee.Value > 0m)
+        {
+            return directDeliveryFee.Value;
+        }
+
+        if (price.DeliveryFees == null || price.DeliveryFees.Count == 0)
+        {
+            return null;
+        }
+
+        decimal total = 0m;
+        var hasAnyValue = false;
+
+        foreach (var fee in price.DeliveryFees)
+        {
+            if (!fee.Value.HasValue)
+            {
+                continue;
+            }
+
+            total += fee.Value.Value;
+            hasAnyValue = true;
+        }
+
+        return hasAnyValue && total > 0m
+            ? total
+            : null;
+    }
+
+    private static decimal? ResolveFoodicsTotalPrice(decimal? subtotal, decimal? total, decimal? chargesTotal)
+    {
+        if (subtotal.HasValue && subtotal.Value > 0m)
+        {
+            return subtotal.Value;
+        }
+
+        if (total.HasValue && total.Value > 0m)
+        {
+            if (chargesTotal.HasValue && chargesTotal.Value > 0m)
+            {
+                var netTotal = total.Value - chargesTotal.Value;
+                return netTotal > 0m
+                    ? netTotal
+                    : 0m;
+            }
+
+            return total.Value;
         }
 
         return null;
@@ -493,7 +615,8 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         string? businessDateTimeZone,
         string? businessDateSource,
         decimal? reportedOrderDiscountAmount,
-        decimal? reportedItemDiscountAmount)
+        decimal? reportedItemDiscountAmount,
+        decimal? deliveryFeeAmount)
     {
         var meta = new Dictionary<string, object?>
         {
@@ -509,6 +632,11 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             ["business_date_source"] = businessDateSource,
             ["external_order_source"] = "foodics_kiosk"
         };
+
+        if (deliveryFeeAmount.HasValue && deliveryFeeAmount.Value > 0m)
+        {
+            meta["talabat_delivery_fee_amount"] = deliveryFeeAmount;
+        }
 
         if (reportedOrderDiscountAmount.HasValue && reportedOrderDiscountAmount.Value > 0m)
         {
