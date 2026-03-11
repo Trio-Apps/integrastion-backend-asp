@@ -34,11 +34,11 @@ public class OrderDispatchDistributedEventHandler
     private readonly TalabatAccountService _talabatAccountService;
     private readonly TalabatOrderToFoodicsMapper _orderMapper;
     private readonly FoodicsOrderClient _foodicsOrderClient;
-    private readonly FoodicsChargeClient _foodicsChargeClient;
     private readonly FoodicsCatalogClient _foodicsCatalogClient;
     private readonly FoodicsBusinessDateResolver _businessDateResolver;
     private readonly FoodicsAccountTokenService _tokenService;
     private readonly TalabatPaymentMethodSettingsService _talabatPaymentMethodSettingsService;
+    private readonly TalabatDeliveryChargeSettingsService _talabatDeliveryChargeSettingsService;
     private readonly IConfiguration _configuration;
     private readonly IdempotencyService _idempotencyService;
     private readonly ICurrentTenant _currentTenant;
@@ -62,11 +62,11 @@ public class OrderDispatchDistributedEventHandler
         TalabatAccountService talabatAccountService,
         TalabatOrderToFoodicsMapper orderMapper,
         FoodicsOrderClient foodicsOrderClient,
-        FoodicsChargeClient foodicsChargeClient,
         FoodicsCatalogClient foodicsCatalogClient,
         FoodicsBusinessDateResolver businessDateResolver,
         FoodicsAccountTokenService tokenService,
         TalabatPaymentMethodSettingsService talabatPaymentMethodSettingsService,
+        TalabatDeliveryChargeSettingsService talabatDeliveryChargeSettingsService,
         IConfiguration configuration,
         IdempotencyService idempotencyService,
         ICurrentTenant currentTenant,
@@ -78,11 +78,11 @@ public class OrderDispatchDistributedEventHandler
         _talabatAccountService = talabatAccountService;
         _orderMapper = orderMapper;
         _foodicsOrderClient = foodicsOrderClient;
-        _foodicsChargeClient = foodicsChargeClient;
         _foodicsCatalogClient = foodicsCatalogClient;
         _businessDateResolver = businessDateResolver;
         _tokenService = tokenService;
         _talabatPaymentMethodSettingsService = talabatPaymentMethodSettingsService;
+        _talabatDeliveryChargeSettingsService = talabatDeliveryChargeSettingsService;
         _configuration = configuration;
         _idempotencyService = idempotencyService;
         _currentTenant = currentTenant;
@@ -214,7 +214,7 @@ public class OrderDispatchDistributedEventHandler
                     businessDate.Source);
 
                 var activePaymentMethodId = await _talabatPaymentMethodSettingsService.GetOrderPaymentMethodIdAsync(eventData.FoodicsAccountId);
-                var deliveryChargeId = await _foodicsChargeClient.GetOrCreateDeliveryChargeIdAsync(accessToken);
+                var deliveryChargeId = await _talabatDeliveryChargeSettingsService.GetOrderDeliveryChargeIdAsync(eventData.FoodicsAccountId);
 
                 var request = _orderMapper.MapToCreateOrder(
                     webhook,

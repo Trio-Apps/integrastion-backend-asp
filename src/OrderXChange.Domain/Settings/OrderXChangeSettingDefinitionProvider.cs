@@ -10,5 +10,10 @@ public class OrderXChangeSettingDefinitionProvider : SettingDefinitionProvider
         {
             context.Add(new SettingDefinition(OrderXChangeSettings.TalabatActivePaymentMethodId));
         }
+
+        if (context.GetOrNull(OrderXChangeSettings.TalabatActiveDeliveryChargeId) is null)
+        {
+            context.Add(new SettingDefinition(OrderXChangeSettings.TalabatActiveDeliveryChargeId));
+        }
     }
 }

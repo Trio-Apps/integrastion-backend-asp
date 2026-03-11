@@ -50,6 +50,14 @@ export const APP_ROUTES: Routes = [
     },
   },
   {
+    path: 'talabat-delivery-charges',
+    loadComponent: () => import('./talabat-delivery-charges/talabat-delivery-charges.component').then(c => c.TalabatDeliveryChargesComponent),
+    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    data: {
+      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+    },
+  },
+  {
     path: 'categories',
     loadComponent: () => import('./menu-demo/menu-demo.component').then(c => c.MenuDemoComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],

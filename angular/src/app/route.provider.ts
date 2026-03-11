@@ -105,6 +105,15 @@ function configureRoutes() {
       requiredPolicy: 'OrderXChange.Dashboard.Tenant',
     },
     {
+      path: '/talabat-delivery-charges',
+      name: 'Delivery Charges',
+      parentName: '::Menu:Dashboard',
+      iconClass: 'pi pi-truck',
+      order: 7,
+      layout: eLayoutType.application,
+      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+    },
+    {
       path: '/talabat-dashboard',
       name: '::Menu:TalabatDashboard',
       parentName: '::Menu:Dashboard',

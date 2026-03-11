@@ -1,0 +1,75 @@
+.delivery-charges-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.page-subtitle,
+.page-source {
+  margin: 0.25rem 0 0;
+  color: #64748b;
+}
+
+.page-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.active-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #dbeafe;
+  background: #f8fbff;
+}
+
+.active-card.empty {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.active-label {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.name-cell small {
+  color: #64748b;
+}
+
+.active-row {
+  background: #f0fdf4;
+}
+
+@media (max-width: 768px) {
+  .page-header,
+  .active-card {
+    align-items: stretch;
+  }
+
+  .page-actions {
+    width: 100%;
+  }
+}

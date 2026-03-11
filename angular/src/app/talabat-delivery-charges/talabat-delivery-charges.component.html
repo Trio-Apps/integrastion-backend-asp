@@ -1,0 +1,88 @@
+<div class="delivery-charges-page">
+  <p-toast></p-toast>
+
+  <div class="page-header">
+    <div>
+      <h2 class="page-title">Delivery Charges</h2>
+      <p class="page-subtitle">Load Foodics delivery charges, select one open charge, and use it for Talabat delivery fees.</p>
+      <p class="page-source">Loaded using: {{ settings()?.source || '-' }}</p>
+    </div>
+
+    <div class="page-actions">
+      <button pButton type="button" icon="pi pi-refresh" label="Refresh" class="p-button-outlined" [loading]="loading()" (click)="refresh()"></button>
+      <button
+        pButton
+        type="button"
+        icon="pi pi-times"
+        label="Clear Active"
+        class="p-button-secondary p-button-outlined"
+        [disabled]="!settings()?.activeDeliveryChargeId"
+        [loading]="isClearing()"
+        (click)="setActive(null)"
+      ></button>
+    </div>
+  </div>
+
+  <div class="active-card" *ngIf="settings()?.activeDeliveryChargeId; else noActiveCharge">
+    <span class="active-label">Active charge</span>
+    <strong>{{ settings()?.activeDeliveryChargeName || settings()?.activeDeliveryChargeId }}</strong>
+  </div>
+
+  <ng-template #noActiveCharge>
+    <div class="active-card empty">No active delivery charge is selected.</div>
+  </ng-template>
+
+  <p-table [value]="charges()" [loading]="loading()" dataKey="id">
+    <ng-template pTemplate="header">
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Open Value</th>
+        <th>Auto Applied</th>
+        <th>Order Types</th>
+        <th>Selection</th>
+        <th>Actions</th>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="body" let-row>
+      <tr [class.active-row]="isActive(row)">
+        <td>
+          <div class="name-cell">
+            <strong>{{ row.name }}</strong>
+            <small *ngIf="row.nameLocalized">{{ row.nameLocalized }}</small>
+          </div>
+        </td>
+        <td>{{ getTypeLabel(row.type) }}</td>
+        <td>
+          <p-tag [severity]="row.isOpenCharge ? 'success' : 'secondary'" [value]="row.isOpenCharge ? 'Open' : 'Fixed'"></p-tag>
+        </td>
+        <td>
+          <p-tag [severity]="row.isAutoApplied ? 'info' : 'secondary'" [value]="row.isAutoApplied ? 'Yes' : 'No'"></p-tag>
+        </td>
+        <td>{{ getOrderTypesLabel(row.orderTypes) }}</td>
+        <td>
+          <p-tag [severity]="isActive(row) ? 'success' : 'secondary'" [value]="isActive(row) ? 'Selected' : 'Not selected'"></p-tag>
+        </td>
+        <td>
+          <button
+            pButton
+            type="button"
+            [label]="isActive(row) ? 'Selected' : 'Set Active'"
+            [icon]="isActive(row) ? 'pi pi-check' : 'pi pi-check-circle'"
+            class="p-button-sm"
+            [disabled]="isActive(row)"
+            [loading]="isSaving(row)"
+            (click)="setActive(row.id)"
+          ></button>
+        </td>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="emptymessage">
+      <tr>
+        <td colspan="7">No compatible delivery charges were returned by Foodics.</td>
+      </tr>
+    </ng-template>
+  </p-table>
+</div>
