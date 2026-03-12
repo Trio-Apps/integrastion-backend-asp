@@ -40,7 +40,7 @@ public class TalabatDeliveryChargeSettingsService : ITransientDependency
         CancellationToken cancellationToken = default)
     {
         var (accessToken, source) = await ResolveAccessTokenAsync(foodicsAccountId, cancellationToken);
-        var charges = await _foodicsChargeClient.GetChargesAsync(accessToken, cancellationToken);
+        var charges = await _foodicsChargeClient.GetChargesAsync(accessToken, foodicsAccountId, cancellationToken);
         var activeDeliveryChargeId = await GetActiveDeliveryChargeIdAsync();
         var activeDeliveryCharge = charges.FirstOrDefault(x => x.Id == activeDeliveryChargeId);
 
@@ -96,7 +96,7 @@ public class TalabatDeliveryChargeSettingsService : ITransientDependency
         }
 
         var (accessToken, _) = await ResolveAccessTokenAsync(foodicsAccountId, cancellationToken);
-        var charges = await _foodicsChargeClient.GetChargesAsync(accessToken, cancellationToken);
+        var charges = await _foodicsChargeClient.GetChargesAsync(accessToken, foodicsAccountId, cancellationToken);
         var activeCharge = charges.FirstOrDefault(x => x.Id == activeDeliveryChargeId);
 
         return activeCharge != null && IsSupportedDeliveryCharge(activeCharge)

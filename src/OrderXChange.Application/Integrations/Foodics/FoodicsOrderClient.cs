@@ -18,22 +18,20 @@ public class FoodicsOrderClient
     private readonly HttpClient _httpClient;
     private readonly ILogger<FoodicsOrderClient> _logger;
     private readonly IConfiguration _configuration;
+    private readonly FoodicsBaseUrlResolver _baseUrlResolver;
     private readonly string? _defaultAccessToken;
     private readonly JsonSerializerOptions _jsonOptions;
 
-    public FoodicsOrderClient(HttpClient httpClient, IConfiguration configuration, ILogger<FoodicsOrderClient> logger)
+    public FoodicsOrderClient(
+        HttpClient httpClient,
+        IConfiguration configuration,
+        FoodicsBaseUrlResolver baseUrlResolver,
+        ILogger<FoodicsOrderClient> logger)
     {
         _httpClient = httpClient;
         _logger = logger;
         _configuration = configuration;
-
-        var baseUrl = configuration["Foodics:BaseUrl"];
-        if (string.IsNullOrWhiteSpace(baseUrl))
-        {
-            throw new InvalidOperationException("Foodics:BaseUrl configuration is missing.");
-        }
-
-        _httpClient.BaseAddress = new Uri(EnsureEndsWithSlash(baseUrl));
+        _baseUrlResolver = baseUrlResolver;
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         _httpClient.Timeout = TimeSpan.FromMinutes(2);
 
@@ -49,6 +47,7 @@ public class FoodicsOrderClient
     public async Task<FoodicsOrderResponseDto?> CreateOrderAsync(
         FoodicsOrderCreateRequest request,
         string? accessToken = null,
+        Guid? foodicsAccountId = null,
         CancellationToken cancellationToken = default)
     {
         EnsureBusinessDate(request);
@@ -62,7 +61,8 @@ public class FoodicsOrderClient
             request.Products?.Count ?? 0);
 
         var token = GetAccessToken(accessToken);
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "orders")
+        var requestUri = await BuildUriAsync("orders", foodicsAccountId, cancellationToken);
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, requestUri)
         {
             Content = JsonContent.Create(request, options: _jsonOptions)
         };
@@ -126,9 +126,10 @@ public class FoodicsOrderClient
         request.BusinessDate = DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     }
 
-    private static string EnsureEndsWithSlash(string value)
+    private async Task<Uri> BuildUriAsync(string relativePath, Guid? foodicsAccountId, CancellationToken cancellationToken)
     {
-        return value.EndsWith("/", StringComparison.Ordinal) ? value : value + "/";
+        var baseUrl = await _baseUrlResolver.ResolveAsync(foodicsAccountId, cancellationToken);
+        return new Uri(new Uri(baseUrl), relativePath);
     }
 }
 

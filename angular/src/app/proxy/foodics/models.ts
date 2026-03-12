@@ -5,6 +5,7 @@ export interface CreateUpdateFoodicsAccountDto extends EntityDto {
   oAuthClientSecret?: string;
   accessToken?: string;
   brandName?: string;
+  apiEnvironment?: string;
 }
 
 export interface FoodicsAccountDto extends FullAuditedEntityDto<string> {
@@ -12,4 +13,5 @@ export interface FoodicsAccountDto extends FullAuditedEntityDto<string> {
   oAuthClientSecret?: string;
   brandName?: string;
   accessToken?: string;
+  apiEnvironment?: string;
 }

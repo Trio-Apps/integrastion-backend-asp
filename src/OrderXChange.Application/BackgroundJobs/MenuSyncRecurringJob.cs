@@ -408,6 +408,7 @@ public class MenuSyncRecurringJob : ITransientDependency
             var allProducts = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
                 branchId,
                 accessToken: accessToken,
+                foodicsAccountId: foodicsAccountId,
                 perPage: 100,
                 includeDeleted: false,
                 includeInactive: false,
@@ -1080,7 +1081,6 @@ public class MenuSyncRecurringJob : ITransientDependency
         return new List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches)>();
     }
 }
-
 
 
 

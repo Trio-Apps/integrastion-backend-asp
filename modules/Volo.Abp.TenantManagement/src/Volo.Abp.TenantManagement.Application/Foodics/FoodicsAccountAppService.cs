@@ -45,7 +45,8 @@ namespace Foodics
                 OAuthClientId = input.OAuthClientId,
                 OAuthClientSecret = input.OAuthClientSecret,
                 AccessToken = input.AccessToken,
-                BrandName= input.BrandName
+                BrandName = input.BrandName,
+                ApiEnvironment = FoodicsApiEnvironment.Normalize(input.ApiEnvironment)
             };
             EntityHelper.TrySetId(foodicsAccount, GuidGenerator.Create,
                            true);
@@ -68,6 +69,7 @@ namespace Foodics
             foodics.OAuthClientId = input.OAuthClientId;
             foodics.AccessToken = input.AccessToken;
             foodics.BrandName = input.BrandName;
+            foodics.ApiEnvironment = FoodicsApiEnvironment.Normalize(input.ApiEnvironment);
 
             //tenant.FoodicsAccounts.Add(foodics);
             await _tenantRepository.UpdateAsync(tenant, autoSave: true);

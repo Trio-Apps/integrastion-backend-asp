@@ -37,6 +37,7 @@ public class FoodicsBusinessDateResolver : ITransientDependency
         string vendorCode,
         string branchId,
         string accessToken,
+        Guid? foodicsAccountId = null,
         CancellationToken cancellationToken = default)
     {
         var orderTimestampUtc = NormalizeToUtc(orderCreatedAt ?? DateTime.UtcNow);
@@ -54,6 +55,7 @@ public class FoodicsBusinessDateResolver : ITransientDependency
         var branchTimezone = await ResolveBranchTimeZoneFromFoodicsAsync(
             branchId,
             accessToken,
+            foodicsAccountId,
             cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(branchTimezone))
@@ -74,6 +76,7 @@ public class FoodicsBusinessDateResolver : ITransientDependency
     private async Task<string?> ResolveBranchTimeZoneFromFoodicsAsync(
         string branchId,
         string accessToken,
+        Guid? foodicsAccountId,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(branchId) || string.IsNullOrWhiteSpace(accessToken))
@@ -88,6 +91,7 @@ public class FoodicsBusinessDateResolver : ITransientDependency
             {
                 var products = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
                     accessToken: accessToken,
+                    foodicsAccountId: foodicsAccountId,
                     perPage: 100,
                     includeDeleted: false,
                     includeInactive: false);

@@ -11,5 +11,6 @@ namespace Foodics
         public string OAuthClientSecret { get; set; }
         public string BrandName { get; set; }
         public string AccessToken { get; set; }
+        public string ApiEnvironment { get; set; }
     }
 }

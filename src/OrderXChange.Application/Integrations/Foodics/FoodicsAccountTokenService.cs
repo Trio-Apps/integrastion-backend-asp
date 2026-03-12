@@ -98,6 +98,7 @@ public class FoodicsAccountTokenService : ITransientDependency
 		var token = await _authClient.RequestAccessTokenAsync(
 			account.OAuthClientId,
 			account.OAuthClientSecret,
+			foodicsAccountId,
 			cancellationToken);
 
 		account.AccessToken = token.AccessToken;

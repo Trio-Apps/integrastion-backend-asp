@@ -40,7 +40,7 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
         CancellationToken cancellationToken = default)
     {
         var (accessToken, source) = await ResolveAccessTokenAsync(foodicsAccountId, cancellationToken);
-        var paymentMethods = await _foodicsPaymentMethodClient.GetPaymentMethodsAsync(accessToken, cancellationToken);
+        var paymentMethods = await _foodicsPaymentMethodClient.GetPaymentMethodsAsync(accessToken, foodicsAccountId, cancellationToken);
         var activePaymentMethodId = await GetActivePaymentMethodIdAsync();
         var activePaymentMethod = paymentMethods.FirstOrDefault(x => x.Id == activePaymentMethodId);
 
@@ -102,7 +102,7 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
         }
 
         var (accessToken, _) = await ResolveAccessTokenAsync(foodicsAccountId, cancellationToken);
-        var paymentMethods = await _foodicsPaymentMethodClient.GetPaymentMethodsAsync(accessToken, cancellationToken);
+        var paymentMethods = await _foodicsPaymentMethodClient.GetPaymentMethodsAsync(accessToken, foodicsAccountId, cancellationToken);
         var activePaymentMethod = paymentMethods.FirstOrDefault(x => x.Id == activePaymentMethodId);
 
         if (activePaymentMethod == null)
@@ -130,6 +130,7 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
             BuildApiPaymentMethodName(activePaymentMethod),
             apiPaymentMethodCode,
             7,
+            foodicsAccountId,
             cancellationToken);
 
         return createdPaymentMethod.Id;

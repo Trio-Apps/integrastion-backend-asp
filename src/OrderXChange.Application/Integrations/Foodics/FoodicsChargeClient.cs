@@ -8,7 +8,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OrderXChange.Application.Contracts.Integrations.Talabat;
 using Volo.Abp.DependencyInjection;
@@ -22,22 +21,15 @@ public class FoodicsChargeClient : ITransientDependency
 
     private readonly HttpClient _httpClient;
     private readonly ILogger<FoodicsChargeClient> _logger;
-    private readonly string _baseUrl;
+    private readonly FoodicsBaseUrlResolver _baseUrlResolver;
     public FoodicsChargeClient(
         HttpClient httpClient,
-        IConfiguration configuration,
+        FoodicsBaseUrlResolver baseUrlResolver,
         ILogger<FoodicsChargeClient> logger)
     {
         _httpClient = httpClient;
         _logger = logger;
-
-        var baseUrl = configuration["Foodics:BaseUrl"];
-        if (string.IsNullOrWhiteSpace(baseUrl))
-        {
-            throw new InvalidOperationException("Foodics:BaseUrl configuration is missing.");
-        }
-
-        _baseUrl = baseUrl.EndsWith("/", StringComparison.Ordinal) ? baseUrl : baseUrl + "/";
+        _baseUrlResolver = baseUrlResolver;
         _httpClient.Timeout = TimeSpan.FromMinutes(2);
         _httpClient.DefaultRequestHeaders.Accept.Clear();
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -46,9 +38,10 @@ public class FoodicsChargeClient : ITransientDependency
 
     public async Task<List<TalabatDeliveryChargeDto>> GetChargesAsync(
         string accessToken,
+        Guid? foodicsAccountId = null,
         CancellationToken cancellationToken = default)
     {
-        var charges = await GetChargeItemsAsync(accessToken, cancellationToken);
+        var charges = await GetChargeItemsAsync(accessToken, foodicsAccountId, cancellationToken);
         var result = new List<TalabatDeliveryChargeDto>(charges.Count);
 
         foreach (var charge in charges)
@@ -77,9 +70,11 @@ public class FoodicsChargeClient : ITransientDependency
 
     private async Task<List<FoodicsChargeItem>> GetChargeItemsAsync(
         string accessToken,
+        Guid? foodicsAccountId,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(new Uri(_baseUrl), "charges?per_page=100"));
+        var requestUri = await BuildUriAsync("charges?per_page=100", foodicsAccountId, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
@@ -99,6 +94,12 @@ public class FoodicsChargeClient : ITransientDependency
         });
 
         return payload?.Data ?? new List<FoodicsChargeItem>();
+    }
+
+    private async Task<Uri> BuildUriAsync(string relativePath, Guid? foodicsAccountId, CancellationToken cancellationToken)
+    {
+        var baseUrl = await _baseUrlResolver.ResolveAsync(foodicsAccountId, cancellationToken);
+        return new Uri(new Uri(baseUrl), relativePath);
     }
 
     private sealed class FoodicsChargeListEnvelope

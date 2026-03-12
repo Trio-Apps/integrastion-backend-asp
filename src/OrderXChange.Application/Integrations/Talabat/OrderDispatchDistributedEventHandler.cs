@@ -202,7 +202,8 @@ public class OrderDispatchDistributedEventHandler
                     webhook.CreatedAt,
                     account.VendorCode,
                     account.FoodicsBranchId,
-                    accessToken);
+                    accessToken,
+                    eventData.FoodicsAccountId);
 
                 _logger.LogInformation(
                     "Resolved Foodics business date. CorrelationId={CorrelationId}, VendorCode={VendorCode}, BranchId={BranchId}, BusinessDate={BusinessDate}, TimeZone={TimeZone}, Source={Source}",
@@ -229,7 +230,7 @@ public class OrderDispatchDistributedEventHandler
                 FoodicsOrderResponseDto? response;
                 try
                 {
-                    response = await _foodicsOrderClient.CreateOrderAsync(request, accessToken);
+                    response = await _foodicsOrderClient.CreateOrderAsync(request, accessToken, eventData.FoodicsAccountId);
                 }
                 catch (Exception ex) when (IsAuthFailure(ex))
                 {
@@ -240,7 +241,7 @@ public class OrderDispatchDistributedEventHandler
                     }
 
                     accessToken = await RefreshAccessTokenAsync(eventData.FoodicsAccountId, eventData.VendorCode);
-                    response = await _foodicsOrderClient.CreateOrderAsync(request, accessToken);
+                    response = await _foodicsOrderClient.CreateOrderAsync(request, accessToken, eventData.FoodicsAccountId);
                 }
 
                 orderLog.Status = "Succeeded";
@@ -362,6 +363,7 @@ public class OrderDispatchDistributedEventHandler
 
         var products = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
             accessToken: accessToken,
+            foodicsAccountId: foodicsAccountId,
             perPage: 100,
             includeDeleted: false,
             includeInactive: false);

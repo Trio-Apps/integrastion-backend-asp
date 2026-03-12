@@ -19,22 +19,20 @@ public class FoodicsCatalogClient
     private readonly HttpClient _httpClient;
     private readonly ILogger<FoodicsCatalogClient> _logger;
     private readonly IConfiguration _configuration;
+    private readonly FoodicsBaseUrlResolver _baseUrlResolver;
     private readonly string? _defaultAccessToken;
     private readonly JsonSerializerOptions _jsonOptions;
 
-    public FoodicsCatalogClient(HttpClient httpClient, IConfiguration configuration, ILogger<FoodicsCatalogClient> logger)
+    public FoodicsCatalogClient(
+        HttpClient httpClient,
+        IConfiguration configuration,
+        FoodicsBaseUrlResolver baseUrlResolver,
+        ILogger<FoodicsCatalogClient> logger)
     {
         _httpClient = httpClient;
         _logger = logger;
         _configuration = configuration;
-
-        var baseUrl = configuration["Foodics:BaseUrl"];
-        if (string.IsNullOrWhiteSpace(baseUrl))
-        {
-            throw new InvalidOperationException("Foodics:BaseUrl configuration is missing.");
-        }
-
-        _httpClient.BaseAddress = new Uri(EnsureEndsWithSlash(baseUrl));
+        _baseUrlResolver = baseUrlResolver;
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         // Set timeout to 2 minutes to handle large responses
@@ -223,6 +221,7 @@ public class FoodicsCatalogClient
     public async Task<Dictionary<string, FoodicsProductDetailDto>> GetAllProductsWithIncludesAsync(
     string? branchId = null,
     string? accessToken = null,
+    Guid? foodicsAccountId = null,
     int perPage = 100,
     bool includeDeleted = false,
     bool includeInactive = false,
@@ -282,7 +281,8 @@ public class FoodicsCatalogClient
                     currentPage,
                     url);
 
-                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                var requestUri = await BuildUriAsync(url, foodicsAccountId, cancellationToken);
+                using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
                 _logger.LogInformation(
@@ -555,6 +555,12 @@ public class FoodicsCatalogClient
         }
 
         return result;
+    }
+
+    private async Task<Uri> BuildUriAsync(string relativePath, Guid? foodicsAccountId, CancellationToken cancellationToken)
+    {
+        var baseUrl = await _baseUrlResolver.ResolveAsync(foodicsAccountId, cancellationToken);
+        return new Uri(new Uri(EnsureEndsWithSlash(baseUrl)), relativePath);
     }
     public async Task<Dictionary<string, FoodicsGroupInfoDto>> GetGroupsByIdsAsync(
         IEnumerable<string> ids,

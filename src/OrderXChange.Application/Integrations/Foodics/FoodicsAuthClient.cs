@@ -16,21 +16,28 @@ public class FoodicsAuthClient : ITransientDependency
 {
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
+    private readonly FoodicsBaseUrlResolver _baseUrlResolver;
     private readonly ILogger<FoodicsAuthClient> _logger;
 
-    public FoodicsAuthClient(HttpClient httpClient, IConfiguration configuration, ILogger<FoodicsAuthClient> logger)
+    public FoodicsAuthClient(
+        HttpClient httpClient,
+        IConfiguration configuration,
+        FoodicsBaseUrlResolver baseUrlResolver,
+        ILogger<FoodicsAuthClient> logger)
     {
         _httpClient = httpClient;
         _configuration = configuration;
+        _baseUrlResolver = baseUrlResolver;
         _logger = logger;
     }
 
     public async Task<FoodicsTokenResponse> RequestAccessTokenAsync(
         string clientId,
         string clientSecret,
+        Guid? foodicsAccountId = null,
         CancellationToken cancellationToken = default)
     {
-        var tokenUrl = ResolveTokenUrl();
+        var tokenUrl = await ResolveTokenUrlAsync(foodicsAccountId, cancellationToken);
         var scope = _configuration["Foodics:OAuthScope"];
         var grantType = _configuration["Foodics:OAuthGrantType"] ?? "client_credentials";
         var useBasicAuth = bool.TryParse(_configuration["Foodics:OAuthUseBasicAuth"], out var parsed) && parsed;
@@ -131,7 +138,7 @@ public class FoodicsAuthClient : ITransientDependency
         }
     }
 
-    private string ResolveTokenUrl()
+    private async Task<string> ResolveTokenUrlAsync(Guid? foodicsAccountId, CancellationToken cancellationToken)
     {
         var explicitUrl = _configuration["Foodics:AuthUrl"] ?? _configuration["Foodics:TokenUrl"];
         if (!string.IsNullOrWhiteSpace(explicitUrl))
@@ -139,7 +146,7 @@ public class FoodicsAuthClient : ITransientDependency
             return explicitUrl;
         }
 
-        var baseUrl = _configuration["Foodics:BaseUrl"];
+        var baseUrl = await _baseUrlResolver.ResolveAsync(foodicsAccountId, cancellationToken);
         if (string.IsNullOrWhiteSpace(baseUrl))
         {
             throw new InvalidOperationException("Foodics:BaseUrl configuration is missing.");

@@ -14,6 +14,7 @@ import { DialogModule } from 'primeng/dialog';
 import { PasswordModule } from 'primeng/password';
 import { MessageModule } from 'primeng/message';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { Select } from 'primeng/select';
 import { MessageService, ConfirmationService } from 'primeng/api';
 
 // ABP & Services
@@ -39,6 +40,7 @@ import { LocalizationModule, LocalizationService, PagedResultDto, PagedAndSorted
     PasswordModule,
     MessageModule,
     ConfirmDialogModule,
+    Select,
     LocalizationModule
   ],
   providers: [MessageService, ConfirmationService],
@@ -67,6 +69,10 @@ export class FoodicsListComponent implements OnInit {
   selectedAccountId?: string;
   accountForm!: FormGroup;
   submitting: boolean = false;
+  readonly environmentOptions = [
+    { label: this.l('::Foodics.Environment.Sandbox'), value: 'Sandbox' },
+    { label: this.l('::Foodics.Environment.Production'), value: 'Production' }
+  ];
 
   ngOnInit(): void {
     // Initial load is handled by lazy loading event
@@ -81,7 +87,8 @@ export class FoodicsListComponent implements OnInit {
       brandName: ['', [Validators.required]],
       oAuthClientId: ['', [Validators.required]],
       oAuthClientSecret: ['', [Validators.required]],
-      accessToken: ['']
+      accessToken: [''],
+      apiEnvironment: ['Sandbox', [Validators.required]]
     });
   }
 
@@ -146,6 +153,7 @@ export class FoodicsListComponent implements OnInit {
     this.selectedAccountId = undefined;
     this.displayDialog = true;
     this.accountForm.reset();
+    this.accountForm.patchValue({ apiEnvironment: 'Sandbox' });
   }
 
   /**
@@ -161,7 +169,8 @@ export class FoodicsListComponent implements OnInit {
       brandName: account.brandName || '',
       oAuthClientId: account.oAuthClientId || '',
       oAuthClientSecret: account.oAuthClientSecret || '',
-      accessToken: account.accessToken || ''
+      accessToken: account.accessToken || '',
+      apiEnvironment: account.apiEnvironment || 'Sandbox'
     });
   }
 
@@ -195,7 +204,8 @@ export class FoodicsListComponent implements OnInit {
       brandName: this.accountForm.value.brandName,
       oAuthClientId: this.accountForm.value.oAuthClientId,
       oAuthClientSecret: this.accountForm.value.oAuthClientSecret,
-      accessToken: this.accountForm.value.accessToken || undefined
+      accessToken: this.accountForm.value.accessToken || undefined,
+      apiEnvironment: this.accountForm.value.apiEnvironment
     };
 
     if (this.isEditMode && this.selectedAccountId) {
@@ -278,7 +288,8 @@ export class FoodicsListComponent implements OnInit {
       brandName: this.l('::Foodics.Dialog.BrandNameLabel'),
       oAuthClientId: this.l('::Foodics.Dialog.ClientIdLabel'),
       oAuthClientSecret: this.l('::Foodics.Dialog.ClientSecretLabel'),
-      accessToken: this.l('::Foodics.Dialog.AccessTokenLabel')
+      accessToken: this.l('::Foodics.Dialog.AccessTokenLabel'),
+      apiEnvironment: this.l('::Foodics.Dialog.EnvironmentLabel')
     };
     return labels[fieldName] || fieldName;
   }

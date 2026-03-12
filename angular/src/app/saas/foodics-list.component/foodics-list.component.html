@@ -43,6 +43,7 @@
           </div>
         </th>
         <th style="min-width: 15rem">{{ '::Foodics.Table.ClientId' | abpLocalization }}</th>
+        <th style="min-width: 10rem">{{ '::Foodics.Table.Environment' | abpLocalization }}</th>
         <th style="min-width: 10rem">{{ '::Foodics.Table.AccessToken' | abpLocalization }}</th>
         <th pSortableColumn="creationTime" style="min-width: 12rem">
           <div class="flex items-center">
@@ -67,6 +68,12 @@
           <code class="text-sm bg-surface-100 dark:bg-surface-800 px-2 py-1 rounded">
             {{ account.oAuthClientId || ('::Foodics.Table.NotAvailable' | abpLocalization) }}
           </code>
+        </td>
+        <td>
+          <p-tag
+            [value]="('::Foodics.Environment.' + (account.apiEnvironment || 'Sandbox')) | abpLocalization"
+            [severity]="account.apiEnvironment === 'Production' ? 'warning' : 'info'"
+            [rounded]="true" />
         </td>
         <td>
           @if (account.accessToken) {
@@ -127,6 +134,7 @@
         </td>
         <td><p-skeleton width="15rem" styleClass="mb-2" /></td>
         <td><p-skeleton width="8rem" styleClass="mb-2" /></td>
+        <td><p-skeleton width="8rem" styleClass="mb-2" /></td>
         <td><p-skeleton width="10rem" styleClass="mb-2" /></td>
         <td>
           <div class="flex gap-2">
@@ -140,7 +148,7 @@
     <!-- Empty Message -->
     <ng-template pTemplate="emptymessage">
       <tr>
-        <td colspan="5">
+        <td colspan="6">
           <div class="flex flex-col items-center justify-center py-8 text-center">
             <i class="pi pi-inbox text-6xl text-surface-400 mb-4"></i>
             <h4 class="text-xl font-semibold text-surface-700 dark:text-surface-300 mb-2">
@@ -258,6 +266,29 @@
           [placeholder]="'::Foodics.Dialog.AccessTokenPlaceholder' | abpLocalization"
           autocomplete="off"
           class="w-full" />
+      </div>
+
+      <!-- API Environment Field -->
+      <div class="flex flex-col w-full max-w-md mb-4">
+        <label for="apiEnvironment" class="font-semibold mb-2">
+          {{ '::Foodics.Dialog.EnvironmentLabel' | abpLocalization }}
+          <span class="text-red-500">*</span>
+        </label>
+        <p-select
+          id="apiEnvironment"
+          formControlName="apiEnvironment"
+          [options]="environmentOptions"
+          optionLabel="label"
+          optionValue="value"
+          class="w-full"
+          styleClass="w-full"
+          [placeholder]="'::Foodics.Dialog.EnvironmentPlaceholder' | abpLocalization">
+        </p-select>
+        @if (isFieldInvalid('apiEnvironment')) {
+          <p-message severity="error" size="small" variant="simple" class="mt-2">
+            {{ getFieldError('apiEnvironment') }}
+          </p-message>
+        }
       </div>
     </form>
   </ng-template>

@@ -7,7 +7,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
 using OrderXChange.Application.Contracts.Integrations.Talabat;
 using Volo.Abp.DependencyInjection;
 
@@ -16,19 +15,12 @@ namespace OrderXChange.Application.Integrations.Foodics;
 public class FoodicsPaymentMethodClient : ITransientDependency
 {
     private readonly HttpClient _httpClient;
-    private readonly string _baseUrl;
+    private readonly FoodicsBaseUrlResolver _baseUrlResolver;
 
-    public FoodicsPaymentMethodClient(HttpClient httpClient, IConfiguration configuration)
+    public FoodicsPaymentMethodClient(HttpClient httpClient, FoodicsBaseUrlResolver baseUrlResolver)
     {
         _httpClient = httpClient;
-
-        var baseUrl = configuration["Foodics:BaseUrl"];
-        if (string.IsNullOrWhiteSpace(baseUrl))
-        {
-            throw new InvalidOperationException("Foodics:BaseUrl configuration is missing.");
-        }
-
-        _baseUrl = baseUrl.EndsWith("/", StringComparison.Ordinal) ? baseUrl : baseUrl + "/";
+        _baseUrlResolver = baseUrlResolver;
         _httpClient.Timeout = TimeSpan.FromMinutes(2);
         _httpClient.DefaultRequestHeaders.Accept.Clear();
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -36,9 +28,11 @@ public class FoodicsPaymentMethodClient : ITransientDependency
 
     public async Task<List<TalabatPaymentMethodDto>> GetPaymentMethodsAsync(
         string accessToken,
+        Guid? foodicsAccountId = null,
         CancellationToken cancellationToken = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(new Uri(_baseUrl), "payment_methods"));
+        var requestUri = await BuildUriAsync("payment_methods", foodicsAccountId, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
@@ -78,6 +72,7 @@ public class FoodicsPaymentMethodClient : ITransientDependency
         string name,
         string code,
         int type,
+        Guid? foodicsAccountId = null,
         CancellationToken cancellationToken = default)
     {
         var payload = JsonSerializer.Serialize(new
@@ -87,7 +82,8 @@ public class FoodicsPaymentMethodClient : ITransientDependency
             type
         });
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(new Uri(_baseUrl), "payment_methods"));
+        var requestUri = await BuildUriAsync("payment_methods", foodicsAccountId, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
 
@@ -113,6 +109,12 @@ public class FoodicsPaymentMethodClient : ITransientDependency
         }
 
         return MapPaymentMethod(result.Data);
+    }
+
+    private async Task<Uri> BuildUriAsync(string relativePath, Guid? foodicsAccountId, CancellationToken cancellationToken)
+    {
+        var baseUrl = await _baseUrlResolver.ResolveAsync(foodicsAccountId, cancellationToken);
+        return new Uri(new Uri(baseUrl), relativePath);
     }
 
     private static TalabatPaymentMethodDto MapPaymentMethod(FoodicsPaymentMethodItem item)

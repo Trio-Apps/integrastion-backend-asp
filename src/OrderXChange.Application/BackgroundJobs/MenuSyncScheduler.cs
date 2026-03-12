@@ -259,6 +259,7 @@ public class MenuSyncScheduler : ITransientDependency
             var allProducts = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
                 branchId: null,  // Always fetch ALL products to get branch info
                 accessToken: accessToken,
+                foodicsAccountId: foodicsAccount.Id,
                 perPage: 100,
                 includeDeleted: false,
                 includeInactive: false,
@@ -494,4 +495,3 @@ public class MenuSyncScheduler : ITransientDependency
             talabatAccount, allProducts, foodicsAccountId, correlationId, cancellationToken);
     }
 }
-
