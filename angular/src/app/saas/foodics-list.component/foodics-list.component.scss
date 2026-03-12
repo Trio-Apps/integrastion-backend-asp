@@ -1,3 +1,49 @@
-// Add custom styles here if needed
+:host {
+  display: block;
+}
+
+:host ::ng-deep .foodics-account-dialog {
+  max-width: 96vw;
+}
+
+:host ::ng-deep .foodics-account-dialog .p-dialog-content {
+  overflow: visible;
+  padding: 0.5rem 1.5rem 0 1.5rem;
+}
+
+:host ::ng-deep .foodics-account-dialog .p-dialog-footer {
+  padding: 1rem 1.5rem 1.5rem;
+}
+
+.foodics-account-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
+
+.foodics-form-field {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 32rem);
+  margin: 0 auto 1rem;
+}
+
+.foodics-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .foodics-form-field {
+    width: 100%;
+  }
+
+  .foodics-dialog-footer {
+    justify-content: stretch;
+  }
+}
 
 
