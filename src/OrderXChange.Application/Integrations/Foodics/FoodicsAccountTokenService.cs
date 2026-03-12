@@ -135,7 +135,6 @@ public class FoodicsAccountTokenService : ITransientDependency
 	/// Gets access token with fallback priority:
 	/// 1. FoodicsAccount token (if accountId provided)
 	/// 2. Current tenant's FoodicsAccount token
-	/// 3. Configuration token
 	/// </summary>
 	/// <param name="foodicsAccountId">Optional FoodicsAccount ID</param>
 	/// <param name="cancellationToken">Cancellation token</param>
@@ -158,14 +157,8 @@ public class FoodicsAccountTokenService : ITransientDependency
 			return tenantToken;
 		}
 
-		var configToken = _configuration["Foodics:ApiToken"] ?? _configuration["Foodics:AccessToken"];
-		if (!string.IsNullOrWhiteSpace(configToken))
-		{
-			return configToken;
-		}
-
 		throw new InvalidOperationException(
-			"Foodics access token not found. Configure FoodicsAccount access token or set Foodics:ApiToken/AccessToken in appsettings.");
+			"Foodics access token not found in database. Configure the FoodicsAccount access token for the requested account or current tenant.");
 	}
 }
 

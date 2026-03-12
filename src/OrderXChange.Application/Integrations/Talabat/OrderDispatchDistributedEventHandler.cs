@@ -346,20 +346,6 @@ public class OrderDispatchDistributedEventHandler
 
     private async Task<(string AccessToken, bool IsOverrideToken)> GetOrderAccessTokenAsync(Guid foodicsAccountId)
     {
-        var useOverrideToken = _configuration.GetValue<bool?>("Foodics:UseOrderTestAccessToken") ?? false;
-        var overrideToken = _configuration["Foodics:OrderTestAccessToken"];
-        if (useOverrideToken && !string.IsNullOrWhiteSpace(overrideToken))
-        {
-            _logger.LogWarning("Using Foodics order token override from configuration.");
-            return (overrideToken!, true);
-        }
-        
-        if (useOverrideToken && string.IsNullOrWhiteSpace(overrideToken))
-        {
-            _logger.LogWarning(
-                "Foodics:UseOrderTestAccessToken is enabled but Foodics:OrderTestAccessToken is empty. Falling back to account token.");
-        }
-
         var token = await _tokenService.GetAccessTokenAsync(foodicsAccountId);
         return (token, false);
     }

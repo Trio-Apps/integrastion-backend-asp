@@ -139,13 +139,6 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
         Guid? foodicsAccountId,
         CancellationToken cancellationToken)
     {
-        var useOverrideToken = _configuration.GetValue<bool?>("Foodics:UseOrderTestAccessToken") ?? false;
-        var overrideToken = Normalize(_configuration["Foodics:OrderTestAccessToken"]);
-        if (useOverrideToken && !string.IsNullOrWhiteSpace(overrideToken))
-        {
-            return (overrideToken, "OrderTestAccessToken");
-        }
-
         if (foodicsAccountId.HasValue)
         {
             var accountToken = await _foodicsAccountTokenService.GetAccessTokenAsync(foodicsAccountId.Value, cancellationToken);
@@ -161,16 +154,8 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
             return (tenantToken, "CurrentTenantFoodicsAccount");
         }
 
-        var configToken = Normalize(_configuration["Foodics:ApiToken"])
-            ?? Normalize(_configuration["Foodics:AccessToken"]);
-
-        if (!string.IsNullOrWhiteSpace(configToken))
-        {
-            return (configToken, "AppSettings");
-        }
-
         throw new UserFriendlyException(
-            "No Foodics access token is available. Configure a Foodics account token or enable the order test token override.");
+            "No Foodics access token is available in the database. Configure the Foodics account token for the requested account or current tenant.");
     }
 
     private static string BuildApiPaymentMethodCode(TalabatPaymentMethodDto paymentMethod)
