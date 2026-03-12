@@ -72,7 +72,7 @@
         <td>
           <p-tag
             [value]="('::Foodics.Environment.' + (account.apiEnvironment || 'Sandbox')) | abpLocalization"
-            [severity]="account.apiEnvironment === 'Production' ? 'warning' : 'info'"
+            [severity]="account.apiEnvironment === 'Production' ? 'warn' : 'info'"
             [rounded]="true" />
         </td>
         <td>
