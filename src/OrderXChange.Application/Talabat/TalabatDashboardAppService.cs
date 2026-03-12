@@ -98,8 +98,8 @@ public class TalabatDashboardAppService : ApplicationService, ITalabatDashboardA
     }
 
     /// <summary>
-    /// Gets dashboard data - ALWAYS shows all data across all tenants
-    /// This is required because sync logs are created with TenantId=NULL (host data)
+    /// Gets dashboard data.
+    /// Host users can see all tenants. Regular tenant users are restricted to their own tenant data.
     /// </summary>
     public async Task<TalabatDashboardDto> GetDashboardAsync(string? vendorCode = null)
     {
@@ -111,11 +111,15 @@ public class TalabatDashboardAppService : ApplicationService, ITalabatDashboardA
             CurrentTenant.Id,
             isHost);
 
-        // ALWAYS disable multi-tenancy filter because all Talabat data is stored with TenantId=NULL
-        using (_dataFilter.Disable<IMultiTenant>())
+        if (isHost)
         {
-            return await GetDashboardInternalAsync(vendorCode, isHost);
+            using (_dataFilter.Disable<IMultiTenant>())
+            {
+                return await GetDashboardInternalAsync(vendorCode, isHost);
+            }
         }
+
+        return await GetDashboardInternalAsync(vendorCode, isHost);
     }
 
     private async Task<TalabatDashboardDto> GetDashboardInternalAsync(string? vendorCode, bool isHost)
@@ -229,7 +233,8 @@ public class TalabatDashboardAppService : ApplicationService, ITalabatDashboardA
     }
 
     /// <summary>
-    /// Gets paginated sync logs - ALWAYS shows all data across all tenants
+    /// Gets paginated sync logs.
+    /// Host users can see all tenants. Regular tenant users are restricted to their own tenant data.
     /// </summary>
     public async Task<PagedResultDto<TalabatSyncLogItemDto>> GetSyncLogsAsync(GetSyncLogsInput input)
     {
@@ -242,11 +247,15 @@ public class TalabatDashboardAppService : ApplicationService, ITalabatDashboardA
             input.MaxResultCount,
             isHost);
 
-        // ALWAYS disable multi-tenancy filter
-        using (_dataFilter.Disable<IMultiTenant>())
+        if (isHost)
         {
-            return await GetSyncLogsInternalAsync(input, isHost);
+            using (_dataFilter.Disable<IMultiTenant>())
+            {
+                return await GetSyncLogsInternalAsync(input, isHost);
+            }
         }
+
+        return await GetSyncLogsInternalAsync(input, isHost);
     }
 
     private async Task<PagedResultDto<TalabatSyncLogItemDto>> GetSyncLogsInternalAsync(GetSyncLogsInput input, bool isHost)
