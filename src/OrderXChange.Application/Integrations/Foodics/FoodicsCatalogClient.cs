@@ -157,6 +157,69 @@ public class FoodicsCatalogClient
         return result;
     }
 
+    public async Task<List<FoodicsBranchDto>> GetAllBranchesAsync(
+        string? accessToken = null,
+        Guid? foodicsAccountId = null,
+        int perPage = 100,
+        CancellationToken cancellationToken = default)
+    {
+        var token = GetAccessToken(accessToken);
+        var result = new Dictionary<string, FoodicsBranchDto>(StringComparer.OrdinalIgnoreCase);
+        var currentPage = 1;
+
+        while (true)
+        {
+            var url = $"branches?page={currentPage}&per_page={perPage}";
+            var requestUri = await BuildUriAsync(url, foodicsAccountId, cancellationToken);
+            using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError(
+                    "Foodics branches request failed. Page={Page}, StatusCode={StatusCode}, Body={Body}",
+                    currentPage,
+                    (int)response.StatusCode,
+                    body);
+                response.EnsureSuccessStatusCode();
+            }
+
+            var payload = await response.Content.ReadFromJsonAsync<FoodicsListEnvelope<FoodicsBranchDto>>(_jsonOptions, cancellationToken);
+            var items = payload?.Data ?? [];
+
+            if (items.Count == 0)
+            {
+                break;
+            }
+
+            foreach (var branch in items)
+            {
+                if (!string.IsNullOrWhiteSpace(branch.Id))
+                {
+                    result[branch.Id] = branch;
+                }
+            }
+
+            if (items.Count < perPage)
+            {
+                break;
+            }
+
+            currentPage++;
+            if (currentPage > 1000)
+            {
+                _logger.LogWarning("Reached Foodics branches pagination safety limit.");
+                break;
+            }
+        }
+
+        return result.Values
+            .OrderBy(x => x.Name ?? x.NameLocalized ?? x.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     public async Task<Dictionary<string, FoodicsProductDetailDto>> GetProductsWithIncludesByIdsAsync(
         IEnumerable<string> ids,
         string? accessToken = null,

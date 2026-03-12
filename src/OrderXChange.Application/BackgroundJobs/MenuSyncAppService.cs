@@ -557,34 +557,18 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
 
     /// <summary>
     /// Gets available active branches for a specific FoodicsAccount.
-    /// Only returns branches where is_active is true.
-    /// Used for dropdown selection when configuring TalabatAccount.
+    /// Returns all branches from Foodics branch endpoint for the selected account.
+    /// Used for dropdown selection when configuring TalabatAccount, regardless of product availability.
     /// </summary>
     public async Task<List<FoodicsBranchDto>> GetBranchesForAccountAsync(Guid foodicsAccountId)
     {
         var accessToken = await _tokenService.GetAccessTokenWithFallbackAsync(foodicsAccountId, CancellationToken.None);
-        
-        var allProducts = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
-            branchId: null,
+
+        return await _foodicsCatalogClient.GetAllBranchesAsync(
             accessToken: accessToken,
             foodicsAccountId: foodicsAccountId,
             perPage: 100,
-            includeDeleted: false,
-            includeInactive: false,
             cancellationToken: CancellationToken.None);
-        
-        // Foodics returns branch availability for product listings in pivot.is_active.
-        // The top-level branch is_active is often null in this endpoint, so do not filter on it.
-        var branches = allProducts.Values
-            .Where(p => p.Branches != null && p.Branches.Count > 0)
-            .SelectMany(p => p.Branches!)
-            .GroupBy(b => b.Id)
-            .Select(g => g.First())
-            .Where(b => !string.IsNullOrEmpty(b.Id) && b.Pivot?.IsActive != false)
-            .OrderBy(b => b.Name)
-            .ToList();
-        
-        return branches;
     }
 
     /// <summary>
