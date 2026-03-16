@@ -13,22 +13,18 @@ public class FoodicsMenuClient
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<FoodicsMenuClient> _logger;
-    private readonly IConfiguration _configuration;
+    private readonly FoodicsBaseUrlResolver _baseUrlResolver;
     private readonly string? _defaultAccessToken;
 
-    public FoodicsMenuClient(HttpClient httpClient, IConfiguration configuration, ILogger<FoodicsMenuClient> logger)
+    public FoodicsMenuClient(
+        HttpClient httpClient,
+        IConfiguration configuration,
+        FoodicsBaseUrlResolver baseUrlResolver,
+        ILogger<FoodicsMenuClient> logger)
     {
         _httpClient = httpClient;
         _logger = logger;
-        _configuration = configuration;
-
-        var baseUrl = configuration["Foodics:BaseUrl"];
-        if (string.IsNullOrWhiteSpace(baseUrl))
-        {
-            throw new InvalidOperationException("Foodics:BaseUrl configuration is missing.");
-        }
-
-        _httpClient.BaseAddress = new Uri(EnsureEndsWithSlash(baseUrl));
+        _baseUrlResolver = baseUrlResolver;
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         // Store default token from configuration as fallback (backward compatibility)
@@ -54,13 +50,21 @@ public class FoodicsMenuClient
             "Foodics access token is required. Provide accessToken parameter or configure Foodics:ApiToken/AccessToken in appsettings.");
     }
 
-    public async Task<FoodicsMenuDisplayResponseDto> GetMenuAsync(string? branchId = null, string? accessToken = null, CancellationToken cancellationToken = default)
+    public async Task<FoodicsMenuDisplayResponseDto> GetMenuAsync(
+        string? branchId = null,
+        string? accessToken = null,
+        Guid? foodicsAccountId = null,
+        CancellationToken cancellationToken = default)
     {
         var token = GetAccessToken(accessToken);
-        using var request = new HttpRequestMessage(HttpMethod.Get, BuildUrl(branchId));
+        var requestUri = await BuildUriAsync(BuildUrl(branchId), foodicsAccountId, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        _logger.LogInformation("Requesting Foodics menu for branch {BranchId}", branchId ?? "<all>");
+        _logger.LogInformation(
+            "Requesting Foodics menu display for branch {BranchId}, FoodicsAccountId={FoodicsAccountId}",
+            branchId ?? "<all>",
+            foodicsAccountId);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
@@ -77,6 +81,12 @@ public class FoodicsMenuClient
         }
 
         return payload;
+    }
+
+    private async Task<Uri> BuildUriAsync(string relativePath, Guid? foodicsAccountId, CancellationToken cancellationToken)
+    {
+        var baseUrl = await _baseUrlResolver.ResolveAsync(foodicsAccountId, cancellationToken);
+        return new Uri(new Uri(EnsureEndsWithSlash(baseUrl)), relativePath);
     }
 
     private static string BuildUrl(string? branchId)

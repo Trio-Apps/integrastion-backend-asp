@@ -20,6 +20,7 @@ public class TalabatCatalogSyncService : ITransientDependency
 {
     private readonly TalabatCatalogClient _talabatCatalogClient;
     private readonly FoodicsToTalabatMapper _mapper;
+    private readonly FoodicsMenuClient _foodicsMenuClient;
     private readonly TalabatSyncStatusService _syncStatusService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<TalabatCatalogSyncService> _logger;
@@ -27,12 +28,14 @@ public class TalabatCatalogSyncService : ITransientDependency
     public TalabatCatalogSyncService(
         TalabatCatalogClient talabatCatalogClient,
         FoodicsToTalabatMapper mapper,
+        FoodicsMenuClient foodicsMenuClient,
         TalabatSyncStatusService syncStatusService,
         IConfiguration configuration,
         ILogger<TalabatCatalogSyncService> logger)
     {
         _talabatCatalogClient = talabatCatalogClient;
         _mapper = mapper;
+        _foodicsMenuClient = foodicsMenuClient;
         _syncStatusService = syncStatusService;
         _configuration = configuration;
         _logger = logger;
@@ -60,7 +63,11 @@ public class TalabatCatalogSyncService : ITransientDependency
     {
         correlationId ??= Guid.NewGuid().ToString();
         var originalProductsList = products.ToList();
-        var productsList = FilterProductsForTalabat(originalProductsList).ToList();
+        var productsList = (await ApplyFoodicsMenuDisplayOrderAsync(
+            FilterProductsForTalabat(originalProductsList).ToList(),
+            foodicsAccountId,
+            branchId,
+            cancellationToken)).ToList();
         var categoriesCount = productsList
             .Select(p => p.Category?.Id ?? p.CategoryId)
             .Where(id => !string.IsNullOrWhiteSpace(id))
@@ -317,7 +324,11 @@ public class TalabatCatalogSyncService : ITransientDependency
     {
         correlationId ??= Guid.NewGuid().ToString();
         var originalProductsList = products.ToList();
-        var productsList = FilterProductsForTalabat(originalProductsList).ToList();
+        var productsList = (await ApplyFoodicsMenuDisplayOrderAsync(
+            FilterProductsForTalabat(originalProductsList).ToList(),
+            foodicsAccountId,
+            branchId,
+            cancellationToken)).ToList();
         var categoriesCount = productsList
             .Select(p => p.Category?.Id ?? p.CategoryId)
             .Where(id => !string.IsNullOrWhiteSpace(id))
@@ -459,6 +470,134 @@ public class TalabatCatalogSyncService : ITransientDependency
         }
 
         return result;
+    }
+
+    private async Task<List<FoodicsProductDetailDto>> ApplyFoodicsMenuDisplayOrderAsync(
+        List<FoodicsProductDetailDto> products,
+        Guid foodicsAccountId,
+        string? branchId,
+        CancellationToken cancellationToken)
+    {
+        if (products.Count <= 1)
+        {
+            return products;
+        }
+
+        try
+        {
+            var menuDisplay = await _foodicsMenuClient.GetMenuAsync(
+                branchId,
+                foodicsAccountId: foodicsAccountId,
+                cancellationToken: cancellationToken);
+
+            if (menuDisplay?.Data?.Categories == null || menuDisplay.Data.Categories.Count == 0)
+            {
+                _logger.LogInformation(
+                    "Foodics menu_display returned no categories. Keeping existing product order. FoodicsAccountId={FoodicsAccountId}, BranchId={BranchId}",
+                    foodicsAccountId,
+                    branchId ?? "<all>");
+                return products;
+            }
+
+            var categoryOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var productOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            for (var i = 0; i < menuDisplay.Data.Categories.Count; i++)
+            {
+                var category = menuDisplay.Data.Categories[i];
+                if (!string.IsNullOrWhiteSpace(category.CategoryId) && !categoryOrder.ContainsKey(category.CategoryId))
+                {
+                    categoryOrder[category.CategoryId] = i;
+                }
+
+                var flattenedProductIds = FlattenProductIds(category.Children);
+                for (var j = 0; j < flattenedProductIds.Count; j++)
+                {
+                    var productId = flattenedProductIds[j];
+                    if (!productOrder.ContainsKey(productId))
+                    {
+                        productOrder[productId] = j;
+                    }
+                }
+            }
+
+            var ordered = products
+                .Select((product, index) => new
+                {
+                    Product = product,
+                    OriginalIndex = index,
+                    CategoryOrder = ResolveCategoryOrder(product, categoryOrder),
+                    ProductOrder = ResolveProductOrder(product, productOrder)
+                })
+                .OrderBy(x => x.CategoryOrder)
+                .ThenBy(x => x.ProductOrder)
+                .ThenBy(x => x.OriginalIndex)
+                .Select(x => x.Product)
+                .ToList();
+
+            _logger.LogInformation(
+                "Applied Foodics menu_display ordering to Talabat sync payload. FoodicsAccountId={FoodicsAccountId}, BranchId={BranchId}, Products={ProductCount}, OrderedCategories={CategoryCount}, OrderedProducts={OrderedProductCount}",
+                foodicsAccountId,
+                branchId ?? "<all>",
+                ordered.Count,
+                categoryOrder.Count,
+                productOrder.Count);
+
+            return ordered;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to apply Foodics menu_display ordering. Falling back to current product order. FoodicsAccountId={FoodicsAccountId}, BranchId={BranchId}",
+                foodicsAccountId,
+                branchId ?? "<all>");
+            return products;
+        }
+    }
+
+    private static int ResolveCategoryOrder(
+        FoodicsProductDetailDto product,
+        Dictionary<string, int> categoryOrder)
+    {
+        var categoryId = product.Category?.Id ?? product.CategoryId;
+        return !string.IsNullOrWhiteSpace(categoryId) && categoryOrder.TryGetValue(categoryId, out var order)
+            ? order
+            : int.MaxValue;
+    }
+
+    private static int ResolveProductOrder(
+        FoodicsProductDetailDto product,
+        Dictionary<string, int> productOrder)
+    {
+        return !string.IsNullOrWhiteSpace(product.Id) && productOrder.TryGetValue(product.Id, out var order)
+            ? order
+            : int.MaxValue;
+    }
+
+    private static List<string> FlattenProductIds(IEnumerable<FoodicsMenuDisplayChildDto>? children)
+    {
+        var productIds = new List<string>();
+        if (children == null)
+        {
+            return productIds;
+        }
+
+        foreach (var child in children)
+        {
+            if (string.Equals(child.ChildType, "product", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(child.ChildId))
+            {
+                productIds.Add(child.ChildId);
+            }
+
+            if (child.Children != null && child.Children.Count > 0)
+            {
+                productIds.AddRange(FlattenProductIds(child.Children));
+            }
+        }
+
+        return productIds;
     }
 
     private static IEnumerable<FoodicsProductDetailDto> FilterProductsForTalabat(
