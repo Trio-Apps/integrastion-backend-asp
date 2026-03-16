@@ -51,14 +51,16 @@ public class FoodicsOrderClient
         CancellationToken cancellationToken = default)
     {
         EnsureBusinessDate(request);
+        var requestJson = JsonSerializer.Serialize(request, _jsonOptions);
 
         _logger.LogInformation(
-            "Sending Foodics create order. BranchId={BranchId}, BusinessDate={BusinessDate}, CreatedAt={CreatedAt}, DueAt={DueAt}, ProductCount={ProductCount}",
+            "Sending Foodics create order. BranchId={BranchId}, BusinessDate={BusinessDate}, CreatedAt={CreatedAt}, DueAt={DueAt}, ProductCount={ProductCount}, Payload={Payload}",
             request.BranchId,
             request.BusinessDate,
             request.CreatedAt,
             request.DueAt,
-            request.Products?.Count ?? 0);
+            request.Products?.Count ?? 0,
+            requestJson);
 
         var token = GetAccessToken(accessToken);
         var requestUri = await BuildUriAsync("orders", foodicsAccountId, cancellationToken);
