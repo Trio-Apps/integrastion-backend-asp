@@ -647,28 +647,40 @@ public class TalabatCatalogSyncService : ITransientDependency
                 }
             }
 
-            var categoryInfos = await _foodicsCatalogClient.GetCategoriesByIdsAsync(
-                categoryOrder.Keys,
-                cancellationToken: cancellationToken);
-
-            foreach (var entry in categoryOrder)
+            try
             {
-                if (!categoryInfos.TryGetValue(entry.Key, out var categoryInfo))
-                {
-                    continue;
-                }
+                var categoryInfos = await _foodicsCatalogClient.GetCategoriesByIdsAsync(
+                    categoryOrder.Keys,
+                    foodicsAccountId: foodicsAccountId,
+                    cancellationToken: cancellationToken);
 
-                if (!string.IsNullOrWhiteSpace(categoryInfo.Name) &&
-                    !categoryNameOrder.ContainsKey(categoryInfo.Name))
+                foreach (var entry in categoryOrder)
                 {
-                    categoryNameOrder[categoryInfo.Name] = entry.Value;
-                }
+                    if (!categoryInfos.TryGetValue(entry.Key, out var categoryInfo))
+                    {
+                        continue;
+                    }
 
-                if (!string.IsNullOrWhiteSpace(categoryInfo.NameLocalized) &&
-                    !categoryNameOrder.ContainsKey(categoryInfo.NameLocalized))
-                {
-                    categoryNameOrder[categoryInfo.NameLocalized] = entry.Value;
+                    if (!string.IsNullOrWhiteSpace(categoryInfo.Name) &&
+                        !categoryNameOrder.ContainsKey(categoryInfo.Name))
+                    {
+                        categoryNameOrder[categoryInfo.Name] = entry.Value;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(categoryInfo.NameLocalized) &&
+                        !categoryNameOrder.ContainsKey(categoryInfo.NameLocalized))
+                    {
+                        categoryNameOrder[categoryInfo.NameLocalized] = entry.Value;
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to enrich Foodics category ordering with category names. Continuing with category/product IDs only. FoodicsAccountId={FoodicsAccountId}, BranchId={BranchId}",
+                    foodicsAccountId,
+                    branchId ?? "<all>");
             }
 
             foreach (var categoryGroup in products

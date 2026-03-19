@@ -69,6 +69,7 @@ public class FoodicsCatalogClient
     public async Task<Dictionary<string, FoodicsCategoryInfoDto>> GetCategoriesByIdsAsync(
         IEnumerable<string> ids,
         string? accessToken = null,
+        Guid? foodicsAccountId = null,
         CancellationToken cancellationToken = default)
     {
         var idList = NormalizeIds(ids);
@@ -79,7 +80,8 @@ public class FoodicsCatalogClient
 
         var token = GetAccessToken(accessToken);
         var url = $"categories?filter[id]={Uri.EscapeDataString(string.Join(",", idList))}";
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        var requestUri = await BuildUriAsync(url, foodicsAccountId, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var response = await _httpClient.SendAsync(request, cancellationToken);
@@ -115,6 +117,7 @@ public class FoodicsCatalogClient
     public async Task<Dictionary<string, FoodicsProductInfoDto>> GetProductsByIdsAsync(
         IEnumerable<string> ids,
         string? accessToken = null,
+        Guid? foodicsAccountId = null,
         CancellationToken cancellationToken = default)
     {
         var idList = NormalizeIds(ids);
@@ -125,7 +128,8 @@ public class FoodicsCatalogClient
 
         var token = GetAccessToken(accessToken);
         var url = $"products?filter[id]={Uri.EscapeDataString(string.Join(",", idList))}&filter[is_deleted]=false&filter[is_active]=true";
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        var requestUri = await BuildUriAsync(url, foodicsAccountId, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var response = await _httpClient.SendAsync(request, cancellationToken);
@@ -223,6 +227,7 @@ public class FoodicsCatalogClient
     public async Task<Dictionary<string, FoodicsProductDetailDto>> GetProductsWithIncludesByIdsAsync(
         IEnumerable<string> ids,
         string? accessToken = null,
+        Guid? foodicsAccountId = null,
         CancellationToken cancellationToken = default)
     {
         var idList = NormalizeIds(ids);
@@ -235,7 +240,8 @@ public class FoodicsCatalogClient
         var includes = "category,price_tags,tax_group,tags,branches,ingredients.branches,modifiers,modifiers.options,modifiers.options.branches,discounts,timed_events,groups";
         var url = $"products?filter[id]={Uri.EscapeDataString(string.Join(",", idList))}&include={Uri.EscapeDataString(includes)}&filter[is_deleted]=false&filter[is_active]=true";
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        var requestUri = await BuildUriAsync(url, foodicsAccountId, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         _logger.LogInformation("Requesting Foodics products with full includes for {Count} product IDs", idList.Count);
@@ -625,10 +631,11 @@ public class FoodicsCatalogClient
         var baseUrl = await _baseUrlResolver.ResolveAsync(foodicsAccountId, cancellationToken);
         return new Uri(new Uri(EnsureEndsWithSlash(baseUrl)), relativePath);
     }
-    public async Task<Dictionary<string, FoodicsGroupInfoDto>> GetGroupsByIdsAsync(
-        IEnumerable<string> ids,
-        string? accessToken = null,
-        CancellationToken cancellationToken = default)
+public async Task<Dictionary<string, FoodicsGroupInfoDto>> GetGroupsByIdsAsync(
+    IEnumerable<string> ids,
+    string? accessToken = null,
+    Guid? foodicsAccountId = null,
+    CancellationToken cancellationToken = default)
 {
     var idList = NormalizeIds(ids);
     if (idList.Count == 0)
@@ -638,7 +645,8 @@ public class FoodicsCatalogClient
 
     var token = GetAccessToken(accessToken);
     var url = $"groups?filter[id]={Uri.EscapeDataString(string.Join(",", idList))}";
-    using var request = new HttpRequestMessage(HttpMethod.Get, url);
+    var requestUri = await BuildUriAsync(url, foodicsAccountId, cancellationToken);
+    using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
     request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
     _logger.LogInformation("Requesting Foodics groups for IDs: {GroupIds}", string.Join(", ", idList));
