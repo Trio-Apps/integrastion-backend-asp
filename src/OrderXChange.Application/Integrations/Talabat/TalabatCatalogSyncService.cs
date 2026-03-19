@@ -64,11 +64,12 @@ public class TalabatCatalogSyncService : ITransientDependency
     {
         correlationId ??= Guid.NewGuid().ToString();
         var originalProductsList = products.ToList();
-        var productsList = (await ApplyFoodicsMenuDisplayOrderAsync(
+        var orderingContext = await BuildFoodicsOrderingContextAsync(
             FilterProductsForTalabat(originalProductsList).ToList(),
             foodicsAccountId,
             branchId,
-            cancellationToken)).ToList();
+            cancellationToken);
+        var productsList = orderingContext.Products;
         var categoriesCount = productsList
             .Select(p => p.Category?.Id ?? p.CategoryId)
             .Where(id => !string.IsNullOrWhiteSpace(id))
@@ -115,6 +116,8 @@ public class TalabatCatalogSyncService : ITransientDependency
                 chainCode,
                 vendorCode,
                 callbackUrl,
+                orderingContext.CategoryOrder,
+                orderingContext.ProductOrder,
                 cancellationToken);
 
             LogTalabatV2OrderingPreview(catalogRequest, correlationId, chainCode, vendorCode);
@@ -327,11 +330,12 @@ public class TalabatCatalogSyncService : ITransientDependency
     {
         correlationId ??= Guid.NewGuid().ToString();
         var originalProductsList = products.ToList();
-        var productsList = (await ApplyFoodicsMenuDisplayOrderAsync(
+        var orderingContext = await BuildFoodicsOrderingContextAsync(
             FilterProductsForTalabat(originalProductsList).ToList(),
             foodicsAccountId,
             branchId,
-            cancellationToken)).ToList();
+            cancellationToken);
+        var productsList = orderingContext.Products;
         var categoriesCount = productsList
             .Select(p => p.Category?.Id ?? p.CategoryId)
             .Where(id => !string.IsNullOrWhiteSpace(id))
@@ -385,6 +389,8 @@ public class TalabatCatalogSyncService : ITransientDependency
                 chainCode,
                 vendorCode,
                 callbackUrl,
+                orderingContext.CategoryOrder,
+                orderingContext.ProductOrder,
                 cancellationToken);
 
             result.CategoriesCount = categoriesCount;
@@ -572,7 +578,7 @@ public class TalabatCatalogSyncService : ITransientDependency
         }
     }
 
-    private async Task<List<FoodicsProductDetailDto>> ApplyFoodicsMenuDisplayOrderAsync(
+    private async Task<FoodicsOrderingContext> BuildFoodicsOrderingContextAsync(
         List<FoodicsProductDetailDto> products,
         Guid foodicsAccountId,
         string? branchId,
@@ -580,7 +586,10 @@ public class TalabatCatalogSyncService : ITransientDependency
     {
         if (products.Count <= 1)
         {
-            return products;
+            return FoodicsOrderingContext.Create(
+                products,
+                new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
+                new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
         }
 
         try
@@ -596,7 +605,10 @@ public class TalabatCatalogSyncService : ITransientDependency
                     "Foodics menu_display returned no categories. Keeping existing product order. FoodicsAccountId={FoodicsAccountId}, BranchId={BranchId}",
                     foodicsAccountId,
                     branchId ?? "<all>");
-                return products;
+                return FoodicsOrderingContext.Create(
+                    products,
+                    new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
+                    new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
             }
 
             var categoryOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -643,7 +655,7 @@ public class TalabatCatalogSyncService : ITransientDependency
                 categoryOrder.Count,
                 productOrder.Count);
 
-            return ordered;
+            return FoodicsOrderingContext.Create(ordered, categoryOrder, productOrder);
         }
         catch (Exception ex)
         {
@@ -652,7 +664,10 @@ public class TalabatCatalogSyncService : ITransientDependency
                 "Failed to apply Foodics menu_display ordering. Falling back to current product order. FoodicsAccountId={FoodicsAccountId}, BranchId={BranchId}",
                 foodicsAccountId,
                 branchId ?? "<all>");
-            return products;
+            return FoodicsOrderingContext.Create(
+                products,
+                new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
+                new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
         }
     }
 
@@ -706,6 +721,26 @@ public class TalabatCatalogSyncService : ITransientDependency
         return products.Where(p =>
             string.IsNullOrWhiteSpace(p.DeletedAt) &&
             (p.IsActive == true || (p.Groups != null && p.Groups.Count > 0)));
+    }
+
+    private sealed class FoodicsOrderingContext
+    {
+        public List<FoodicsProductDetailDto> Products { get; private set; } = new();
+        public Dictionary<string, int> CategoryOrder { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, int> ProductOrder { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public static FoodicsOrderingContext Create(
+            List<FoodicsProductDetailDto> products,
+            Dictionary<string, int> categoryOrder,
+            Dictionary<string, int> productOrder)
+        {
+            return new FoodicsOrderingContext
+            {
+                Products = products,
+                CategoryOrder = categoryOrder,
+                ProductOrder = productOrder
+            };
+        }
     }
 }
 

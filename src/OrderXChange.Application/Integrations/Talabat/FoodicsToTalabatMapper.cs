@@ -873,6 +873,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
         string chainCode,
         string? vendorCode = null,
         string? callbackUrl = null,
+        IReadOnlyDictionary<string, int>? categoryOrderMap = null,
+        IReadOnlyDictionary<string, int>? productOrderMap = null,
         CancellationToken cancellationToken = default)
     {
         var productsList = products.ToList();
@@ -1057,6 +1059,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
         var productsByCategory = productsList
             .Where(p => !string.IsNullOrWhiteSpace(p.Category?.Id) || !string.IsNullOrWhiteSpace(p.CategoryId))
             .GroupBy(p => p.Category?.Id ?? p.CategoryId!)
+            .OrderBy(g => ResolveCategoryOrder(g.Key, categoryOrderMap))
+            .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         int categoryOrder = 0;
@@ -1079,7 +1083,12 @@ public class FoodicsToTalabatMapper : ITransientDependency
 
             if (!categoryMap.ContainsKey(categoryId))
             {
-                var categoryItem = CreateCategoryItemWithStableId(categoryId, categoryInfo, categoryMapping, categoryOrder++);
+                var categoryItem = CreateCategoryItemWithStableId(
+                    categoryId,
+                    categoryInfo,
+                    categoryMapping,
+                    ResolveCategoryOrder(categoryFoodicsId, categoryOrderMap, categoryOrder));
+                categoryOrder++;
                 categoryMap[categoryId] = categoryItem;
                 items[categoryId] = categoryItem;
             }
@@ -1089,7 +1098,9 @@ public class FoodicsToTalabatMapper : ITransientDependency
             categoryItemRef.Products ??= new Dictionary<string, TalabatV2ItemReference>();
             
             int productOrder = 0;
-            foreach (var product in categoryGroup)
+            foreach (var product in categoryGroup
+                         .OrderBy(p => ResolveProductOrder(p.Id, productOrderMap))
+                         .ThenBy(p => p.Id, StringComparer.OrdinalIgnoreCase))
             {
                 if (!string.IsNullOrWhiteSpace(product.Id) && mappings.TryGetValue(product.Id, out var productMapping))
                 {
@@ -1230,6 +1241,29 @@ public class FoodicsToTalabatMapper : ITransientDependency
             vendorCode ?? "<none>");
 
         return request;
+    }
+
+    private static int ResolveCategoryOrder(
+        string categoryId,
+        IReadOnlyDictionary<string, int>? categoryOrderMap,
+        int fallbackOrder = int.MaxValue)
+    {
+        return !string.IsNullOrWhiteSpace(categoryId) &&
+               categoryOrderMap != null &&
+               categoryOrderMap.TryGetValue(categoryId, out var order)
+            ? order
+            : fallbackOrder;
+    }
+
+    private static int ResolveProductOrder(
+        string? productId,
+        IReadOnlyDictionary<string, int>? productOrderMap)
+    {
+        return !string.IsNullOrWhiteSpace(productId) &&
+               productOrderMap != null &&
+               productOrderMap.TryGetValue(productId, out var order)
+            ? order
+            : int.MaxValue;
     }
 
     /// <summary>

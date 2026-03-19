@@ -78,7 +78,15 @@ public class MenuSyncMappingIntegration : ITransientDependency
             // Try to use stable ID-based mapping
             // Note: vendorCode is not available in this context, will use configuration fallback
             return await _talabatMapper.MapToTalabatV2CatalogAsync(
-                products, foodicsAccountId, branchId, chainCode, vendorCode: null, callbackUrl, cancellationToken);
+                products,
+                foodicsAccountId,
+                branchId,
+                chainCode,
+                vendorCode: null,
+                callbackUrl,
+                categoryOrderMap: null,
+                productOrderMap: null,
+                cancellationToken);
         }
         catch (Exception ex)
         {
