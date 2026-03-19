@@ -23,6 +23,7 @@ public class TalabatCatalogSyncService : ITransientDependency
     private readonly FoodicsToTalabatMapper _mapper;
     private readonly FoodicsMenuClient _foodicsMenuClient;
     private readonly FoodicsCatalogClient _foodicsCatalogClient;
+    private readonly FoodicsAccountTokenService _foodicsAccountTokenService;
     private readonly TalabatSyncStatusService _syncStatusService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<TalabatCatalogSyncService> _logger;
@@ -32,6 +33,7 @@ public class TalabatCatalogSyncService : ITransientDependency
         FoodicsToTalabatMapper mapper,
         FoodicsMenuClient foodicsMenuClient,
         FoodicsCatalogClient foodicsCatalogClient,
+        FoodicsAccountTokenService foodicsAccountTokenService,
         TalabatSyncStatusService syncStatusService,
         IConfiguration configuration,
         ILogger<TalabatCatalogSyncService> logger)
@@ -40,6 +42,7 @@ public class TalabatCatalogSyncService : ITransientDependency
         _mapper = mapper;
         _foodicsMenuClient = foodicsMenuClient;
         _foodicsCatalogClient = foodicsCatalogClient;
+        _foodicsAccountTokenService = foodicsAccountTokenService;
         _syncStatusService = syncStatusService;
         _configuration = configuration;
         _logger = logger;
@@ -600,8 +603,13 @@ public class TalabatCatalogSyncService : ITransientDependency
 
         try
         {
+            var accessToken = await _foodicsAccountTokenService.GetAccessTokenWithFallbackAsync(
+                foodicsAccountId,
+                cancellationToken);
+
             var menuDisplay = await _foodicsMenuClient.GetMenuAsync(
                 branchId,
+                accessToken: accessToken,
                 foodicsAccountId: foodicsAccountId,
                 cancellationToken: cancellationToken);
 
@@ -651,6 +659,7 @@ public class TalabatCatalogSyncService : ITransientDependency
             {
                 var categoryInfos = await _foodicsCatalogClient.GetCategoriesByIdsAsync(
                     categoryOrder.Keys,
+                    accessToken: accessToken,
                     foodicsAccountId: foodicsAccountId,
                     cancellationToken: cancellationToken);
 
