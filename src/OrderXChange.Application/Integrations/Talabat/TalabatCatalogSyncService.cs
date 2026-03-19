@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
@@ -115,6 +116,8 @@ public class TalabatCatalogSyncService : ITransientDependency
                 vendorCode,
                 callbackUrl,
                 cancellationToken);
+
+            LogTalabatV2OrderingPreview(catalogRequest, correlationId, chainCode, vendorCode);
 
             result.CategoriesCount = categoriesCount;
             result.ProductsCount = productsList.Count;
@@ -470,6 +473,103 @@ public class TalabatCatalogSyncService : ITransientDependency
         }
 
         return result;
+    }
+
+    private void LogTalabatV2OrderingPreview(
+        TalabatV2CatalogSubmitRequest catalogRequest,
+        string correlationId,
+        string chainCode,
+        string vendorCode)
+    {
+        try
+        {
+            var items = catalogRequest.Catalog?.Items;
+            if (items == null || items.Count == 0)
+            {
+                _logger.LogWarning(
+                    "Talabat V2 ordering preview skipped because catalog items are empty. CorrelationId={CorrelationId}, ChainCode={ChainCode}, VendorCode={VendorCode}",
+                    correlationId,
+                    chainCode,
+                    vendorCode);
+                return;
+            }
+
+            var menuItem = items.Values.FirstOrDefault(i => string.Equals(i.Type, "Menu", StringComparison.OrdinalIgnoreCase));
+            if (menuItem?.Products == null || menuItem.Products.Count == 0)
+            {
+                _logger.LogWarning(
+                    "Talabat V2 ordering preview skipped because menu item has no category references. CorrelationId={CorrelationId}, ChainCode={ChainCode}, VendorCode={VendorCode}",
+                    correlationId,
+                    chainCode,
+                    vendorCode);
+                return;
+            }
+
+            var orderedCategoryRefs = menuItem.Products.Values
+                .OrderBy(x => x.Order ?? int.MaxValue)
+                .ThenBy(x => x.Id, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var categoryPreview = orderedCategoryRefs
+                .Take(15)
+                .Select(reference =>
+                {
+                    items.TryGetValue(reference.Id, out var categoryItem);
+                    return new
+                    {
+                        reference.Id,
+                        reference.Order,
+                        Title = categoryItem?.Title?.Default,
+                        ProductCount = categoryItem?.Products?.Count ?? 0
+                    };
+                })
+                .ToList();
+
+            var firstCategoryProductPreview = new List<object>();
+            foreach (var categoryRef in orderedCategoryRefs.Take(5))
+            {
+                if (!items.TryGetValue(categoryRef.Id, out var categoryItem) || categoryItem?.Products == null)
+                {
+                    continue;
+                }
+
+                var products = categoryItem.Products.Values
+                    .OrderBy(x => x.Order ?? int.MaxValue)
+                    .ThenBy(x => x.Id, StringComparer.OrdinalIgnoreCase)
+                    .Take(10)
+                    .Select(reference =>
+                    {
+                        items.TryGetValue(reference.Id, out var productItem);
+                        return new
+                        {
+                            CategoryId = categoryRef.Id,
+                            CategoryTitle = categoryItem.Title?.Default,
+                            ProductId = reference.Id,
+                            reference.Order,
+                            Title = productItem?.Title?.Default
+                        };
+                    });
+
+                firstCategoryProductPreview.AddRange(products);
+            }
+
+            _logger.LogWarning(
+                "Talabat V2 ordering preview. CorrelationId={CorrelationId}, ChainCode={ChainCode}, VendorCode={VendorCode}, Categories={CategoriesJson}, Products={ProductsJson}",
+                correlationId,
+                chainCode,
+                vendorCode,
+                JsonSerializer.Serialize(categoryPreview),
+                JsonSerializer.Serialize(firstCategoryProductPreview));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to log Talabat V2 ordering preview. CorrelationId={CorrelationId}, ChainCode={ChainCode}, VendorCode={VendorCode}",
+                correlationId,
+                chainCode,
+                vendorCode);
+        }
     }
 
     private async Task<List<FoodicsProductDetailDto>> ApplyFoodicsMenuDisplayOrderAsync(
