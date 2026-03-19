@@ -22,6 +22,7 @@ public class TalabatCatalogSyncService : ITransientDependency
     private readonly TalabatCatalogClient _talabatCatalogClient;
     private readonly FoodicsToTalabatMapper _mapper;
     private readonly FoodicsMenuClient _foodicsMenuClient;
+    private readonly FoodicsCatalogClient _foodicsCatalogClient;
     private readonly TalabatSyncStatusService _syncStatusService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<TalabatCatalogSyncService> _logger;
@@ -30,6 +31,7 @@ public class TalabatCatalogSyncService : ITransientDependency
         TalabatCatalogClient talabatCatalogClient,
         FoodicsToTalabatMapper mapper,
         FoodicsMenuClient foodicsMenuClient,
+        FoodicsCatalogClient foodicsCatalogClient,
         TalabatSyncStatusService syncStatusService,
         IConfiguration configuration,
         ILogger<TalabatCatalogSyncService> logger)
@@ -37,6 +39,7 @@ public class TalabatCatalogSyncService : ITransientDependency
         _talabatCatalogClient = talabatCatalogClient;
         _mapper = mapper;
         _foodicsMenuClient = foodicsMenuClient;
+        _foodicsCatalogClient = foodicsCatalogClient;
         _syncStatusService = syncStatusService;
         _configuration = configuration;
         _logger = logger;
@@ -117,6 +120,7 @@ public class TalabatCatalogSyncService : ITransientDependency
                 vendorCode,
                 callbackUrl,
                 orderingContext.CategoryOrder,
+                orderingContext.CategoryNameOrder,
                 orderingContext.ProductOrder,
                 cancellationToken);
 
@@ -390,6 +394,7 @@ public class TalabatCatalogSyncService : ITransientDependency
                 vendorCode,
                 callbackUrl,
                 orderingContext.CategoryOrder,
+                orderingContext.CategoryNameOrder,
                 orderingContext.ProductOrder,
                 cancellationToken);
 
@@ -589,6 +594,7 @@ public class TalabatCatalogSyncService : ITransientDependency
             return FoodicsOrderingContext.Create(
                 products,
                 new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
+                new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
                 new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
         }
 
@@ -608,10 +614,12 @@ public class TalabatCatalogSyncService : ITransientDependency
                 return FoodicsOrderingContext.Create(
                     products,
                     new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
+                    new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
                     new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
             }
 
             var categoryOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var categoryNameOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var productOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var productCategoryOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
@@ -636,6 +644,30 @@ public class TalabatCatalogSyncService : ITransientDependency
                     {
                         productCategoryOrder[productId] = i;
                     }
+                }
+            }
+
+            var categoryInfos = await _foodicsCatalogClient.GetCategoriesByIdsAsync(
+                categoryOrder.Keys,
+                cancellationToken: cancellationToken);
+
+            foreach (var entry in categoryOrder)
+            {
+                if (!categoryInfos.TryGetValue(entry.Key, out var categoryInfo))
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(categoryInfo.Name) &&
+                    !categoryNameOrder.ContainsKey(categoryInfo.Name))
+                {
+                    categoryNameOrder[categoryInfo.Name] = entry.Value;
+                }
+
+                if (!string.IsNullOrWhiteSpace(categoryInfo.NameLocalized) &&
+                    !categoryNameOrder.ContainsKey(categoryInfo.NameLocalized))
+                {
+                    categoryNameOrder[categoryInfo.NameLocalized] = entry.Value;
                 }
             }
 
@@ -682,7 +714,7 @@ public class TalabatCatalogSyncService : ITransientDependency
                 categoryOrder.Count,
                 productOrder.Count);
 
-            return FoodicsOrderingContext.Create(ordered, categoryOrder, productOrder);
+            return FoodicsOrderingContext.Create(ordered, categoryOrder, categoryNameOrder, productOrder);
         }
         catch (Exception ex)
         {
@@ -693,6 +725,7 @@ public class TalabatCatalogSyncService : ITransientDependency
                 branchId ?? "<all>");
             return FoodicsOrderingContext.Create(
                 products,
+                new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
                 new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
                 new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
         }
@@ -754,17 +787,20 @@ public class TalabatCatalogSyncService : ITransientDependency
     {
         public List<FoodicsProductDetailDto> Products { get; private set; } = new();
         public Dictionary<string, int> CategoryOrder { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, int> CategoryNameOrder { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> ProductOrder { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 
         public static FoodicsOrderingContext Create(
             List<FoodicsProductDetailDto> products,
             Dictionary<string, int> categoryOrder,
+            Dictionary<string, int> categoryNameOrder,
             Dictionary<string, int> productOrder)
         {
             return new FoodicsOrderingContext
             {
                 Products = products,
                 CategoryOrder = categoryOrder,
+                CategoryNameOrder = categoryNameOrder,
                 ProductOrder = productOrder
             };
         }

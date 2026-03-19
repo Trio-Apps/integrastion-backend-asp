@@ -874,6 +874,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
         string? vendorCode = null,
         string? callbackUrl = null,
         IReadOnlyDictionary<string, int>? categoryOrderMap = null,
+        IReadOnlyDictionary<string, int>? categoryNameOrderMap = null,
         IReadOnlyDictionary<string, int>? productOrderMap = null,
         CancellationToken cancellationToken = default)
     {
@@ -1059,7 +1060,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
         var productsByCategory = productsList
             .Where(p => !string.IsNullOrWhiteSpace(p.Category?.Id) || !string.IsNullOrWhiteSpace(p.CategoryId))
             .GroupBy(p => p.Category?.Id ?? p.CategoryId!)
-            .OrderBy(g => ResolveCategoryOrder(g.Key, categoryOrderMap))
+            .OrderBy(g => ResolveCategoryOrder(g.Key, g.First().Category, categoryOrderMap, categoryNameOrderMap))
             .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -1087,7 +1088,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
                     categoryId,
                     categoryInfo,
                     categoryMapping,
-                    ResolveCategoryOrder(categoryFoodicsId, categoryOrderMap, categoryOrder));
+                    ResolveCategoryOrder(categoryFoodicsId, categoryInfo, categoryOrderMap, categoryNameOrderMap, categoryOrder));
                 categoryOrder++;
                 categoryMap[categoryId] = categoryItem;
                 items[categoryId] = categoryItem;
@@ -1257,14 +1258,34 @@ public class FoodicsToTalabatMapper : ITransientDependency
 
     private static int ResolveCategoryOrder(
         string categoryId,
+        FoodicsCategoryInfoDto? categoryInfo,
         IReadOnlyDictionary<string, int>? categoryOrderMap,
+        IReadOnlyDictionary<string, int>? categoryNameOrderMap,
         int fallbackOrder = int.MaxValue)
     {
-        return !string.IsNullOrWhiteSpace(categoryId) &&
-               categoryOrderMap != null &&
-               categoryOrderMap.TryGetValue(categoryId, out var order)
-            ? order
-            : fallbackOrder;
+        if (!string.IsNullOrWhiteSpace(categoryId) &&
+            categoryOrderMap != null &&
+            categoryOrderMap.TryGetValue(categoryId, out var order))
+        {
+            return order;
+        }
+
+        if (categoryNameOrderMap != null)
+        {
+            if (!string.IsNullOrWhiteSpace(categoryInfo?.Name) &&
+                categoryNameOrderMap.TryGetValue(categoryInfo.Name, out order))
+            {
+                return order;
+            }
+
+            if (!string.IsNullOrWhiteSpace(categoryInfo?.NameLocalized) &&
+                categoryNameOrderMap.TryGetValue(categoryInfo.NameLocalized, out order))
+            {
+                return order;
+            }
+        }
+
+        return fallbackOrder;
     }
 
     private static int ResolveProductOrder(

@@ -85,6 +85,7 @@ public class MenuSyncMappingIntegration : ITransientDependency
                 vendorCode: null,
                 callbackUrl,
                 categoryOrderMap: null,
+                categoryNameOrderMap: null,
                 productOrderMap: null,
                 cancellationToken);
         }
