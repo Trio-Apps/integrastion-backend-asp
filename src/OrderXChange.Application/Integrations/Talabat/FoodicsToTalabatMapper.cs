@@ -1182,11 +1182,21 @@ public class FoodicsToTalabatMapper : ITransientDependency
             Products = new Dictionary<string, TalabatV2ItemReference>()
         };
 
+        // Normalize category order after filtering/mapping so Talabat receives
+        // a dense 0..N sequence for the actual categories included in this payload.
+        var orderedCategories = categoryMap
+            .OrderBy(x => x.Value.Order ?? int.MaxValue)
+            .ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        for (var i = 0; i < orderedCategories.Count; i++)
+        {
+            orderedCategories[i].Value.Order = i;
+        }
+
         // Link all categories to menu (Menu → Categories → Products)
         // This is the correct structure for Talabat V2 API
-        foreach (var category in categoryMap
-                     .OrderBy(x => x.Value.Order ?? int.MaxValue)
-                     .ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+        foreach (var category in orderedCategories)
         {
             menuItem.Products![category.Key] = new TalabatV2ItemReference
             {
