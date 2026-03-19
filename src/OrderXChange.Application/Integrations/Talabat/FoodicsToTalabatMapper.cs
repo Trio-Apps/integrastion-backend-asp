@@ -1184,7 +1184,9 @@ public class FoodicsToTalabatMapper : ITransientDependency
 
         // Link all categories to menu (Menu → Categories → Products)
         // This is the correct structure for Talabat V2 API
-        foreach (var category in categoryMap)
+        foreach (var category in categoryMap
+                     .OrderBy(x => x.Value.Order ?? int.MaxValue)
+                     .ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
         {
             menuItem.Products![category.Key] = new TalabatV2ItemReference
             {
