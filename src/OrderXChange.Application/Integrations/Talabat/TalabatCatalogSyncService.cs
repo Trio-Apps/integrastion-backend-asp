@@ -613,6 +613,7 @@ public class TalabatCatalogSyncService : ITransientDependency
 
             var categoryOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var productOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var productCategoryOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
             for (var i = 0; i < menuDisplay.Data.Categories.Count; i++)
             {
@@ -630,6 +631,32 @@ public class TalabatCatalogSyncService : ITransientDependency
                     {
                         productOrder[productId] = j;
                     }
+
+                    if (!productCategoryOrder.ContainsKey(productId))
+                    {
+                        productCategoryOrder[productId] = i;
+                    }
+                }
+            }
+
+            foreach (var categoryGroup in products
+                         .Where(p => !string.IsNullOrWhiteSpace(p.Category?.Id) || !string.IsNullOrWhiteSpace(p.CategoryId))
+                         .GroupBy(p => p.Category?.Id ?? p.CategoryId!, StringComparer.OrdinalIgnoreCase))
+            {
+                if (categoryOrder.ContainsKey(categoryGroup.Key))
+                {
+                    continue;
+                }
+
+                var inferredOrder = categoryGroup
+                    .Select(p => !string.IsNullOrWhiteSpace(p.Id) && productCategoryOrder.TryGetValue(p.Id, out var order)
+                        ? order
+                        : int.MaxValue)
+                    .Min();
+
+                if (inferredOrder != int.MaxValue)
+                {
+                    categoryOrder[categoryGroup.Key] = inferredOrder;
                 }
             }
 
