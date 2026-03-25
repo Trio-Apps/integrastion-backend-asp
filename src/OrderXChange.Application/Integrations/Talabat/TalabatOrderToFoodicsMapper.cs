@@ -66,6 +66,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             webhook.Discounts);
         var reportedItemDiscountAmount = CalculateTalabatItemDiscountAmount(webhook.Products);
         var paymentMethodId = ResolvePaymentMethodId(webhook, activePaymentMethodId);
+        var talabatOrderReferenceNote = BuildTalabatOrderReferenceNote(webhook);
 
         var products = MapProducts(webhook.Products, discountType);
         var paymentAmount = ResolvePaymentAmount(webhook, products, null, total, subtotal, chargesTotal);
@@ -81,8 +82,8 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             Source = orderSource,
             Guests = guests,
             Status = orderStatus,
-            KitchenNotes = webhook.Comments?.VendorComment,
-            CustomerNotes = webhook.Comments?.CustomerComment,
+            KitchenNotes = MergeNotes(talabatOrderReferenceNote, webhook.Comments?.VendorComment),
+            CustomerNotes = MergeNotes(talabatOrderReferenceNote, webhook.Comments?.CustomerComment),
             BusinessDate = resolvedBusinessDate,
             CreatedAt = FormatCreatedAt(createdAt, businessDateTimeZone),
             SubtotalPrice = subtotal,
@@ -99,6 +100,35 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         };
 
         return request;
+    }
+
+    private static string? BuildTalabatOrderReferenceNote(TalabatOrderWebhook webhook)
+    {
+        var orderCode = webhook.Code?.Trim();
+        var shortCode = webhook.ShortCode?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(orderCode))
+        {
+            return string.IsNullOrWhiteSpace(shortCode)
+                ? $"Talabat Order ID: {orderCode}"
+                : $"Talabat Order ID: {orderCode} | Talabat Short Code: {shortCode}";
+        }
+
+        return string.IsNullOrWhiteSpace(shortCode)
+            ? null
+            : $"Talabat Short Code: {shortCode}";
+    }
+
+    private static string? MergeNotes(string? primaryNote, string? existingNote)
+    {
+        var parts = new[] { primaryNote?.Trim(), existingNote?.Trim() }
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        return parts.Count == 0
+            ? null
+            : string.Join(Environment.NewLine, parts);
     }
 
     private List<FoodicsOrderProductRequest> MapProducts(List<TalabatOrderProduct> talabatProducts, int discountType)
