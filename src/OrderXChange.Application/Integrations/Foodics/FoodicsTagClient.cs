@@ -69,14 +69,19 @@ public class FoodicsTagClient : ITransientDependency
             PropertyNameCaseInsensitive = true
         });
 
-        var tags = payload?.Data ?? new List<FoodicsTagDto>();
+        var tags = payload?.Data ?? new List<FoodicsTagLookupItem>();
         var exactMatch = tags.FirstOrDefault(x =>
             x.Type == OrderTagType &&
             string.Equals(x.Name?.Trim(), tagName.Trim(), StringComparison.OrdinalIgnoreCase));
 
         if (exactMatch != null)
         {
-            return exactMatch;
+            return new FoodicsTagDto
+            {
+                Id = exactMatch.Id ?? string.Empty,
+                Name = exactMatch.Name,
+                NameLocalized = exactMatch.NameLocalized
+            };
         }
 
         _logger.LogInformation(
@@ -97,21 +102,21 @@ public class FoodicsTagClient : ITransientDependency
     private sealed class FoodicsTagListEnvelope
     {
         [JsonPropertyName("data")]
-        public List<FoodicsTagDto>? Data { get; set; }
+        public List<FoodicsTagLookupItem>? Data { get; set; }
     }
-}
 
-public sealed class FoodicsTagDto
-{
-    [JsonPropertyName("id")]
-    public string? Id { get; set; }
+    private sealed class FoodicsTagLookupItem
+    {
+        [JsonPropertyName("id")]
+        public string? Id { get; set; }
 
-    [JsonPropertyName("name")]
-    public string? Name { get; set; }
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
 
-    [JsonPropertyName("name_localized")]
-    public string? NameLocalized { get; set; }
+        [JsonPropertyName("name_localized")]
+        public string? NameLocalized { get; set; }
 
-    [JsonPropertyName("type")]
-    public int Type { get; set; }
+        [JsonPropertyName("type")]
+        public int Type { get; set; }
+    }
 }
