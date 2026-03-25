@@ -39,6 +39,7 @@ public class OrderDispatchDistributedEventHandler
     private readonly FoodicsAccountTokenService _tokenService;
     private readonly TalabatPaymentMethodSettingsService _talabatPaymentMethodSettingsService;
     private readonly TalabatDeliveryChargeSettingsService _talabatDeliveryChargeSettingsService;
+    private readonly TalabatOrderTagService _talabatOrderTagService;
     private readonly IConfiguration _configuration;
     private readonly IdempotencyService _idempotencyService;
     private readonly ICurrentTenant _currentTenant;
@@ -67,6 +68,7 @@ public class OrderDispatchDistributedEventHandler
         FoodicsAccountTokenService tokenService,
         TalabatPaymentMethodSettingsService talabatPaymentMethodSettingsService,
         TalabatDeliveryChargeSettingsService talabatDeliveryChargeSettingsService,
+        TalabatOrderTagService talabatOrderTagService,
         IConfiguration configuration,
         IdempotencyService idempotencyService,
         ICurrentTenant currentTenant,
@@ -83,6 +85,7 @@ public class OrderDispatchDistributedEventHandler
         _tokenService = tokenService;
         _talabatPaymentMethodSettingsService = talabatPaymentMethodSettingsService;
         _talabatDeliveryChargeSettingsService = talabatDeliveryChargeSettingsService;
+        _talabatOrderTagService = talabatOrderTagService;
         _configuration = configuration;
         _idempotencyService = idempotencyService;
         _currentTenant = currentTenant;
@@ -226,6 +229,29 @@ public class OrderDispatchDistributedEventHandler
                     businessDate.Source,
                     activePaymentMethodId,
                     deliveryChargeId);
+
+                try
+                {
+                    var talabatOrderTagId = await _talabatOrderTagService.GetTalabatOrderTagIdAsync(
+                        eventData.FoodicsAccountId,
+                        default);
+
+                    if (!string.IsNullOrWhiteSpace(talabatOrderTagId))
+                    {
+                        request.Tags =
+                        [
+                            new FoodicsOrderTagRequest { Id = talabatOrderTagId }
+                        ];
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Failed to resolve Foodics Talabat order tag. Continuing without order tag. CorrelationId={CorrelationId}, FoodicsAccountId={FoodicsAccountId}",
+                        eventData.CorrelationId,
+                        eventData.FoodicsAccountId);
+                }
 
                 FoodicsOrderResponseDto? response;
                 try

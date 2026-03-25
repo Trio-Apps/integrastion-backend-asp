@@ -53,6 +53,7 @@ public static class AbpTenantManagementDbContextModelCreatingExtensions
         {
             b.ToTable("FoodicsAccounts");
             b.ConfigureByConvention();
+            b.Property(x => x.TalabatOrderTagId).HasMaxLength(64);
         });
 
         builder.Entity<SmtpConfig>(b =>

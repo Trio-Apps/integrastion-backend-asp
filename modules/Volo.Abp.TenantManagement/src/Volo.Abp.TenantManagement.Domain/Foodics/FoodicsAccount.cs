@@ -15,6 +15,7 @@ namespace Foodics
         public string BrandName { get; set; }
         public string AccessToken { get; set; }
         public string ApiEnvironment { get; set; } = FoodicsApiEnvironment.Sandbox;
+        public string? TalabatOrderTagId { get; set; }
 
         public Guid? TenantId { get; set; }
     }

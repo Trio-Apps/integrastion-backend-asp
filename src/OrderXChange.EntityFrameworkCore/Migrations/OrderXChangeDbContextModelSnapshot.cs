@@ -74,6 +74,10 @@ namespace OrderXChange.Migrations
                     b.Property<string>("OAuthClientSecret")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("TalabatOrderTagId")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("char(36)")
                         .HasColumnName("TenantId");
