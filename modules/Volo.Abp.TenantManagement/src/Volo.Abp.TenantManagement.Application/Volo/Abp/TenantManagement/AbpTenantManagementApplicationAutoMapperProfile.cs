@@ -12,7 +12,10 @@ public class AbpTenantManagementApplicationAutoMapperProfile : Profile
         CreateMap<Tenant, TenantDto>()
             .MapExtraProperties();
 
-        CreateMap<FoodicsAccountDto, FoodicsAccount>().ForMember(dest => dest.TenantId, opt => opt.Ignore()).ReverseMap();
+        CreateMap<FoodicsAccountDto, FoodicsAccount>()
+            .ForMember(dest => dest.TenantId, opt => opt.Ignore())
+            .ForMember(dest => dest.TalabatOrderTagId, opt => opt.Ignore())
+            .ReverseMap();
         
         CreateMap<TalabatAccountDto, TalabatAccount>()
             .ForMember(dest => dest.TenantId, opt => opt.Ignore())
