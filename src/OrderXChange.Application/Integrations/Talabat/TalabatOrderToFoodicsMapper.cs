@@ -40,7 +40,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             throw new InvalidOperationException("Talabat order has no products.");
         }
 
-        var orderType = ResolveIntSetting("Foodics:OrderType", ResolveOrderTypeFromExpedition(webhook.ExpeditionType));
+        var orderType = ResolveOrderTypeFromExpedition(webhook.ExpeditionType);
         var orderSource = ResolveIntSetting("Foodics:OrderSource", 1);
         var orderStatus = ResolveIntSetting("Foodics:OrderStatus", 1);
         var guests = ResolveIntSetting("Foodics:OrderGuests", 1);
