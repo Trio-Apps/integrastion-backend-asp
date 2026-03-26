@@ -329,12 +329,6 @@ public class FoodicsGroupInfoDto
 
 	[JsonPropertyName("name_localized")]
 	public string? NameLocalized { get; set; }
-
-	[JsonPropertyName("items_index")]
-	public int? ItemsIndex { get; set; }
-
-	[JsonPropertyName("products")]
-	public List<FoodicsProductInfoDto>? Products { get; set; }
 }
 
 /// <summary>

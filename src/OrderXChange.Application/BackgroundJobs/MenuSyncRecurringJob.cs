@@ -699,15 +699,7 @@ public class MenuSyncRecurringJob : ITransientDependency
                         continue;
                     }
 
-                    var orderedGroupProducts = await ReorderProductsByGroupAsync(
-                        groupFilterResult.FilteredProducts,
-                        talabatTarget.FoodicsGroupId,
-                        foodicsAccountId,
-                        accessToken,
-                        correlationId,
-                        cancellationToken);
-
-                    var groupedProducts = orderedGroupProducts
+                    var groupedProducts = groupFilterResult.FilteredProducts
                         .ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);
 
                     var effectiveBranchId = !string.IsNullOrWhiteSpace(branchId)
@@ -1042,74 +1034,6 @@ public class MenuSyncRecurringJob : ITransientDependency
         }
     }
 
-    private async Task<List<FoodicsProductDetailDto>> ReorderProductsByGroupAsync(
-        List<FoodicsProductDetailDto> filteredProducts,
-        string? targetGroupId,
-        Guid foodicsAccountId,
-        string accessToken,
-        string correlationId,
-        CancellationToken cancellationToken)
-    {
-        if (filteredProducts.Count <= 1 || string.IsNullOrWhiteSpace(targetGroupId))
-        {
-            return filteredProducts;
-        }
-
-        try
-        {
-            var orderedIds = await _foodicsCatalogClient.GetGroupProductOrderAsync(
-                targetGroupId,
-                accessToken: accessToken,
-                foodicsAccountId: foodicsAccountId,
-                cancellationToken: cancellationToken);
-
-            if (orderedIds.Count == 0)
-            {
-                _logger.LogWarning(
-                    "Group product order was empty. Keeping existing filtered order. GroupId={GroupId}, CorrelationId={CorrelationId}",
-                    targetGroupId,
-                    correlationId);
-                return filteredProducts;
-            }
-
-            var orderMap = orderedIds
-                .Select((id, index) => new { id, index })
-                .GroupBy(x => x.id, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(x => x.Key, x => x.First().index, StringComparer.OrdinalIgnoreCase);
-
-            var reordered = filteredProducts
-                .Select((product, index) => new
-                {
-                    Product = product,
-                    OriginalIndex = index,
-                    Order = !string.IsNullOrWhiteSpace(product.Id) && orderMap.TryGetValue(product.Id, out var mappedOrder)
-                        ? mappedOrder
-                        : int.MaxValue
-                })
-                .OrderBy(x => x.Order)
-                .ThenBy(x => x.OriginalIndex)
-                .Select(x => x.Product)
-                .ToList();
-
-            _logger.LogInformation(
-                "Applied Foodics group product ordering before Talabat sync. GroupId={GroupId}, OrderedProducts={OrderedCount}, CorrelationId={CorrelationId}",
-                targetGroupId,
-                reordered.Count,
-                correlationId);
-
-            return reordered;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(
-                ex,
-                "Failed to apply Foodics group product ordering. Keeping existing filtered order. GroupId={GroupId}, CorrelationId={CorrelationId}",
-                targetGroupId,
-                correlationId);
-            return filteredProducts;
-        }
-    }
-
     /// <summary>
     /// Gets all Talabat sync targets for a FoodicsAccount.
     /// Prefers linked TalabatAccounts, filtered by branch if needed, then falls back to legacy configuration.
@@ -1181,4 +1105,3 @@ public class MenuSyncRecurringJob : ITransientDependency
         return new List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches, string? FoodicsGroupId, string? FoodicsGroupName)>();
     }
 }
-

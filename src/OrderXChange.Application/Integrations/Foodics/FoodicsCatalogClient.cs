@@ -680,48 +680,6 @@ public async Task<Dictionary<string, FoodicsGroupInfoDto>> GetGroupsByIdsAsync(
     return result;
 }
 
-public async Task<List<string>> GetGroupProductOrderAsync(
-    string groupId,
-    string? accessToken = null,
-    Guid? foodicsAccountId = null,
-    CancellationToken cancellationToken = default)
-{
-    if (string.IsNullOrWhiteSpace(groupId))
-    {
-        return new List<string>();
-    }
-
-    var token = GetAccessToken(accessToken);
-    var url = $"groups?filter[id]={Uri.EscapeDataString(groupId)}&include=products";
-    var requestUri = await BuildUriAsync(url, foodicsAccountId, cancellationToken);
-    using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
-    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-    _logger.LogInformation("Requesting Foodics group product order. GroupId={GroupId}", groupId);
-
-    var response = await _httpClient.SendAsync(request, cancellationToken);
-    if (!response.IsSuccessStatusCode)
-    {
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-        _logger.LogError("Foodics group product order request failed. GroupId={GroupId}, StatusCode={StatusCode}, Body={Body}", groupId, (int)response.StatusCode, body);
-        response.EnsureSuccessStatusCode();
-    }
-
-    var payload = await response.Content.ReadFromJsonAsync<FoodicsListEnvelope<FoodicsGroupInfoDto>>(_jsonOptions, cancellationToken);
-    var group = payload?.Data?.FirstOrDefault(x => string.Equals(x.Id, groupId, StringComparison.OrdinalIgnoreCase));
-
-    if (group?.Products == null || group.Products.Count == 0)
-    {
-        _logger.LogWarning("Foodics group returned no ordered products. GroupId={GroupId}", groupId);
-        return new List<string>();
-    }
-
-    return group.Products
-        .Where(x => !string.IsNullOrWhiteSpace(x.Id))
-        .Select(x => x.Id)
-        .ToList();
-}
-
 public async Task<FoodicsProductAvailabilityListEnvelope> GetProductsWithAvailabilityAsync(
     string accessToken,
     int page = 1,
