@@ -446,11 +446,13 @@ public class OrderXChangeHttpApiHostModule : AbpModule
 
         logger.LogInformation("Recurring job OrderSyncRecurringJob scheduled with cron expression {CronExpression}.", orderCronExpression);
 
-        recurringJobManager.AddOrUpdate<MenuSyncScheduler>(
+        recurringJobManager.AddOrUpdate<MenuSyncRecurringJob>(
             "MenuSyncScheduler",
-            job => job.PublishMenuSyncEventAsync(null, null, CancellationToken.None),
+            job => job.ExecuteAsync(null, null, false, CancellationToken.None),
             menuCronExpression);
 
-        logger.LogInformation("Recurring job MenuSyncScheduler scheduled with cron expression {CronExpression}.", menuCronExpression);
+        logger.LogInformation(
+            "Recurring job MenuSyncScheduler scheduled with cron expression {CronExpression} using MenuSyncRecurringJob flow.",
+            menuCronExpression);
     }
 }
