@@ -243,6 +243,9 @@ public class FoodicsModifierDto
 
 public class FoodicsModifierPivotDto
 {
+	[JsonPropertyName("index")]
+	public int? Index { get; set; }
+
 	[JsonPropertyName("minimum_options")]
 	public int? MinimumOptions { get; set; }
 
@@ -266,6 +269,9 @@ public class FoodicsModifierOptionDto
 {
 	[JsonPropertyName("id")]
 	public string Id { get; set; } = string.Empty;
+
+	[JsonPropertyName("index")]
+	public int? Index { get; set; }
 
 	[JsonPropertyName("name")]
 	public string? Name { get; set; }
