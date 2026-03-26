@@ -332,6 +332,15 @@ public class FoodicsGroupInfoDto
 
 	[JsonPropertyName("items_index")]
 	public List<string>? ItemsIndex { get; set; }
+
+	[JsonPropertyName("pivot")]
+	public FoodicsGroupPivotDto? Pivot { get; set; }
+}
+
+public class FoodicsGroupPivotDto
+{
+	[JsonPropertyName("is_active")]
+	public bool? IsActive { get; set; }
 }
 
 /// <summary>

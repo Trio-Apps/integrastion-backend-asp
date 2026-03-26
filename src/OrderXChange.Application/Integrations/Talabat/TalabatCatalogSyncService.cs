@@ -833,6 +833,16 @@ public class TalabatCatalogSyncService : ITransientDependency
                     continue;
                 }
 
+                var product = products.FirstOrDefault(p => string.Equals(p.Id, productId, StringComparison.OrdinalIgnoreCase));
+                var isActiveInGroup = product?.Groups?.Any(g =>
+                    string.Equals(g.Id, candidateGroupId, StringComparison.OrdinalIgnoreCase) &&
+                    g.Pivot?.IsActive != false) == true;
+
+                if (!isActiveInGroup)
+                {
+                    continue;
+                }
+
                 productOrder[productId] = i;
                 fallbackApplied++;
             }

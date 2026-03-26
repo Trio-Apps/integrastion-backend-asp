@@ -79,7 +79,8 @@ public class GroupProductFilterService : ITransientDependency
 
             // Check if product belongs to the target group
             var belongsToGroup = product.Groups.Any(g =>
-                string.Equals(g.Id, targetGroupId, StringComparison.OrdinalIgnoreCase));
+                string.Equals(g.Id, targetGroupId, StringComparison.OrdinalIgnoreCase) &&
+                g.Pivot?.IsActive != false);
 
             if (belongsToGroup)
             {
@@ -141,7 +142,9 @@ public class GroupProductFilterService : ITransientDependency
 
         var productsInGroup = allProducts.Values
             .Where(p => p.Groups != null &&
-                       p.Groups.Any(g => string.Equals(g.Id, groupId, StringComparison.OrdinalIgnoreCase)))
+                       p.Groups.Any(g =>
+                           string.Equals(g.Id, groupId, StringComparison.OrdinalIgnoreCase) &&
+                           g.Pivot?.IsActive != false))
             .ToList();
 
         var groupExists = productsInGroup.Any();
@@ -182,7 +185,9 @@ public class GroupProductFilterService : ITransientDependency
                 var firstGroup = grp.First();
                 var productCount = allProducts.Values.Count(p =>
                     p.Groups != null &&
-                    p.Groups.Any(pg => string.Equals(pg.Id, firstGroup.Id, StringComparison.OrdinalIgnoreCase)));
+                    p.Groups.Any(pg =>
+                        string.Equals(pg.Id, firstGroup.Id, StringComparison.OrdinalIgnoreCase) &&
+                        pg.Pivot?.IsActive != false));
 
                 return new GroupSummary
                 {
