@@ -69,7 +69,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         var talabatOrderReferenceNote = BuildTalabatOrderReferenceNote(webhook);
 
         var products = MapProducts(webhook.Products, discountType);
-        var paymentAmount = ResolvePaymentAmount(webhook, products, null, total, subtotal, chargesTotal);
+        var paymentAmount = ResolvePaymentAmount(webhook, products, null, total, subtotal, grandTotal, chargesTotal);
 
         if (products.Count == 0)
         {
@@ -396,9 +396,10 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         decimal? orderDiscountAmount,
         decimal? total,
         decimal? subtotal,
+        decimal? grandTotal,
         decimal? chargesTotal)
     {
-        var explicitTotal = ResolveExplicitPaymentAmount(webhook, total, subtotal);
+        var explicitTotal = ResolveExplicitPaymentAmount(webhook, grandTotal, total, subtotal);
         var mappedNetTotal = CalculateMappedNetTotal(products, orderDiscountAmount);
         if (mappedNetTotal.HasValue && chargesTotal.HasValue && chargesTotal.Value > 0m)
         {
@@ -407,7 +408,9 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
 
         if (mappedNetTotal.HasValue && explicitTotal.HasValue)
         {
-            return Math.Min(mappedNetTotal.Value, explicitTotal.Value);
+            // Prefer the explicit amount reported by Talabat when it covers charges too.
+            // Clamping to the mapped line total leaves delivery/container charges unpaid in Foodics.
+            return explicitTotal.Value;
         }
 
         if (mappedNetTotal.HasValue)
@@ -416,6 +419,32 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         }
 
         return explicitTotal;
+    }
+
+    private static decimal? ResolveExplicitPaymentAmount(TalabatOrderWebhook webhook, decimal? grandTotal, decimal? total, decimal? subtotal)
+    {
+        if (grandTotal.HasValue && grandTotal.Value > 0m)
+        {
+            return grandTotal;
+        }
+
+        if (total.HasValue && total.Value > 0m)
+        {
+            return total;
+        }
+
+        if (subtotal.HasValue && subtotal.Value > 0m)
+        {
+            return subtotal;
+        }
+
+        var collectFromCustomer = ParseDecimal(webhook.Price?.CollectFromCustomer);
+        if (collectFromCustomer.HasValue && collectFromCustomer.Value > 0m)
+        {
+            return collectFromCustomer;
+        }
+
+        return null;
     }
 
     private static decimal? ResolveExplicitPaymentAmount(TalabatOrderWebhook webhook, decimal? total, decimal? subtotal)
