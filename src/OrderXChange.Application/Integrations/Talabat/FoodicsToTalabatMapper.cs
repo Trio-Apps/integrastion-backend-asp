@@ -929,6 +929,11 @@ public class FoodicsToTalabatMapper : ITransientDependency
             }
 
             var productItem = CreateProductItemWithStableId(product, productMapping);
+            var resolvedProductOrder = ResolveProductOrder(product.Id, productOrderMap);
+            if (resolvedProductOrder != int.MaxValue)
+            {
+                productItem.Order = resolvedProductOrder;
+            }
             items[productMapping.TalabatRemoteCode] = productItem; // Use stable remote code as key
 
             var isDebugProduct = debugProductIds.Contains(product.Id);
@@ -1696,6 +1701,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
                 {
                     Id = optionProductId,
                     Type = "Product",
+                    Order = optionOrder,
                     Title = new TalabatV2Title
                     {
                         Default = option.Name ?? $"Option-{option.Id}"
