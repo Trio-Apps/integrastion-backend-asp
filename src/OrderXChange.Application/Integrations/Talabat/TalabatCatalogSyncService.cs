@@ -655,6 +655,13 @@ public class TalabatCatalogSyncService : ITransientDependency
                 }
             }
 
+            await ApplyGroupFallbackProductOrderingAsync(
+                products,
+                productOrder,
+                accessToken,
+                foodicsAccountId,
+                cancellationToken);
+
             try
             {
                 var categoryInfos = await _foodicsCatalogClient.GetCategoriesByIdsAsync(
@@ -769,6 +776,119 @@ public class TalabatCatalogSyncService : ITransientDependency
         return !string.IsNullOrWhiteSpace(product.Id) && productOrder.TryGetValue(product.Id, out var order)
             ? order
             : int.MaxValue;
+    }
+
+    private async Task ApplyGroupFallbackProductOrderingAsync(
+        IReadOnlyCollection<FoodicsProductDetailDto> products,
+        Dictionary<string, int> productOrder,
+        string accessToken,
+        Guid foodicsAccountId,
+        CancellationToken cancellationToken)
+    {
+        var missingProductIds = products
+            .Where(p => !string.IsNullOrWhiteSpace(p.Id) && !productOrder.ContainsKey(p.Id))
+            .Select(p => p.Id!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (missingProductIds.Count == 0)
+        {
+            return;
+        }
+
+        var candidateGroupId = ResolveCommonGroupId(products);
+        if (string.IsNullOrWhiteSpace(candidateGroupId))
+        {
+            _logger.LogInformation(
+                "Skipping Foodics group order fallback because no common group was inferred. FoodicsAccountId={FoodicsAccountId}, MissingProducts={MissingProducts}",
+                foodicsAccountId,
+                missingProductIds.Count);
+            return;
+        }
+
+        try
+        {
+            var group = await _foodicsCatalogClient.GetGroupByIdAsync(
+                candidateGroupId,
+                accessToken: accessToken,
+                foodicsAccountId: foodicsAccountId,
+                cancellationToken: cancellationToken);
+
+            if (group?.ItemsIndex == null || group.ItemsIndex.Count == 0)
+            {
+                _logger.LogInformation(
+                    "Skipping Foodics group order fallback because group has no items_index. FoodicsAccountId={FoodicsAccountId}, GroupId={GroupId}",
+                    foodicsAccountId,
+                    candidateGroupId);
+                return;
+            }
+
+            var fallbackApplied = 0;
+            for (var i = 0; i < group.ItemsIndex.Count; i++)
+            {
+                var productId = group.ItemsIndex[i];
+                if (string.IsNullOrWhiteSpace(productId) ||
+                    productOrder.ContainsKey(productId) ||
+                    !missingProductIds.Contains(productId))
+                {
+                    continue;
+                }
+
+                productOrder[productId] = i;
+                fallbackApplied++;
+            }
+
+            if (fallbackApplied > 0)
+            {
+                _logger.LogInformation(
+                    "Applied Foodics group order fallback for products missing menu_display ordering. FoodicsAccountId={FoodicsAccountId}, GroupId={GroupId}, AppliedProducts={AppliedProducts}, MissingProducts={MissingProducts}",
+                    foodicsAccountId,
+                    candidateGroupId,
+                    fallbackApplied,
+                    missingProductIds.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to apply Foodics group order fallback. FoodicsAccountId={FoodicsAccountId}, GroupId={GroupId}, MissingProducts={MissingProducts}",
+                foodicsAccountId,
+                candidateGroupId,
+                missingProductIds.Count);
+        }
+    }
+
+    private static string? ResolveCommonGroupId(IReadOnlyCollection<FoodicsProductDetailDto> products)
+    {
+        HashSet<string>? commonGroupIds = null;
+
+        foreach (var product in products)
+        {
+            var groupIds = product.Groups?
+                .Select(g => g.Id)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Cast<string>()
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (groupIds == null || groupIds.Count == 0)
+            {
+                continue;
+            }
+
+            if (commonGroupIds == null)
+            {
+                commonGroupIds = groupIds;
+                continue;
+            }
+
+            commonGroupIds.IntersectWith(groupIds);
+            if (commonGroupIds.Count == 0)
+            {
+                return null;
+            }
+        }
+
+        return commonGroupIds?.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).FirstOrDefault();
     }
 
     private static List<string> FlattenProductIds(IEnumerable<FoodicsMenuDisplayChildDto>? children)

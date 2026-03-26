@@ -631,11 +631,11 @@ public class FoodicsCatalogClient
         var baseUrl = await _baseUrlResolver.ResolveAsync(foodicsAccountId, cancellationToken);
         return new Uri(new Uri(EnsureEndsWithSlash(baseUrl)), relativePath);
     }
-public async Task<Dictionary<string, FoodicsGroupInfoDto>> GetGroupsByIdsAsync(
-    IEnumerable<string> ids,
-    string? accessToken = null,
-    Guid? foodicsAccountId = null,
-    CancellationToken cancellationToken = default)
+    public async Task<Dictionary<string, FoodicsGroupInfoDto>> GetGroupsByIdsAsync(
+        IEnumerable<string> ids,
+        string? accessToken = null,
+        Guid? foodicsAccountId = null,
+        CancellationToken cancellationToken = default)
 {
     var idList = NormalizeIds(ids);
     if (idList.Count == 0)
@@ -676,9 +676,42 @@ public async Task<Dictionary<string, FoodicsGroupInfoDto>> GetGroupsByIdsAsync(
                 result[item.Id] = item;
             }
         }
+        }
+        return result;
     }
-    return result;
-}
+
+    public async Task<FoodicsGroupInfoDto?> GetGroupByIdAsync(
+        string groupId,
+        string? accessToken = null,
+        Guid? foodicsAccountId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(groupId))
+        {
+            return null;
+        }
+
+        var token = GetAccessToken(accessToken);
+        var url = $"groups/{Uri.EscapeDataString(groupId)}?include=products,subgroups,combos,gift_card_products";
+        var requestUri = await BuildUriAsync(url, foodicsAccountId, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError(
+                "Foodics group request failed. GroupId={GroupId}, StatusCode={StatusCode}, Body={Body}",
+                groupId,
+                (int)response.StatusCode,
+                body);
+            response.EnsureSuccessStatusCode();
+        }
+
+        var payload = await response.Content.ReadFromJsonAsync<FoodicsSingleEnvelope<FoodicsGroupInfoDto>>(_jsonOptions, cancellationToken);
+        return payload?.Data;
+    }
 
 public async Task<FoodicsProductAvailabilityListEnvelope> GetProductsWithAvailabilityAsync(
     string accessToken,
