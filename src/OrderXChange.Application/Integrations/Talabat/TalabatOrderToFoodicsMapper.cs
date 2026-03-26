@@ -736,8 +736,8 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
 
         return expeditionType.ToLowerInvariant() switch
         {
-            "delivery" => ResolveIntSetting("Foodics:OrderTypeDelivery", 1),
-            "pickup" => ResolveIntSetting("Foodics:OrderTypePickup", 1),
+            "delivery" => ResolveIntSetting("Foodics:OrderTypeDelivery", 3),
+            "pickup" => ResolveIntSetting("Foodics:OrderTypePickup", 2),
             _ => ResolveIntSetting("Foodics:OrderType", 1)
         };
     }
