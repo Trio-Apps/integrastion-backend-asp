@@ -44,6 +44,7 @@ public class MenuSyncRecurringJob : ITransientDependency
     private readonly IConfiguration _configuration;
     private readonly TalabatPaymentMethodSettingsService _talabatPaymentMethodSettingsService;
     private readonly BranchProductFilterService _branchFilterService;
+    private readonly GroupProductFilterService _groupFilterService;
     private readonly ILogger<MenuSyncRecurringJob> _logger;
     
     // ✨ NEW: Menu Versioning Services
@@ -64,6 +65,7 @@ public class MenuSyncRecurringJob : ITransientDependency
         IConfiguration configuration,
         TalabatPaymentMethodSettingsService talabatPaymentMethodSettingsService,
         BranchProductFilterService branchProductFilterService,
+        GroupProductFilterService groupProductFilterService,
         ILogger<MenuSyncRecurringJob> logger,
         MenuVersioningService menuVersioningService,
         MenuSyncRunManager syncRunManager)
@@ -81,6 +83,7 @@ public class MenuSyncRecurringJob : ITransientDependency
         _configuration = configuration;
         _talabatPaymentMethodSettingsService = talabatPaymentMethodSettingsService;
         _branchFilterService = branchProductFilterService;
+        _groupFilterService = groupProductFilterService;
         _logger = logger;
         _menuVersioningService = menuVersioningService;
         _syncRunManager = syncRunManager;
@@ -680,12 +683,31 @@ public class MenuSyncRecurringJob : ITransientDependency
                         continue;
                     }
 
+                    var groupFilterResult = _groupFilterService.FilterProductsByGroup(
+                        allProducts,
+                        talabatTarget.FoodicsGroupId,
+                        correlationId);
+
+                    if (groupFilterResult.FilteredCount == 0)
+                    {
+                        _logger.LogWarning(
+                            "No products available for Talabat target after group filtering. FoodicsAccount={AccountId}, VendorCode={VendorCode}, TargetGroup={TargetGroup}, GroupName={GroupName}",
+                            foodicsAccountId,
+                            talabatVendorCode,
+                            talabatTarget.FoodicsGroupId ?? "<all>",
+                            talabatTarget.FoodicsGroupName ?? "<unknown>");
+                        continue;
+                    }
+
+                    var groupedProducts = groupFilterResult.FilteredProducts
+                        .ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);
+
                     var effectiveBranchId = !string.IsNullOrWhiteSpace(branchId)
                         ? branchId
                         : (talabatTarget.SyncAllBranches ? null : talabatTarget.FoodicsBranchId);
                     var syncAllBranchesForRun = string.IsNullOrWhiteSpace(branchId) && talabatTarget.SyncAllBranches;
                     var branchFilterResult = _branchFilterService.FilterProductsByBranch(
-                        allProducts,
+                        groupedProducts,
                         effectiveBranchId,
                         syncAllBranchesForRun,
                         correlationId);
@@ -713,10 +735,12 @@ public class MenuSyncRecurringJob : ITransientDependency
                     }
 
                     _logger.LogInformation(
-                        "Pushing catalog to Talabat. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}, TargetBranch={TargetBranch}, ProductCount={ProductCount}",
+                        "Pushing catalog to Talabat. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}, TargetGroup={TargetGroup}, GroupName={GroupName}, TargetBranch={TargetBranch}, ProductCount={ProductCount}",
                         foodicsAccountId,
                         talabatChainCode,
                         talabatVendorCode,
+                        talabatTarget.FoodicsGroupId ?? "<all>",
+                        talabatTarget.FoodicsGroupName ?? "<unknown>",
                         effectiveBranchId ?? "<all>",
                         branchFilterResult.FilteredCount);
 
@@ -1014,7 +1038,7 @@ public class MenuSyncRecurringJob : ITransientDependency
     /// Gets all Talabat sync targets for a FoodicsAccount.
     /// Prefers linked TalabatAccounts, filtered by branch if needed, then falls back to legacy configuration.
     /// </summary>
-    private async Task<List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches)>> GetTalabatSyncTargetsAsync(
+    private async Task<List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches, string? FoodicsGroupId, string? FoodicsGroupName)>> GetTalabatSyncTargetsAsync(
         Guid foodicsAccountId,
         string? branchId,
         CancellationToken cancellationToken)
@@ -1039,12 +1063,12 @@ public class MenuSyncRecurringJob : ITransientDependency
                         foodicsAccountId,
                         branchId);
 
-                    return new List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches)>();
+                    return new List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches, string? FoodicsGroupId, string? FoodicsGroupName)>();
                 }
 
                 return linkedAccounts
                     .Where(x => !string.IsNullOrWhiteSpace(x.ChainCode) && !string.IsNullOrWhiteSpace(x.VendorCode))
-                    .Select(x => (x.ChainCode!, x.VendorCode!, x.FoodicsBranchId, x.SyncAllBranches))
+                    .Select(x => (x.ChainCode!, x.VendorCode!, x.FoodicsBranchId, x.SyncAllBranches, x.FoodicsGroupId, x.FoodicsGroupName))
                     .Distinct()
                     .ToList();
             }
@@ -1055,7 +1079,7 @@ public class MenuSyncRecurringJob : ITransientDependency
             if (!string.IsNullOrWhiteSpace(vendorCode))
             {
                 var chainCode = _configuration["Talabat:ChainCode"] ?? "tlbt-pick";
-                return new List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches)> { (chainCode, vendorCode, null, true) };
+                return new List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches, string? FoodicsGroupId, string? FoodicsGroupName)> { (chainCode, vendorCode, null, true, null, null) };
             }
         }
         catch (Exception ex)
@@ -1075,12 +1099,11 @@ public class MenuSyncRecurringJob : ITransientDependency
                 configChainCode,
                 configVendorCode);
 
-            return new List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches)> { (configChainCode, configVendorCode, null, true) };
+            return new List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches, string? FoodicsGroupId, string? FoodicsGroupName)> { (configChainCode, configVendorCode, null, true, null, null) };
         }
 
-        return new List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches)>();
+        return new List<(string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches, string? FoodicsGroupId, string? FoodicsGroupName)>();
     }
 }
-
 
 
