@@ -785,12 +785,12 @@ public class TalabatCatalogSyncService : ITransientDependency
         Guid foodicsAccountId,
         CancellationToken cancellationToken)
     {
-        var missingProductIds = products
-            .Where(p => !string.IsNullOrWhiteSpace(p.Id) && !productOrder.ContainsKey(p.Id))
+        var publishedProductIds = products
+            .Where(p => !string.IsNullOrWhiteSpace(p.Id))
             .Select(p => p.Id!)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        if (missingProductIds.Count == 0)
+        if (publishedProductIds.Count == 0)
         {
             return;
         }
@@ -806,56 +806,53 @@ public class TalabatCatalogSyncService : ITransientDependency
             if (rootGroup == null || string.IsNullOrWhiteSpace(rootGroup.Id))
             {
                 _logger.LogInformation(
-                    "Skipping Foodics group order fallback because Talabat root group was not found. FoodicsAccountId={FoodicsAccountId}, MissingProducts={MissingProducts}",
+                    "Skipping Foodics Talabat subgroup product ordering because Talabat root group was not found. FoodicsAccountId={FoodicsAccountId}, PublishedProducts={PublishedProducts}",
                     foodicsAccountId,
-                    missingProductIds.Count);
+                    publishedProductIds.Count);
                 return;
             }
 
-            var fallbackApplied = 0;
-            var fallbackIndex = productOrder.Count == 0
-                ? 0
-                : productOrder.Values.Max() + 1;
+            var applied = 0;
+            var nextOrder = 0;
 
             foreach (var productId in EnumerateTalabatGroupProductOrder(rootGroup))
             {
                 if (string.IsNullOrWhiteSpace(productId) ||
-                    productOrder.ContainsKey(productId) ||
-                    !missingProductIds.Contains(productId))
+                    !publishedProductIds.Contains(productId))
                 {
                     continue;
                 }
 
-                productOrder[productId] = fallbackIndex++;
-                fallbackApplied++;
+                productOrder[productId] = nextOrder++;
+                applied++;
             }
 
-            if (fallbackApplied > 0)
+            if (applied > 0)
             {
                 _logger.LogInformation(
-                    "Applied Foodics Talabat subgroup order fallback for products missing menu_display ordering. FoodicsAccountId={FoodicsAccountId}, RootGroupId={RootGroupId}, AppliedProducts={AppliedProducts}, MissingProducts={MissingProducts}",
+                    "Applied Foodics Talabat subgroup product ordering. FoodicsAccountId={FoodicsAccountId}, RootGroupId={RootGroupId}, AppliedProducts={AppliedProducts}, PublishedProducts={PublishedProducts}",
                     foodicsAccountId,
                     rootGroup.Id,
-                    fallbackApplied,
-                    missingProductIds.Count);
+                    applied,
+                    publishedProductIds.Count);
             }
             else
             {
                 _logger.LogInformation(
-                    "Talabat group fallback found no matching missing products. FoodicsAccountId={FoodicsAccountId}, RootGroupId={RootGroupId}, MissingProducts={MissingProducts}",
+                    "Talabat subgroup ordering found no matching published products. FoodicsAccountId={FoodicsAccountId}, RootGroupId={RootGroupId}, PublishedProducts={PublishedProducts}",
                     foodicsAccountId,
                     rootGroup.Id,
-                    missingProductIds.Count);
+                    publishedProductIds.Count);
             }
         }
         catch (Exception ex)
         {
             _logger.LogWarning(
                 ex,
-                "Failed to apply Foodics Talabat subgroup order fallback. FoodicsAccountId={FoodicsAccountId}, RootGroupName={RootGroupName}, MissingProducts={MissingProducts}",
+                "Failed to apply Foodics Talabat subgroup product ordering. FoodicsAccountId={FoodicsAccountId}, RootGroupName={RootGroupName}, PublishedProducts={PublishedProducts}",
                 foodicsAccountId,
                 "Talabat",
-                missingProductIds.Count);
+                publishedProductIds.Count);
         }
     }
 
