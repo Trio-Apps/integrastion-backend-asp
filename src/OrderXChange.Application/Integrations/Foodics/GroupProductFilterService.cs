@@ -7,9 +7,8 @@ using Volo.Abp.DependencyInjection;
 namespace OrderXChange.Application.Integrations.Foodics;
 
 /// <summary>
-/// Service responsible for filtering Foodics products based on group membership.
-/// This ensures that only products belonging to a specific group are synced to Talabat.
-/// Products must belong to the configured group to be included in sync operations.
+/// Filters Foodics products by group membership for Talabat publishing.
+/// Products must belong to the configured group scope and be active within that scope.
 /// </summary>
 public class GroupProductFilterService : ITransientDependency
 {
@@ -20,28 +19,36 @@ public class GroupProductFilterService : ITransientDependency
         _logger = logger;
     }
 
-    /// <summary>
-    /// Filters products based on group membership.
-    /// </summary>
-    /// <param name="allProducts">All products from Foodics</param>
-    /// <param name="targetGroupId">Target group ID to filter by (null = no filtering)</param>
-    /// <param name="correlationId">Correlation ID for logging</param>
-    /// <returns>Filtered products belonging to the target group</returns>
     public GroupFilteredProductsResult FilterProductsByGroup(
         Dictionary<string, FoodicsProductDetailDto> allProducts,
         string? targetGroupId,
         string correlationId)
     {
+        var targetGroupIds = string.IsNullOrWhiteSpace(targetGroupId)
+            ? null
+            : new[] { targetGroupId };
+
+        return FilterProductsByGroups(allProducts, targetGroupIds, correlationId, targetGroupId);
+    }
+
+    public GroupFilteredProductsResult FilterProductsByGroups(
+        Dictionary<string, FoodicsProductDetailDto> allProducts,
+        IReadOnlyCollection<string>? targetGroupIds,
+        string correlationId,
+        string? targetGroupLabel = null)
+    {
         var result = new GroupFilteredProductsResult();
+        var groupIdSet = targetGroupIds?
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         _logger.LogInformation(
-            "🏷️ [Group Filter] Starting product filtering. " +
-            "TotalProducts={TotalProducts}, TargetGroup={TargetGroup}, " +
-            "CorrelationId={CorrelationId}",
-            allProducts.Count, targetGroupId ?? "<none>", correlationId);
+            "[Group Filter] Starting product filtering. TotalProducts={TotalProducts}, TargetGroup={TargetGroup}, CorrelationId={CorrelationId}",
+            allProducts.Count,
+            targetGroupLabel ?? "<none>",
+            correlationId);
 
-        // If no specific group ID, return all products (no group filtering)
-        if (string.IsNullOrWhiteSpace(targetGroupId))
+        if (groupIdSet == null)
         {
             result.FilteredProducts = allProducts.Values.ToList();
             result.TotalProducts = allProducts.Count;
@@ -49,56 +56,55 @@ public class GroupProductFilterService : ITransientDependency
             result.FilterReason = "No target group specified - returning all products";
 
             _logger.LogInformation(
-                "🏷️ [Group Filter] No target group specified - returning all products. " +
-                "Products={Count}, CorrelationId={CorrelationId}",
-                result.FilteredCount, correlationId);
+                "[Group Filter] No target group specified - returning all products. Products={Count}, CorrelationId={CorrelationId}",
+                result.FilteredCount,
+                correlationId);
 
             return result;
         }
 
-        // Filter products by group membership
+        if (groupIdSet.Count == 0)
+        {
+            result.FilteredProducts = new List<FoodicsProductDetailDto>();
+            result.TotalProducts = allProducts.Count;
+            result.FilteredCount = 0;
+            result.ProductsWithoutGroups = allProducts.Count(p => p.Value.Groups == null || p.Value.Groups.Count == 0);
+            result.ProductsNotInTargetGroup = allProducts.Count - result.ProductsWithoutGroups;
+            result.FilterReason = $"Target group scope '{targetGroupLabel ?? "<empty>"}' resolved to no active groups";
+
+            _logger.LogWarning(
+                "[Group Filter] Target group scope resolved to no active groups. TotalProducts={TotalProducts}, TargetGroup={TargetGroup}, CorrelationId={CorrelationId}",
+                result.TotalProducts,
+                targetGroupLabel ?? "<empty>",
+                correlationId);
+
+            return result;
+        }
+
         var filteredProducts = new List<FoodicsProductDetailDto>();
         var productsWithoutGroups = 0;
         var productsNotInTargetGroup = 0;
-        var productsInTargetGroup = 0;
 
         foreach (var product in allProducts.Values)
         {
-            // Check if product has group information
-            if (product.Groups == null || !product.Groups.Any())
+            if (product.Groups == null || product.Groups.Count == 0)
             {
                 productsWithoutGroups++;
-                // Products with NO group assignments should be EXCLUDED when filtering by specific group
-                _logger.LogDebug(
-                    "🏷️ [Group Filter] Product has no group assignments - EXCLUDED. " +
-                    "ProductId={ProductId}, ProductName={ProductName}, " +
-                    "TargetGroup={TargetGroup}, CorrelationId={CorrelationId}",
-                    product.Id, product.Name, targetGroupId, correlationId);
                 continue;
             }
 
-            // Check if product belongs to the target group
-            var belongsToGroup = product.Groups.Any(g =>
-                string.Equals(g.Id, targetGroupId, StringComparison.OrdinalIgnoreCase) &&
+            var belongsToScope = product.Groups.Any(g =>
+                !string.IsNullOrWhiteSpace(g.Id) &&
+                groupIdSet.Contains(g.Id) &&
                 g.Pivot?.IsActive != false);
 
-            if (belongsToGroup)
+            if (belongsToScope)
             {
                 filteredProducts.Add(product);
-                productsInTargetGroup++;
             }
             else
             {
                 productsNotInTargetGroup++;
-
-                _logger.LogDebug(
-                    "🏷️ [Group Filter] Product not in target group. " +
-                    "ProductId={ProductId}, ProductName={ProductName}, " +
-                    "TargetGroup={TargetGroup}, AvailableGroups={AvailableGroups}, " +
-                    "CorrelationId={CorrelationId}",
-                    product.Id, product.Name, targetGroupId,
-                    string.Join(", ", product.Groups.Select(g => g.Id ?? "null")),
-                    correlationId);
             }
         }
 
@@ -107,26 +113,20 @@ public class GroupProductFilterService : ITransientDependency
         result.FilteredCount = filteredProducts.Count;
         result.ProductsWithoutGroups = productsWithoutGroups;
         result.ProductsNotInTargetGroup = productsNotInTargetGroup;
-        result.FilterReason = $"Filtered by group: {targetGroupId}";
+        result.FilterReason = $"Filtered by group: {targetGroupLabel}";
 
         _logger.LogInformation(
-            "🏷️ [Group Filter] Filtering completed. " +
-            "TotalProducts={TotalProducts}, ProductsInTargetGroup={ProductsInTargetGroup}, " +
-            "ProductsWithoutGroups={ProductsWithoutGroups} (EXCLUDED), " +
-            "ProductsNotInTargetGroup={ProductsNotInTargetGroup} (EXCLUDED), " +
-            "TargetGroup={TargetGroup}, CorrelationId={CorrelationId}",
-            result.TotalProducts, result.FilteredCount, result.ProductsWithoutGroups,
-            result.ProductsNotInTargetGroup, targetGroupId, correlationId);
+            "[Group Filter] Filtering completed. TotalProducts={TotalProducts}, ProductsInTargetGroup={ProductsInTargetGroup}, ProductsWithoutGroups={ProductsWithoutGroups} (EXCLUDED), ProductsNotInTargetGroup={ProductsNotInTargetGroup} (EXCLUDED), TargetGroup={TargetGroup}, CorrelationId={CorrelationId}",
+            result.TotalProducts,
+            result.FilteredCount,
+            result.ProductsWithoutGroups,
+            result.ProductsNotInTargetGroup,
+            targetGroupLabel ?? "<none>",
+            correlationId);
 
         return result;
     }
 
-    /// <summary>
-    /// Validates that a group ID exists and has products.
-    /// </summary>
-    /// <param name="allProducts">All products from Foodics</param>
-    /// <param name="groupId">Group ID to validate</param>
-    /// <returns>Validation result</returns>
     public GroupValidationResult ValidateGroup(
         Dictionary<string, FoodicsProductDetailDto> allProducts,
         string groupId)
@@ -142,20 +142,18 @@ public class GroupProductFilterService : ITransientDependency
 
         var productsInGroup = allProducts.Values
             .Where(p => p.Groups != null &&
-                       p.Groups.Any(g =>
-                           string.Equals(g.Id, groupId, StringComparison.OrdinalIgnoreCase) &&
-                           g.Pivot?.IsActive != false))
+                        p.Groups.Any(g =>
+                            string.Equals(g.Id, groupId, StringComparison.OrdinalIgnoreCase) &&
+                            g.Pivot?.IsActive != false))
             .ToList();
 
-        var groupExists = productsInGroup.Any();
-
-        // Get group name from first matching product's group
+        var groupExists = productsInGroup.Count > 0;
         string? groupName = null;
         if (groupExists)
         {
-            var matchingGroup = productsInGroup.First().Groups?
-                .FirstOrDefault(g => string.Equals(g.Id, groupId, StringComparison.OrdinalIgnoreCase));
-            groupName = matchingGroup?.Name;
+            groupName = productsInGroup.First().Groups?
+                .FirstOrDefault(g => string.Equals(g.Id, groupId, StringComparison.OrdinalIgnoreCase))
+                ?.Name;
         }
 
         return new GroupValidationResult
@@ -169,17 +167,13 @@ public class GroupProductFilterService : ITransientDependency
         };
     }
 
-    /// <summary>
-    /// Gets all unique groups from products.
-    /// </summary>
-    /// <param name="allProducts">All products from Foodics</param>
-    /// <returns>List of unique groups with product counts</returns>
     public List<GroupSummary> GetAllGroups(Dictionary<string, FoodicsProductDetailDto> allProducts)
     {
-        var groupSummaries = allProducts.Values
-            .Where(p => p.Groups != null && p.Groups.Any())
+        return allProducts.Values
+            .Where(p => p.Groups != null && p.Groups.Count > 0)
             .SelectMany(p => p.Groups!)
-            .GroupBy(g => g.Id)
+            .Where(g => !string.IsNullOrWhiteSpace(g.Id) && g.Pivot?.IsActive != false)
+            .GroupBy(g => g.Id, StringComparer.OrdinalIgnoreCase)
             .Select(grp =>
             {
                 var firstGroup = grp.First();
@@ -199,14 +193,9 @@ public class GroupProductFilterService : ITransientDependency
             })
             .OrderBy(g => g.Name)
             .ToList();
-
-        return groupSummaries;
     }
 }
 
-/// <summary>
-/// Result of product filtering by group
-/// </summary>
 public class GroupFilteredProductsResult
 {
     public List<FoodicsProductDetailDto> FilteredProducts { get; set; } = new();
@@ -217,9 +206,6 @@ public class GroupFilteredProductsResult
     public string FilterReason { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// Result of group validation
-/// </summary>
 public class GroupValidationResult
 {
     public bool IsValid { get; set; }
@@ -228,9 +214,6 @@ public class GroupValidationResult
     public string Message { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// Summary of a group with product count
-/// </summary>
 public class GroupSummary
 {
     public string Id { get; set; } = string.Empty;
@@ -238,4 +221,3 @@ public class GroupSummary
     public string? NameLocalized { get; set; }
     public int ProductCount { get; set; }
 }
-

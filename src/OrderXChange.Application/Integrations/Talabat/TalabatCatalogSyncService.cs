@@ -795,37 +795,30 @@ public class TalabatCatalogSyncService : ITransientDependency
             return;
         }
 
-        var candidateGroupId = ResolveCommonGroupId(products);
-        if (string.IsNullOrWhiteSpace(candidateGroupId))
-        {
-            _logger.LogInformation(
-                "Skipping Foodics group order fallback because no common group was inferred. FoodicsAccountId={FoodicsAccountId}, MissingProducts={MissingProducts}",
-                foodicsAccountId,
-                missingProductIds.Count);
-            return;
-        }
-
         try
         {
-            var group = await _foodicsCatalogClient.GetGroupByIdAsync(
-                candidateGroupId,
+            var rootGroup = await _foodicsCatalogClient.GetGroupByNameAsync(
+                "Talabat",
                 accessToken: accessToken,
                 foodicsAccountId: foodicsAccountId,
                 cancellationToken: cancellationToken);
 
-            if (group?.ItemsIndex == null || group.ItemsIndex.Count == 0)
+            if (rootGroup == null || string.IsNullOrWhiteSpace(rootGroup.Id))
             {
                 _logger.LogInformation(
-                    "Skipping Foodics group order fallback because group has no items_index. FoodicsAccountId={FoodicsAccountId}, GroupId={GroupId}",
+                    "Skipping Foodics group order fallback because Talabat root group was not found. FoodicsAccountId={FoodicsAccountId}, MissingProducts={MissingProducts}",
                     foodicsAccountId,
-                    candidateGroupId);
+                    missingProductIds.Count);
                 return;
             }
 
             var fallbackApplied = 0;
-            for (var i = 0; i < group.ItemsIndex.Count; i++)
+            var fallbackIndex = productOrder.Count == 0
+                ? 0
+                : productOrder.Values.Max() + 1;
+
+            foreach (var productId in EnumerateTalabatGroupProductOrder(rootGroup))
             {
-                var productId = group.ItemsIndex[i];
                 if (string.IsNullOrWhiteSpace(productId) ||
                     productOrder.ContainsKey(productId) ||
                     !missingProductIds.Contains(productId))
@@ -833,27 +826,25 @@ public class TalabatCatalogSyncService : ITransientDependency
                     continue;
                 }
 
-                var product = products.FirstOrDefault(p => string.Equals(p.Id, productId, StringComparison.OrdinalIgnoreCase));
-                var isActiveInGroup = product?.Groups?.Any(g =>
-                    string.Equals(g.Id, candidateGroupId, StringComparison.OrdinalIgnoreCase) &&
-                    g.Pivot?.IsActive != false) == true;
-
-                if (!isActiveInGroup)
-                {
-                    continue;
-                }
-
-                productOrder[productId] = i;
+                productOrder[productId] = fallbackIndex++;
                 fallbackApplied++;
             }
 
             if (fallbackApplied > 0)
             {
                 _logger.LogInformation(
-                    "Applied Foodics group order fallback for products missing menu_display ordering. FoodicsAccountId={FoodicsAccountId}, GroupId={GroupId}, AppliedProducts={AppliedProducts}, MissingProducts={MissingProducts}",
+                    "Applied Foodics Talabat subgroup order fallback for products missing menu_display ordering. FoodicsAccountId={FoodicsAccountId}, RootGroupId={RootGroupId}, AppliedProducts={AppliedProducts}, MissingProducts={MissingProducts}",
                     foodicsAccountId,
-                    candidateGroupId,
+                    rootGroup.Id,
                     fallbackApplied,
+                    missingProductIds.Count);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Talabat group fallback found no matching missing products. FoodicsAccountId={FoodicsAccountId}, RootGroupId={RootGroupId}, MissingProducts={MissingProducts}",
+                    foodicsAccountId,
+                    rootGroup.Id,
                     missingProductIds.Count);
             }
         }
@@ -861,44 +852,54 @@ public class TalabatCatalogSyncService : ITransientDependency
         {
             _logger.LogWarning(
                 ex,
-                "Failed to apply Foodics group order fallback. FoodicsAccountId={FoodicsAccountId}, GroupId={GroupId}, MissingProducts={MissingProducts}",
+                "Failed to apply Foodics Talabat subgroup order fallback. FoodicsAccountId={FoodicsAccountId}, RootGroupName={RootGroupName}, MissingProducts={MissingProducts}",
                 foodicsAccountId,
-                candidateGroupId,
+                "Talabat",
                 missingProductIds.Count);
         }
     }
 
-    private static string? ResolveCommonGroupId(IReadOnlyCollection<FoodicsProductDetailDto> products)
+    private static IEnumerable<string> EnumerateTalabatGroupProductOrder(FoodicsGroupInfoDto group)
     {
-        HashSet<string>? commonGroupIds = null;
-
-        foreach (var product in products)
+        if (group.Subgroups != null && group.Subgroups.Count > 0)
         {
-            var groupIds = product.Groups?
-                .Select(g => g.Id)
-                .Where(id => !string.IsNullOrWhiteSpace(id))
-                .Cast<string>()
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            if (groupIds == null || groupIds.Count == 0)
+            foreach (var subgroup in group.Subgroups
+                         .Where(sg => sg.Pivot?.IsActive != false))
             {
-                continue;
+                foreach (var productId in EnumerateTalabatGroupProductOrder(subgroup))
+                {
+                    yield return productId;
+                }
             }
 
-            if (commonGroupIds == null)
-            {
-                commonGroupIds = groupIds;
-                continue;
-            }
-
-            commonGroupIds.IntersectWith(groupIds);
-            if (commonGroupIds.Count == 0)
-            {
-                return null;
-            }
+            yield break;
         }
 
-        return commonGroupIds?.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).FirstOrDefault();
+        var activeProducts = (group.Products ?? new List<FoodicsProductDetailDto>())
+            .Where(p => p.Pivot?.IsActive != false && !string.IsNullOrWhiteSpace(p.Id))
+            .ToList();
+
+        if (group.ItemsIndex != null && group.ItemsIndex.Count > 0)
+        {
+            var activeIds = activeProducts
+                .Select(p => p.Id!)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var productId in group.ItemsIndex)
+            {
+                if (!string.IsNullOrWhiteSpace(productId) && activeIds.Contains(productId))
+                {
+                    yield return productId;
+                }
+            }
+
+            yield break;
+        }
+
+        foreach (var product in activeProducts)
+        {
+            yield return product.Id!;
+        }
     }
 
     private static List<string> FlattenProductIds(IEnumerable<FoodicsMenuDisplayChildDto>? children)

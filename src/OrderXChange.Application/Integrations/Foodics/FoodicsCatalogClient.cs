@@ -713,6 +713,56 @@ public class FoodicsCatalogClient
         return payload?.Data;
     }
 
+    public async Task<FoodicsGroupInfoDto?> GetGroupByNameAsync(
+        string groupName,
+        string? accessToken = null,
+        Guid? foodicsAccountId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(groupName))
+        {
+            return null;
+        }
+
+        var token = GetAccessToken(accessToken);
+        var url = $"groups?filter[name]={Uri.EscapeDataString(groupName)}";
+        var requestUri = await BuildUriAsync(url, foodicsAccountId, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError(
+                "Foodics groups by name request failed. GroupName={GroupName}, StatusCode={StatusCode}, Body={Body}",
+                groupName,
+                (int)response.StatusCode,
+                body);
+            response.EnsureSuccessStatusCode();
+        }
+
+        var payload = await response.Content.ReadFromJsonAsync<FoodicsListEnvelope<FoodicsGroupInfoDto>>(_jsonOptions, cancellationToken);
+        var group = payload?.Data?
+            .Where(g =>
+                string.Equals(g.Name, groupName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(g.NameLocalized, groupName, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(g => !string.IsNullOrWhiteSpace(g.DeletedAt))
+            .ThenByDescending(g => g.Subgroups?.Count ?? 0)
+            .FirstOrDefault();
+
+        if (group == null || string.IsNullOrWhiteSpace(group.Id))
+        {
+            return null;
+        }
+
+        return await GetGroupByIdAsync(
+            group.Id,
+            accessToken: accessToken,
+            foodicsAccountId: foodicsAccountId,
+            cancellationToken: cancellationToken);
+    }
+
 public async Task<FoodicsProductAvailabilityListEnvelope> GetProductsWithAvailabilityAsync(
     string accessToken,
     int page = 1,

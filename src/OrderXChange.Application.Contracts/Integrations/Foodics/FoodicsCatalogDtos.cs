@@ -142,8 +142,17 @@ public class FoodicsProductDetailDto : FoodicsProductInfoDto
 	[JsonPropertyName("groups")]
 	public List<FoodicsGroupInfoDto>? Groups { get; set; }
 
+	[JsonPropertyName("pivot")]
+	public FoodicsProductGroupPivotDto? Pivot { get; set; }
+
 	[JsonPropertyName("deleted_at")]
 	public string? DeletedAt { get; set; }
+}
+
+public class FoodicsProductGroupPivotDto
+{
+	[JsonPropertyName("is_active")]
+	public bool? IsActive { get; set; }
 }
 
 public class FoodicsPriceTagDto
@@ -330,11 +339,20 @@ public class FoodicsGroupInfoDto
 	[JsonPropertyName("name_localized")]
 	public string? NameLocalized { get; set; }
 
+	[JsonPropertyName("products")]
+	public List<FoodicsProductDetailDto>? Products { get; set; }
+
 	[JsonPropertyName("items_index")]
 	public List<string>? ItemsIndex { get; set; }
 
 	[JsonPropertyName("pivot")]
 	public FoodicsGroupPivotDto? Pivot { get; set; }
+
+	[JsonPropertyName("subgroups")]
+	public List<FoodicsGroupInfoDto>? Subgroups { get; set; }
+
+	[JsonPropertyName("deleted_at")]
+	public string? DeletedAt { get; set; }
 }
 
 public class FoodicsGroupPivotDto

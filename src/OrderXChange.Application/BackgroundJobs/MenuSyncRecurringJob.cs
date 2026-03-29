@@ -683,10 +683,17 @@ public class MenuSyncRecurringJob : ITransientDependency
                         continue;
                     }
 
-                    var groupFilterResult = _groupFilterService.FilterProductsByGroup(
+                    var groupScope = await ResolveTalabatGroupScopeAsync(
+                        talabatTarget,
+                        foodicsAccountId,
+                        accessToken,
+                        cancellationToken);
+
+                    var groupFilterResult = _groupFilterService.FilterProductsByGroups(
                         allProducts,
-                        talabatTarget.FoodicsGroupId,
-                        correlationId);
+                        groupScope.GroupIds,
+                        correlationId,
+                        groupScope.Label);
 
                     if (groupFilterResult.FilteredCount == 0)
                     {
@@ -1032,6 +1039,72 @@ public class MenuSyncRecurringJob : ITransientDependency
                 }
             }
         }
+    }
+
+    private async Task<TalabatGroupScope> ResolveTalabatGroupScopeAsync(
+        (string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches, string? FoodicsGroupId, string? FoodicsGroupName) talabatTarget,
+        Guid foodicsAccountId,
+        string accessToken,
+        CancellationToken cancellationToken)
+    {
+        const string rootGroupName = "Talabat";
+
+        var rootGroup = await _foodicsCatalogClient.GetGroupByNameAsync(
+            rootGroupName,
+            accessToken: accessToken,
+            foodicsAccountId: foodicsAccountId,
+            cancellationToken: cancellationToken);
+
+        if (rootGroup == null || string.IsNullOrWhiteSpace(rootGroup.Id))
+        {
+            _logger.LogWarning(
+                "Unable to resolve Talabat root group from Foodics. FoodicsAccount={AccountId}, ExpectedRootGroup={ExpectedRootGroup}, VendorCode={VendorCode}",
+                foodicsAccountId,
+                rootGroupName,
+                talabatTarget.VendorCode);
+            return new TalabatGroupScope(Array.Empty<string>(), rootGroupName);
+        }
+
+        var groupIds = FlattenGroupIds(rootGroup)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        _logger.LogInformation(
+            "Resolved Talabat group scope. FoodicsAccount={AccountId}, RootGroupId={RootGroupId}, RootGroupName={RootGroupName}, GroupCount={GroupCount}",
+            foodicsAccountId,
+            rootGroup.Id,
+            rootGroup.Name ?? rootGroup.NameLocalized ?? "<unnamed>",
+            groupIds.Count);
+
+        return new TalabatGroupScope(
+            groupIds,
+            rootGroup.Name ?? rootGroup.NameLocalized ?? rootGroupName);
+    }
+
+    private static IEnumerable<string> FlattenGroupIds(FoodicsGroupInfoDto rootGroup)
+    {
+        if (!string.IsNullOrWhiteSpace(rootGroup.Id))
+        {
+            yield return rootGroup.Id;
+        }
+
+        if (rootGroup.Subgroups == null)
+        {
+            yield break;
+        }
+
+        foreach (var subgroup in rootGroup.Subgroups)
+        {
+            foreach (var subgroupId in FlattenGroupIds(subgroup))
+            {
+                yield return subgroupId;
+            }
+        }
+    }
+
+    private sealed record TalabatGroupScope(IReadOnlyCollection<string>? GroupIds, string Label)
+    {
+        public static TalabatGroupScope None { get; } = new(null, "<all>");
     }
 
     /// <summary>
