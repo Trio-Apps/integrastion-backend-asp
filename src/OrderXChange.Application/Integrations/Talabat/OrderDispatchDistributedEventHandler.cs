@@ -35,6 +35,7 @@ public class OrderDispatchDistributedEventHandler
     private readonly TalabatOrderToFoodicsMapper _orderMapper;
     private readonly FoodicsOrderClient _foodicsOrderClient;
     private readonly FoodicsCatalogClient _foodicsCatalogClient;
+    private readonly FoodicsCustomerResolutionService _foodicsCustomerResolutionService;
     private readonly FoodicsBusinessDateResolver _businessDateResolver;
     private readonly FoodicsAccountTokenService _tokenService;
     private readonly TalabatPaymentMethodSettingsService _talabatPaymentMethodSettingsService;
@@ -64,6 +65,7 @@ public class OrderDispatchDistributedEventHandler
         TalabatOrderToFoodicsMapper orderMapper,
         FoodicsOrderClient foodicsOrderClient,
         FoodicsCatalogClient foodicsCatalogClient,
+        FoodicsCustomerResolutionService foodicsCustomerResolutionService,
         FoodicsBusinessDateResolver businessDateResolver,
         FoodicsAccountTokenService tokenService,
         TalabatPaymentMethodSettingsService talabatPaymentMethodSettingsService,
@@ -81,6 +83,7 @@ public class OrderDispatchDistributedEventHandler
         _orderMapper = orderMapper;
         _foodicsOrderClient = foodicsOrderClient;
         _foodicsCatalogClient = foodicsCatalogClient;
+        _foodicsCustomerResolutionService = foodicsCustomerResolutionService;
         _businessDateResolver = businessDateResolver;
         _tokenService = tokenService;
         _talabatPaymentMethodSettingsService = talabatPaymentMethodSettingsService;
@@ -229,6 +232,36 @@ public class OrderDispatchDistributedEventHandler
                     businessDate.Source,
                     activePaymentMethodId,
                     deliveryChargeId);
+
+                FoodicsOrderCustomerResolution customerResolution;
+                try
+                {
+                    customerResolution = await _foodicsCustomerResolutionService.ResolveAsync(
+                        webhook,
+                        account.VendorCode,
+                        accessToken,
+                        eventData.FoodicsAccountId);
+                }
+                catch (Exception ex) when (IsAuthFailure(ex))
+                {
+                    if (isOverrideToken)
+                    {
+                        throw new InvalidOperationException(
+                            "Foodics order token override failed authorization while resolving customer. Update Foodics:OrderTestAccessToken.");
+                    }
+
+                    accessToken = await RefreshAccessTokenAsync(eventData.FoodicsAccountId, eventData.VendorCode);
+                    customerResolution = await _foodicsCustomerResolutionService.ResolveAsync(
+                        webhook,
+                        account.VendorCode,
+                        accessToken,
+                        eventData.FoodicsAccountId);
+                }
+
+                request.CustomerId = customerResolution.CustomerId;
+                request.CustomerAddressId = customerResolution.CustomerAddressId;
+                request.Meta ??= new Dictionary<string, object?>();
+                request.Meta["customer_assignment_mode"] = customerResolution.Mode;
 
                 try
                 {

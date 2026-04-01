@@ -432,9 +432,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
         if (modifiers == null || modifiers.Count == 0)
             return null;
 
-        return modifiers
-            .OrderBy(m => m.Pivot?.Index ?? int.MaxValue)
-            .ThenBy(m => m.Id, StringComparer.OrdinalIgnoreCase)
+        return OrderModifiers(modifiers)
             .Where(m => m.Options != null && m.Options.Count > 0)
             .Select((m, idx) =>
             {
@@ -447,11 +445,11 @@ public class FoodicsToTalabatMapper : ITransientDependency
                     MinSelection = minSelection,
                     MaxSelection = maxSelection,
                     SortOrder = idx,
-                    Modifiers = m.Options?
-                        .OrderBy(o => o.Index ?? int.MaxValue)
-                        .ThenBy(o => o.Id, StringComparer.OrdinalIgnoreCase)
+                    Modifiers = m.Options == null
+                        ? new List<TalabatModifier>()
+                        : OrderModifierOptions(m.Options)
                         .Select((o, oIdx) => MapModifierLegacy(o, oIdx))
-                        .ToList() ?? new List<TalabatModifier>()
+                        .ToList()
                 };
             })
             .ToList();
@@ -620,9 +618,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
         var modifierGroups = new List<TalabatModifierGroup>();
 
         int groupSortOrder = 0;
-        foreach (var modifier in modifiers
-                     .OrderBy(m => m.Pivot?.Index ?? int.MaxValue)
-                     .ThenBy(m => m.Id, StringComparer.OrdinalIgnoreCase))
+        foreach (var modifier in OrderModifiers(modifiers))
         {
             if (modifier.Options == null || modifier.Options.Count == 0)
                 continue;
@@ -651,9 +647,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
 
             // Map modifier options with stable IDs
             int optionSortOrder = 0;
-            foreach (var option in modifier.Options
-                         .OrderBy(o => o.Index ?? int.MaxValue)
-                         .ThenBy(o => o.Id, StringComparer.OrdinalIgnoreCase))
+            foreach (var option in OrderModifierOptions(modifier.Options))
             {
                 var mappedOption = MapModifierOptionWithStableId(option, optionSortOrder++, mappings);
                 if (mappedOption != null)
@@ -995,9 +989,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
                 productItem.Toppings ??= new Dictionary<string, TalabatV2ItemReference>();
                 
                 int toppingOrder = 0;
-                foreach (var modifier in product.Modifiers
-                             .OrderBy(m => m.Pivot?.Index ?? int.MaxValue)
-                             .ThenBy(m => m.Id, StringComparer.OrdinalIgnoreCase))
+                foreach (var modifier in OrderModifiers(product.Modifiers))
                 {
                     if (string.IsNullOrWhiteSpace(modifier.Id) || modifier.Options == null || modifier.Options.Count == 0)
                         continue;
@@ -1146,7 +1138,9 @@ public class FoodicsToTalabatMapper : ITransientDependency
             };
 
             int hiddenOrder = 0;
-            foreach (var optionProductId in hiddenOptionProductIds)
+            foreach (var optionProductId in hiddenOptionProductIds
+                         .OrderBy(id => items.TryGetValue(id, out var item) ? item.Order ?? int.MaxValue : int.MaxValue)
+                         .ThenBy(id => id, StringComparer.OrdinalIgnoreCase))
             {
                 hiddenCategoryItem.Products[optionProductId] = new TalabatV2ItemReference
                 {
@@ -1314,6 +1308,20 @@ public class FoodicsToTalabatMapper : ITransientDependency
             : int.MaxValue;
     }
 
+    private static IOrderedEnumerable<FoodicsModifierDto> OrderModifiers(IEnumerable<FoodicsModifierDto> modifiers)
+    {
+        return modifiers
+            .OrderBy(m => m.Pivot?.Index ?? int.MaxValue)
+            .ThenBy(m => m.Id, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static IOrderedEnumerable<FoodicsModifierOptionDto> OrderModifierOptions(IEnumerable<FoodicsModifierOptionDto> options)
+    {
+        return options
+            .OrderBy(o => o.Index ?? int.MaxValue)
+            .ThenBy(o => o.Id, StringComparer.OrdinalIgnoreCase);
+    }
+
     /// <summary>
     /// Legacy V2 method for backward compatibility - now uses stable ID-based mapping
     /// </summary>
@@ -1400,9 +1408,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
                 productItem.Toppings ??= new Dictionary<string, TalabatV2ItemReference>();
                 
                 int toppingOrder = 0;
-                foreach (var modifier in product.Modifiers
-                             .OrderBy(m => m.Pivot?.Index ?? int.MaxValue)
-                             .ThenBy(m => m.Id, StringComparer.OrdinalIgnoreCase))
+                foreach (var modifier in OrderModifiers(product.Modifiers))
                 {
                     if (string.IsNullOrWhiteSpace(modifier.Id) || modifier.Options == null || modifier.Options.Count == 0)
                         continue;
@@ -1497,7 +1503,9 @@ public class FoodicsToTalabatMapper : ITransientDependency
             };
 
             int hiddenOrder = 0;
-            foreach (var optionProductId in hiddenOptionProductIds)
+            foreach (var optionProductId in hiddenOptionProductIds
+                         .OrderBy(id => items.TryGetValue(id, out var item) ? item.Order ?? int.MaxValue : int.MaxValue)
+                         .ThenBy(id => id, StringComparer.OrdinalIgnoreCase))
             {
                 hiddenCategoryItem.Products[optionProductId] = new TalabatV2ItemReference
                 {
@@ -1692,9 +1700,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
         int optionOrder = 0;
         if (modifier.Options != null)
         {
-            foreach (var option in modifier.Options
-                         .OrderBy(o => o.Index ?? int.MaxValue)
-                         .ThenBy(o => o.Id, StringComparer.OrdinalIgnoreCase))
+            foreach (var option in OrderModifierOptions(modifier.Options))
             {
                 if (string.IsNullOrWhiteSpace(option.Id))
                     continue;
@@ -1895,9 +1901,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
         int optionOrder = 0;
         if (modifier.Options != null)
         {
-            foreach (var option in modifier.Options
-                         .OrderBy(o => o.Index ?? int.MaxValue)
-                         .ThenBy(o => o.Id, StringComparer.OrdinalIgnoreCase))
+            foreach (var option in OrderModifierOptions(modifier.Options))
             {
                 if (string.IsNullOrWhiteSpace(option.Id))
                     continue;

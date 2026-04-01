@@ -89,6 +89,7 @@ services:
       - Idempotency__MenuSyncLockMinutes=10
       # Foodics Configuration
       - Foodics__BaseUrl=https://api-sandbox.foodics.com/v5
+      - Foodics__DefaultCustomerId=a170383a-fba6-44ed-a154-53517bb3bf9b
       - Foodics__UseOrderTestAccessToken=false
       - Foodics__OrderStatus=4
       - Foodics__TalabatCreditPaymentMethodId=talabeCredit

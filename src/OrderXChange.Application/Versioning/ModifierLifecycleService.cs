@@ -714,7 +714,9 @@ public class ModifierLifecycleService : IModifierLifecycleService, ITransientDep
 
             // Create or activate assignments
             var sortOrder = 0;
-            foreach (var modifier in product.Modifiers)
+            foreach (var modifier in product.Modifiers
+                         .OrderBy(m => m.Pivot?.Index ?? int.MaxValue)
+                         .ThenBy(m => m.Id, StringComparer.OrdinalIgnoreCase))
             {
                 if (modifierGroupsDict.TryGetValue(modifier.Id, out var modifierGroup))
                 {

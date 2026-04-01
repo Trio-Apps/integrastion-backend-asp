@@ -61,10 +61,32 @@ public class TalabatOrderDelivery
 
 public class TalabatOrderAddress
 {
+	public string? Line1 { get; set; }
+	public string? Line2 { get; set; }
+	public string? Line3 { get; set; }
+	public string? Line4 { get; set; }
+	public string? Line5 { get; set; }
 	public string? Postcode { get; set; }
 	public string? City { get; set; }
 	public string? Street { get; set; }
 	public string? Number { get; set; }
+	public string? Room { get; set; }
+	public string? FlatNumber { get; set; }
+	public string? Building { get; set; }
+	public string? Intercom { get; set; }
+	public string? Entrance { get; set; }
+	public string? Structure { get; set; }
+	public string? Floor { get; set; }
+	public string? District { get; set; }
+	public string? Other { get; set; }
+	public string? Company { get; set; }
+	public string? DeliveryMainArea { get; set; }
+	public string? DeliveryMainAreaPostcode { get; set; }
+	public string? DeliveryArea { get; set; }
+	public string? DeliveryAreaPostcode { get; set; }
+	public string? DeliveryInstructions { get; set; }
+	public decimal? Latitude { get; set; }
+	public decimal? Longitude { get; set; }
 }
 
 public class TalabatOrderDiscount
