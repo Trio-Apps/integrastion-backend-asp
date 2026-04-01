@@ -37,6 +37,7 @@ public class FoodicsCustomerResolutionService : ITransientDependency
         if (ShouldUseDefaultCustomer(webhook))
         {
             var defaultCustomerId = _configuration["Foodics:DefaultCustomerId"]?.Trim();
+            var defaultCustomerAddressId = _configuration["Foodics:DefaultCustomerAddressId"]?.Trim();
             if (string.IsNullOrWhiteSpace(defaultCustomerId))
             {
                 _logger.LogWarning(
@@ -47,7 +48,10 @@ public class FoodicsCustomerResolutionService : ITransientDependency
                 return FoodicsOrderCustomerResolution.Empty("default_customer_missing");
             }
 
-            return new FoodicsOrderCustomerResolution(defaultCustomerId, null, "default_customer");
+            return new FoodicsOrderCustomerResolution(
+                defaultCustomerId,
+                string.IsNullOrWhiteSpace(defaultCustomerAddressId) ? null : defaultCustomerAddressId,
+                "default_customer");
         }
 
         if (!ShouldCreateDeliveryCustomer(webhook))
