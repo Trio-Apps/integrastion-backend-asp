@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -67,6 +68,52 @@ public class FoodicsCustomerClient
             cancellationToken);
     }
 
+    public async Task<FoodicsCustomerResponseDto?> FindCustomerAsync(
+        int? dialCode,
+        string? phone,
+        string? email,
+        string? name,
+        string? accessToken = null,
+        Guid? foodicsAccountId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var token = GetAccessToken(accessToken);
+        var requestUri = await BuildCustomersSearchUriAsync(dialCode, phone, email, name, foodicsAccountId, cancellationToken);
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Get, requestUri);
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning(
+                "Foodics customers lookup failed. StatusCode={StatusCode}, Url={Url}, Body={Body}",
+                (int)response.StatusCode,
+                requestUri,
+                body);
+
+            return null;
+        }
+
+        var envelope = JsonSerializer.Deserialize<FoodicsPagedEnvelope<FoodicsCustomerResponseDto>>(body, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+
+        var customers = envelope?.Data ?? new List<FoodicsCustomerResponseDto>();
+        foreach (var customer in customers)
+        {
+            if (IsCustomerMatch(customer, dialCode, phone, email, name))
+            {
+                return customer;
+            }
+        }
+
+        return null;
+    }
+
     private async Task<TResponse?> SendAsync<TRequest, TResponse>(
         string relativePath,
         TRequest payload,
@@ -129,5 +176,69 @@ public class FoodicsCustomerClient
     {
         var baseUrl = await _baseUrlResolver.ResolveAsync(foodicsAccountId, cancellationToken);
         return new Uri(new Uri(baseUrl), relativePath);
+    }
+
+    private async Task<Uri> BuildCustomersSearchUriAsync(
+        int? dialCode,
+        string? phone,
+        string? email,
+        string? name,
+        Guid? foodicsAccountId,
+        CancellationToken cancellationToken)
+    {
+        var baseUri = await BuildUriAsync("customers", foodicsAccountId, cancellationToken);
+        var query = new List<string> { "page[size]=25" };
+
+        if (dialCode.HasValue)
+        {
+            query.Add($"filter[dial_code]={Uri.EscapeDataString(dialCode.Value.ToString())}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(phone))
+        {
+            query.Add($"filter[phone]={Uri.EscapeDataString(phone)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            query.Add($"filter[email]={Uri.EscapeDataString(email)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            query.Add($"filter[name]={Uri.EscapeDataString(name)}");
+        }
+
+        var builder = new UriBuilder(baseUri)
+        {
+            Query = string.Join("&", query)
+        };
+
+        return builder.Uri;
+    }
+
+    private static bool IsCustomerMatch(
+        FoodicsCustomerResponseDto customer,
+        int? dialCode,
+        string? phone,
+        string? email,
+        string? name)
+    {
+        var phoneMatches = !string.IsNullOrWhiteSpace(phone) &&
+                           string.Equals(customer.Phone?.Trim(), phone.Trim(), StringComparison.OrdinalIgnoreCase);
+        var dialCodeMatches = !dialCode.HasValue || customer.DialCode == dialCode;
+        if (phoneMatches && dialCodeMatches)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(email) &&
+            string.Equals(customer.Email?.Trim(), email.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(name) &&
+               string.Equals(customer.Name?.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -60,11 +60,23 @@ public class FoodicsCustomerResolutionService : ITransientDependency
         }
 
         var customerRequest = BuildCustomerRequest(webhook);
-        var customer = await _foodicsCustomerClient.CreateCustomerAsync(
-            customerRequest,
+        var customer = await _foodicsCustomerClient.FindCustomerAsync(
+            customerRequest.DialCode,
+            customerRequest.Phone,
+            customerRequest.Email,
+            customerRequest.Name,
             accessToken,
             foodicsAccountId,
             cancellationToken);
+
+        if (customer == null)
+        {
+            customer = await _foodicsCustomerClient.CreateCustomerAsync(
+                customerRequest,
+                accessToken,
+                foodicsAccountId,
+                cancellationToken);
+        }
 
         var customerId = customer?.Id?.Trim();
         if (string.IsNullOrWhiteSpace(customerId))
@@ -137,7 +149,10 @@ public class FoodicsCustomerResolutionService : ITransientDependency
 
     private static FoodicsCustomerCreateRequest BuildCustomerRequest(TalabatOrderWebhook webhook)
     {
-        var (dialCode, phone) = ExtractPhoneParts(webhook.Customer?.MobilePhone, webhook.Customer?.MobilePhoneCountryCode);
+        var (dialCode, phone) = ExtractPhoneParts(
+            webhook.Customer?.MobilePhone,
+            webhook.Customer?.MobilePhoneCountryCode,
+            webhook.LocalInfo?.CountryCode);
         var name = string.Join(" ", new[] { webhook.Customer?.FirstName, webhook.Customer?.LastName }
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x!.Trim()));
@@ -224,10 +239,19 @@ public class FoodicsCustomerResolutionService : ITransientDependency
         return builder.ToString();
     }
 
-    private static (int? DialCode, string? Phone) ExtractPhoneParts(string? mobilePhone, string? mobilePhoneCountryCode)
+    private static (int? DialCode, string? Phone) ExtractPhoneParts(
+        string? mobilePhone,
+        string? mobilePhoneCountryCode,
+        string? countryCode)
     {
         var dialCodeDigits = DigitsOnly(mobilePhoneCountryCode);
         var phoneDigits = DigitsOnly(mobilePhone);
+
+        if (string.IsNullOrWhiteSpace(dialCodeDigits))
+        {
+            dialCodeDigits = TryInferDialCodeFromPhone(mobilePhone, phoneDigits)
+                             ?? TryMapDialCodeFromCountryIso(countryCode);
+        }
 
         if (string.IsNullOrWhiteSpace(phoneDigits))
         {
@@ -259,6 +283,51 @@ public class FoodicsCustomerResolutionService : ITransientDependency
 
         var digits = new string(value.Where(char.IsDigit).ToArray());
         return string.IsNullOrWhiteSpace(digits) ? null : digits;
+    }
+
+    private static string? TryInferDialCodeFromPhone(string? mobilePhone, string? phoneDigits)
+    {
+        if (string.IsNullOrWhiteSpace(mobilePhone) ||
+            string.IsNullOrWhiteSpace(phoneDigits) ||
+            !mobilePhone.TrimStart().StartsWith("+", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        string[] knownDialCodes =
+        [
+            "971", "966", "965", "973", "974", "968", "962", "961", "964", "970",
+            "20", "90", "44", "1"
+        ];
+
+        return knownDialCodes.FirstOrDefault(phoneDigits.StartsWith);
+    }
+
+    private static string? TryMapDialCodeFromCountryIso(string? countryCode)
+    {
+        if (string.IsNullOrWhiteSpace(countryCode))
+        {
+            return null;
+        }
+
+        return countryCode.Trim().ToUpperInvariant() switch
+        {
+            "AE" => "971",
+            "SA" => "966",
+            "KW" => "965",
+            "BH" => "973",
+            "QA" => "974",
+            "OM" => "968",
+            "JO" => "962",
+            "LB" => "961",
+            "IQ" => "964",
+            "PS" => "970",
+            "EG" => "20",
+            "TR" => "90",
+            "GB" => "44",
+            "US" => "1",
+            _ => null
+        };
     }
 
     private static string? NormalizeEmptyToNull(string? value)

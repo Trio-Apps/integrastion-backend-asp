@@ -53,6 +53,9 @@ public class FoodicsCustomerResponseDto
     [JsonPropertyName("email")]
     public string? Email { get; set; }
 
+    [JsonPropertyName("dial_code")]
+    public int? DialCode { get; set; }
+
     [JsonPropertyName("addresses")]
     public List<FoodicsAddressReferenceDto>? Addresses { get; set; }
 }
@@ -73,4 +76,10 @@ public class FoodicsAddressReferenceDto
 {
     [JsonPropertyName("id")]
     public string? Id { get; set; }
+}
+
+public class FoodicsPagedEnvelope<T>
+{
+    [JsonPropertyName("data")]
+    public List<T>? Data { get; set; }
 }
