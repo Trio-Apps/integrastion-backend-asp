@@ -77,23 +77,7 @@ export class TalabatDashboardComponent implements OnInit {
     ];
   });
 
-  readonly productMetrics = computed(() => {
-    const dashboard = this.dashboardSignal();
-    if (!dashboard) {
-      return [];
-    }
-
-    const stats = dashboard.stagingStats;
-    return [
-      { label: '::TalabatDashboard.TotalProducts', value: stats.totalProducts, tone: 'info', icon: 'pi-box' },
-      { label: '::TalabatDashboard.ActiveProducts', value: stats.activeProducts, tone: 'success', icon: 'pi-check' },
-      { label: '::TalabatDashboard.Synced', value: stats.completedProducts, tone: 'primary', icon: 'pi-sync' },
-      { label: '::TalabatDashboard.FailedProducts', value: stats.failedProducts, tone: 'danger', icon: 'pi-exclamation-triangle' },
-    ];
-  });
-
   readonly branchStatus = computed(() => this.dashboardSignal()?.branchStatus);
-  readonly stagingStats = computed(() => this.dashboardSignal()?.stagingStats);
 
   ngOnInit(): void {
     this.loadVendors();

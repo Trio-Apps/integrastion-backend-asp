@@ -1,7 +1,8 @@
 .talabat-dashboard {
   padding: 1.5rem;
-  font-family: 'IBM Plex Sans Arabic', 'Segoe UI', sans-serif;
-  direction: rtl;
+  font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  direction: ltr;
+  text-align: left;
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
   min-height: 100vh;
 
@@ -17,6 +18,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-direction: row;
       flex-wrap: wrap;
       gap: 1rem;
     }
@@ -47,6 +49,7 @@
       display: flex;
       align-items: center;
       gap: 1rem;
+      justify-content: flex-start;
     }
 
     .vendor-selector {
@@ -132,6 +135,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-direction: row;
       flex-wrap: wrap;
       gap: 1rem;
     }
@@ -140,6 +144,7 @@
       display: flex;
       align-items: center;
       gap: 1rem;
+      justify-content: flex-start;
 
       .status-label {
         font-weight: 600;
@@ -277,7 +282,7 @@
     border-radius: 12px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
     transition: all 0.3s ease;
-    border-right: 4px solid;
+    border-left: 4px solid;
 
     &:hover {
       transform: translateY(-4px);
@@ -285,27 +290,27 @@
     }
 
     &.metric-primary {
-      border-right-color: #3b82f6;
+      border-left-color: #3b82f6;
       .metric-icon { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
     }
 
     &.metric-success {
-      border-right-color: #10b981;
+      border-left-color: #10b981;
       .metric-icon { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
     }
 
     &.metric-danger {
-      border-right-color: #ef4444;
+      border-left-color: #ef4444;
       .metric-icon { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
     }
 
     &.metric-warning {
-      border-right-color: #f59e0b;
+      border-left-color: #f59e0b;
       .metric-icon { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
     }
 
     &.metric-info {
-      border-right-color: #06b6d4;
+      border-left-color: #06b6d4;
       .metric-icon { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); }
     }
 
@@ -438,7 +443,7 @@
 
       th, td {
         padding: 1rem 1.25rem;
-        text-align: right;
+        text-align: left;
         border-bottom: 1px solid #e2e8f0;
       }
 
@@ -633,3 +638,31 @@
   }
 }
 
+
+
+  .dashboard-header .title-section,
+  .metrics-section .section-title,
+  .submissions-section .card-header h4,
+  .staging-stats-card .card-header h4,
+  .metric-content,
+  .stats-grid .stat-item {
+    text-align: left;
+  }
+
+  .dashboard-header .vendor-selector {
+    flex-direction: row;
+  }
+
+  .dashboard-header .header-actions {
+    flex-direction: row;
+  }
+
+  ::ng-deep .p-datatable .p-datatable-thead > tr > th,
+  ::ng-deep .p-datatable .p-datatable-tbody > tr > td,
+  ::ng-deep .p-tag,
+  ::ng-deep .p-dropdown,
+  ::ng-deep .p-dropdown-label,
+  ::ng-deep .p-paginator {
+    direction: ltr;
+    text-align: left;
+  }

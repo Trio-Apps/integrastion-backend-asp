@@ -42,32 +42,6 @@
       </div>
     </div>
 
-    <!-- Time Sync Card -->
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="card-title mb-0">Time sync</h5>
-      </div>
-      <div class="card-body">
-        <div class="mb-3">
-          <label for="cronExpression" class="form-label">Cron expression for the time</label>
-          <input
-            type="text"
-            id="cronExpression"
-            class="form-control"
-            placeholder="e.g., 0 0 * * *"
-            [ngModel]="cronExpression()"
-            (ngModelChange)="cronExpression.set($event)"
-          />
-        </div>
-
-        <div class="footer text-end">
-          <button class="btn btn-outline-primary" type="button" [disabled]="loading()">
-            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" *ngIf="loading()"></span>
-            {{ '::MenuSync.Refresh' | abpLocalization }}
-          </button>
-        </div>
-      </div>
-    </div>
 
     <div class="row g-4">
       <div class="col-12 col-xl-6">

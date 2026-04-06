@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.Domain.Repositories;
 
 using OrderXChange.Application.Contracts.Integrations.Talabat;
 using OrderXChange.Application.Integrations.Foodics;
@@ -24,15 +25,18 @@ public class FoodicsToTalabatMapper : ITransientDependency
     private readonly IConfiguration _configuration;
     private readonly ILogger<FoodicsToTalabatMapper> _logger;
     private readonly IMenuMappingService _menuMappingService;
+    private readonly IRepository<ModifierGroup, Guid> _modifierGroupRepository;
 
     public FoodicsToTalabatMapper(
         IConfiguration configuration,
         ILogger<FoodicsToTalabatMapper> logger,
-        IMenuMappingService menuMappingService)
+        IMenuMappingService menuMappingService,
+        IRepository<ModifierGroup, Guid> modifierGroupRepository)
     {
         _configuration = configuration;
         _logger = logger;
         _menuMappingService = menuMappingService;
+        _modifierGroupRepository = modifierGroupRepository;
     }
 
     /// <summary>
@@ -70,6 +74,12 @@ public class FoodicsToTalabatMapper : ITransientDependency
         _logger.LogInformation(
             "Created/updated {MappingCount} stable mappings for menu sync",
             mappings.Count);
+
+        await ApplyStoredModifierSelectionBoundsAsync(
+            productsList,
+            foodicsAccountId,
+            branchId,
+            cancellationToken);
 
         // Step 2: Group products by category using stable category mappings
         var productsByCategory = productsList
@@ -906,6 +916,12 @@ public class FoodicsToTalabatMapper : ITransientDependency
         _logger.LogInformation(
             "Created/updated {MappingCount} stable mappings for V2 menu sync",
             mappings.Count);
+
+        await ApplyStoredModifierSelectionBoundsAsync(
+            productsList,
+            foodicsAccountId,
+            branchId,
+            cancellationToken);
 
         var items = new Dictionary<string, TalabatV2CatalogItem>();
         var categoryMap = new Dictionary<string, TalabatV2CatalogItem>(); // categoryId -> category item
@@ -2019,6 +2035,13 @@ public class FoodicsToTalabatMapper : ITransientDependency
 
         if (maxSelection == 0 && optionsCount > 0 && !modifier.MaxAllowed.HasValue)
         {
+            _logger.LogWarning(
+                "Modifier max selection missing from Foodics payload. Falling back to option count. ModifierId={ModifierId}, ModifierName={ModifierName}, OptionsCount={OptionsCount}, RawMaxAllowed={RawMaxAllowed}, PivotMax={PivotMax}",
+                modifier.Id,
+                modifier.Name,
+                optionsCount,
+                modifier.RawMaxAllowed,
+                modifier.Pivot?.MaximumOptions);
             maxSelection = optionsCount;
         }
 
@@ -2035,6 +2058,84 @@ public class FoodicsToTalabatMapper : ITransientDependency
         }
 
         return (minSelection, maxSelection);
+    }
+
+    private async Task ApplyStoredModifierSelectionBoundsAsync(
+        IEnumerable<FoodicsProductDetailDto> products,
+        Guid foodicsAccountId,
+        string? branchId,
+        CancellationToken cancellationToken)
+    {
+        var modifierIds = products
+            .Where(p => p.Modifiers != null)
+            .SelectMany(p => p.Modifiers!)
+            .Where(m => !string.IsNullOrWhiteSpace(m.Id))
+            .Select(m => m.Id)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (modifierIds.Count == 0)
+        {
+            return;
+        }
+
+        var queryable = await _modifierGroupRepository.GetQueryableAsync();
+        var storedGroups = queryable
+            .Where(g => g.FoodicsAccountId == foodicsAccountId)
+            .Where(g => g.IsActive)
+            .Where(g => modifierIds.Contains(g.FoodicsModifierGroupId))
+            .Where(g => g.BranchId == branchId || g.BranchId == null)
+            .ToList()
+            .OrderByDescending(g => string.Equals(g.BranchId, branchId, StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(g => g.Version)
+            .GroupBy(g => g.FoodicsModifierGroupId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.First(),
+                StringComparer.OrdinalIgnoreCase);
+
+        foreach (var product in products)
+        {
+            if (product.Modifiers == null)
+            {
+                continue;
+            }
+
+            foreach (var modifier in product.Modifiers)
+            {
+                if (string.IsNullOrWhiteSpace(modifier.Id) || !storedGroups.TryGetValue(modifier.Id, out var storedGroup))
+                {
+                    continue;
+                }
+
+                var appliedStoredMin = false;
+                var appliedStoredMax = false;
+
+                if (!modifier.RawMinAllowed.HasValue && modifier.Pivot?.MinimumOptions == null && storedGroup.MinSelection.HasValue)
+                {
+                    modifier.MinAllowed = storedGroup.MinSelection;
+                    appliedStoredMin = true;
+                }
+
+                if (!modifier.RawMaxAllowed.HasValue && modifier.Pivot?.MaximumOptions == null && storedGroup.MaxSelection.HasValue)
+                {
+                    modifier.MaxAllowed = storedGroup.MaxSelection;
+                    appliedStoredMax = true;
+                }
+
+                if (appliedStoredMin || appliedStoredMax)
+                {
+                    _logger.LogInformation(
+                        "Applied stored modifier selection bounds. ModifierId={ModifierId}, ProductId={ProductId}, StoredMin={StoredMin}, StoredMax={StoredMax}, AppliedMin={AppliedMin}, AppliedMax={AppliedMax}",
+                        modifier.Id,
+                        product.Id,
+                        storedGroup.MinSelection,
+                        storedGroup.MaxSelection,
+                        appliedStoredMin,
+                        appliedStoredMax);
+                }
+            }
+        }
     }
 
     private TalabatV2CatalogItem? CreateImageItem(string imageId, string imageUrl, string? altText = null)

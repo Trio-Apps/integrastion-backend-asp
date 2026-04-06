@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { MessageService } from 'primeng/api';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -12,7 +11,7 @@ import { LocalizationModule } from '@abp/ng.core';
 @Component({
   selector: 'app-hangfire-dashboard',
   standalone: true,
-  imports: [CommonModule, HangfireJobTableComponent, LocalizationModule, FormsModule],
+  imports: [CommonModule, HangfireJobTableComponent, LocalizationModule],
   templateUrl: './hangfire-dashboard.component.html',
   styleUrls: ['./hangfire-dashboard.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -31,7 +30,6 @@ export class HangfireDashboardComponent implements OnInit {
   readonly syncing = signal<boolean>(false);
   readonly syncQueued = signal<boolean>(false);
   readonly hangfireUrl = 'https://localhost:44325/hangfire';
-  readonly cronExpression = signal<string>('');
   readonly metrics = computed(() => {
     const dashboard = this.dashboardSignal();
     if (!dashboard) {

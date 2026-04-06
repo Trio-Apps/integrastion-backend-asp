@@ -170,6 +170,13 @@ public class TalabatDashboardAppService : ApplicationService, ITalabatDashboardA
                 rawCount);
         }
 
+        if (!string.IsNullOrWhiteSpace(vendorCode))
+        {
+            var vendorCodeLower = vendorCode.ToLower();
+            stagingQueryable = stagingQueryable.Where(x =>
+                x.TalabatVendorCode != null && x.TalabatVendorCode.ToLower() == vendorCodeLower);
+        }
+
         // Get staging stats
         var allStaging = await stagingQueryable.ToListAsync();
 

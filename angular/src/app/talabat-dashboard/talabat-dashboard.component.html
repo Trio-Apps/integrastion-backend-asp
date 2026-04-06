@@ -68,63 +68,6 @@
       </div>
     </div>
 
-    <!-- Product Metrics -->
-    <div class="metrics-section">
-      <h3 class="section-title">
-        <i class="pi pi-box"></i>
-        {{ '::TalabatDashboard.ProductStats' | abpLocalization }}
-      </h3>
-      <div class="metrics-grid">
-        @for (metric of productMetrics(); track metric.label) {
-          <div class="metric-card" [class]="'metric-' + metric.tone">
-            <div class="metric-icon">
-              <i [class]="'pi ' + metric.icon"></i>
-            </div>
-            <div class="metric-content">
-              <span class="metric-value">{{ metric.value | number }}</span>
-              <span class="metric-label">{{ metric.label | abpLocalization }}</span>
-            </div>
-          </div>
-        }
-      </div>
-    </div>
-
-    <!-- Staging Stats -->
-    @if (stagingStats(); as stats) {
-      <div class="staging-stats-card">
-        <div class="card">
-          <div class="card-header">
-            <h4>
-              <i class="pi pi-database"></i>
-              {{ '::TalabatDashboard.DatabaseStatus' | abpLocalization }}
-            </h4>
-          </div>
-          <div class="card-body">
-            <div class="stats-grid">
-              <div class="stat-item">
-                <span class="stat-label">{{ '::TalabatDashboard.LastSync' | abpLocalization }}:</span>
-                <span class="stat-value">{{ formatDate(stats.lastSyncDate) }}</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">{{ '::TalabatDashboard.LastSubmission' | abpLocalization }}:</span>
-                <span class="stat-value">{{ formatDate(stats.lastSubmittedAt) }}</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">{{ '::TalabatDashboard.SyncStatus' | abpLocalization }}:</span>
-                <p-tag 
-                  [value]="getStatusLabel(stats.lastSyncStatus)" 
-                  [severity]="getStatusSeverity(stats.lastSyncStatus)"
-                  [icon]="getStatusIcon(stats.lastSyncStatus)" />
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">{{ '::TalabatDashboard.SubmittedProducts' | abpLocalization }}:</span>
-                <span class="stat-value highlight">{{ stats.submittedProducts }} / {{ stats.totalProducts }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    }
 
     <!-- Recent Submissions Table with Pagination -->
     <div class="submissions-section">
