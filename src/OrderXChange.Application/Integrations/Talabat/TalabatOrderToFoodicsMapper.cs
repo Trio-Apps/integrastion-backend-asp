@@ -155,8 +155,12 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             }
 
             var quantity = ParseInt(product.Quantity, 1);
-            var unitPrice = ParseDecimal(product.PaidPrice) ?? ParseDecimal(product.UnitPrice) ?? 0m;
-            var totalPrice = unitPrice * quantity;
+            var paidPrice = ParseDecimal(product.PaidPrice);
+            var baseUnitPrice = ParseDecimal(product.UnitPrice) ?? 0m;
+            var totalPrice = paidPrice ?? (baseUnitPrice * quantity);
+            var unitPrice = quantity > 0
+                ? Math.Round(totalPrice / quantity, 3, MidpointRounding.AwayFromZero)
+                : baseUnitPrice;
             var discountAmount = (decimal?)null;
 
             var options = MapOptions(product.SelectedToppings, product.SelectedChoices);
@@ -408,9 +412,11 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
 
         if (mappedNetTotal.HasValue && explicitTotal.HasValue)
         {
-            // Prefer the explicit amount reported by Talabat when it covers charges too.
-            // Clamping to the mapped line total leaves delivery/container charges unpaid in Foodics.
-            return explicitTotal.Value;
+            // Talabat totals are occasionally inconsistent with line totals for multi-quantity items.
+            // When that happens, trust the mapped lines plus charges to keep Foodics payments balanced.
+            return Math.Abs(mappedNetTotal.Value - explicitTotal.Value) <= 0.01m
+                ? explicitTotal.Value
+                : mappedNetTotal.Value;
         }
 
         if (mappedNetTotal.HasValue)
