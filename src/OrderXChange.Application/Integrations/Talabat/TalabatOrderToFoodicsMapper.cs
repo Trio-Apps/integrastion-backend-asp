@@ -547,6 +547,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
 
             if (product.Options != null)
             {
+                var productQuantity = product.Quantity > 0 ? product.Quantity : 1;
                 foreach (var option in product.Options)
                 {
                     if (!option.TotalPrice.HasValue)
@@ -554,7 +555,7 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
                         continue;
                     }
 
-                    grossTotal += option.TotalPrice.Value;
+                    grossTotal += option.TotalPrice.Value * productQuantity;
                     hasAnyAmount = true;
                 }
             }
