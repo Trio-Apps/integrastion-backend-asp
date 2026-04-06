@@ -166,21 +166,24 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             var options = MapOptions(product.SelectedToppings, product.SelectedChoices);
             var lineKey = GetProductLineKey(product);
             var productKey = GetProductRemoteCodeKey(product);
+            var hasSplitSiblingLines = lineCounts.TryGetValue(lineKey, out var siblingCount) && siblingCount > 1;
 
-            // Some Talabat orders split the same product into multiple lines (often with discounts).
-            // Reuse collected options to prevent sending empty options for required modifiers.
+            // Some Talabat orders split the same product into multiple lines.
+            // Do not merge/reuse sibling options in that case because each line can represent a different selection set.
             if (options.Count == 0 &&
+                !hasSplitSiblingLines &&
                 lineTemplates.TryGetValue(lineKey, out var lineTemplate) &&
                 lineTemplate.Count > 0)
             {
                 options = CloneOptions(lineTemplate);
                 _logger.LogWarning(
-                    "Order line missing selected toppings. Reusing options from sibling line. ProductName={ProductName}, ProductKey={ProductKey}, OptionCount={OptionCount}",
+                    "Order line missing selected toppings. Reusing options from same line template. ProductName={ProductName}, ProductKey={ProductKey}, OptionCount={OptionCount}",
                     product.Name,
                     lineKey,
                     options.Count);
             }
             else if (options.Count == 0 &&
+                     !hasSplitSiblingLines &&
                      productTemplates.TryGetValue(productKey, out var productTemplate) &&
                      productTemplate.Count > 0)
             {
@@ -189,19 +192,6 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
                     "Order line missing selected toppings. Reusing options from same product. ProductName={ProductName}, ProductRemoteCode={ProductRemoteCode}, OptionCount={OptionCount}",
                     product.Name,
                     product.RemoteCode,
-                    options.Count);
-            }
-            else if (options.Count > 0 &&
-                     lineCounts.TryGetValue(lineKey, out var siblingCount) &&
-                     siblingCount > 1 &&
-                     lineTemplates.TryGetValue(lineKey, out var mergedLineTemplate) &&
-                     mergedLineTemplate.Count > options.Count)
-            {
-                options = MergeOptions(options, mergedLineTemplate);
-                _logger.LogInformation(
-                    "Enriched options from sibling lines for split product. ProductName={ProductName}, ProductKey={ProductKey}, OptionCount={OptionCount}",
-                    product.Name,
-                    lineKey,
                     options.Count);
             }
 
