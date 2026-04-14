@@ -582,12 +582,6 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
     {
         var accessToken = await _tokenService.GetAccessTokenWithFallbackAsync(foodicsAccountId, CancellationToken.None);
 
-        var allGroups = await _foodicsCatalogClient.GetAllGroupsAsync(
-            accessToken: accessToken,
-            foodicsAccountId: foodicsAccountId,
-            perPage: 100,
-            cancellationToken: CancellationToken.None);
-
         var allProducts = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
             branchId: null,
             accessToken: accessToken,
@@ -605,11 +599,43 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
             .ToDictionary(
                 grp => grp.Key,
                 grp => allProducts.Values.Count(p =>
-                    p.Groups != null &&
-                    p.Groups.Any(pg => string.Equals(pg.Id, grp.Key, StringComparison.OrdinalIgnoreCase))),
-                StringComparer.OrdinalIgnoreCase);
+                p.Groups != null &&
+                p.Groups.Any(pg => string.Equals(pg.Id, grp.Key, StringComparison.OrdinalIgnoreCase))),
+            StringComparer.OrdinalIgnoreCase);
 
-        var groupSummaries = allGroups
+        var groupsFromProducts = allProducts.Values
+            .Where(p => p.Groups != null)
+            .SelectMany(p => p.Groups!)
+            .Where(g => !string.IsNullOrWhiteSpace(g.Id))
+            .GroupBy(g => g.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(grp => grp.First())
+            .ToList();
+
+        List<FoodicsGroupInfoDto> allGroups;
+        try
+        {
+            allGroups = await _foodicsCatalogClient.GetAllGroupsAsync(
+                accessToken: accessToken,
+                foodicsAccountId: foodicsAccountId,
+                perPage: 100,
+                cancellationToken: CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex,
+                "Failed to load Foodics groups endpoint for account {FoodicsAccountId}. Falling back to product-derived groups.",
+                foodicsAccountId);
+            allGroups = [];
+        }
+
+        var mergedGroups = allGroups
+            .Concat(groupsFromProducts)
+            .Where(g => !string.IsNullOrWhiteSpace(g.Id))
+            .GroupBy(g => g.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(grp => grp.First())
+            .ToList();
+
+        var groupSummaries = mergedGroups
             .Where(g => !string.IsNullOrWhiteSpace(g.Id))
             .Select(g => new FoodicsGroupWithProductCountDto
             {
