@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OrderXChange.Application.Contracts.Integrations.Talabat;
+using Volo.Abp.TenantManagement.Talabat;
 using Volo.Abp.DependencyInjection;
 
 namespace OrderXChange.Application.Integrations.Foodics;
@@ -31,13 +32,16 @@ public class FoodicsCustomerResolutionService : ITransientDependency
         TalabatOrderWebhook webhook,
         string vendorCode,
         string accessToken,
+        TalabatAccount? talabatAccount = null,
         Guid? foodicsAccountId = null,
         CancellationToken cancellationToken = default)
     {
         if (ShouldUseDefaultCustomer(webhook))
         {
-            var defaultCustomerId = _configuration["Foodics:DefaultCustomerId"]?.Trim();
-            var defaultCustomerAddressId = _configuration["Foodics:DefaultCustomerAddressId"]?.Trim();
+            var defaultCustomerId = talabatAccount?.DefaultFoodicsCustomerId?.Trim()
+                                    ?? _configuration["Foodics:DefaultCustomerId"]?.Trim();
+            var defaultCustomerAddressId = talabatAccount?.DefaultFoodicsCustomerAddressId?.Trim()
+                                           ?? _configuration["Foodics:DefaultCustomerAddressId"]?.Trim();
             if (string.IsNullOrWhiteSpace(defaultCustomerId))
             {
                 _logger.LogWarning(

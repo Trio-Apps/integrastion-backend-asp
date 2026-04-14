@@ -58,6 +58,14 @@ export const APP_ROUTES: Routes = [
     },
   },
   {
+    path: 'talabat-customer-mapping',
+    loadComponent: () => import('./talabat-customer-mapping/talabat-customer-mapping.component').then(c => c.TalabatCustomerMappingComponent),
+    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    data: {
+      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+    },
+  },
+  {
     path: 'categories',
     loadComponent: () => import('./menu-demo/menu-demo.component').then(c => c.MenuDemoComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],

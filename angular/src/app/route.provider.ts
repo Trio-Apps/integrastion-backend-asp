@@ -114,6 +114,15 @@ function configureRoutes() {
       requiredPolicy: 'OrderXChange.Dashboard.Tenant',
     },
     {
+      path: '/talabat-customer-mapping',
+      name: 'Customer Mapping',
+      parentName: '::Menu:Dashboard',
+      iconClass: 'pi pi-users',
+      order: 8,
+      layout: eLayoutType.application,
+      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+    },
+    {
       path: '/talabat-dashboard',
       name: '::Menu:TalabatDashboard',
       parentName: '::Menu:Dashboard',

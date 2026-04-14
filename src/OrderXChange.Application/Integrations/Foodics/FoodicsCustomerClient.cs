@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System.Linq;
 
 namespace OrderXChange.Application.Integrations.Foodics;
 
@@ -114,6 +115,142 @@ public class FoodicsCustomerClient
         return null;
     }
 
+    public async Task<List<FoodicsCustomerResponseDto>> SearchCustomersAsync(
+        string? query,
+        string? accessToken = null,
+        Guid? foodicsAccountId = null,
+        int pageSize = 100,
+        CancellationToken cancellationToken = default)
+    {
+        var token = GetAccessToken(accessToken);
+        var customers = new Dictionary<string, FoodicsCustomerResponseDto>(StringComparer.OrdinalIgnoreCase);
+        var currentPage = 1;
+        var normalizedQuery = query?.Trim();
+
+        while (true)
+        {
+            var requestUri = await BuildCustomersBrowseUriAsync(normalizedQuery, currentPage, pageSize, foodicsAccountId, cancellationToken);
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Get, requestUri);
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "Foodics customers search failed. StatusCode={StatusCode}, Url={Url}, Body={Body}",
+                    (int)response.StatusCode,
+                    requestUri,
+                    body);
+                response.EnsureSuccessStatusCode();
+            }
+
+            var envelope = JsonSerializer.Deserialize<FoodicsPagedEnvelope<FoodicsCustomerResponseDto>>(body, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            var pageCustomers = envelope?.Data ?? [];
+            foreach (var customer in pageCustomers)
+            {
+                if (!string.IsNullOrWhiteSpace(customer.Id))
+                {
+                    customers[customer.Id] = customer;
+                }
+            }
+
+            var total = envelope?.Meta?.Total;
+            var actualPerPage = envelope?.Meta?.PerPage ?? pageSize;
+            var reachedLastPage =
+                pageCustomers.Count == 0 ||
+                pageCustomers.Count < pageSize ||
+                (total.HasValue && customers.Count >= total.Value) ||
+                (total.HasValue && actualPerPage > 0 && currentPage >= (int)Math.Ceiling((double)total.Value / actualPerPage));
+
+            if (reachedLastPage)
+            {
+                break;
+            }
+
+            currentPage++;
+        }
+
+        return customers.Values
+            .OrderBy(x => x.Name ?? x.Phone ?? x.Email ?? x.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    public async Task<List<FoodicsAddressLookupDto>> GetCustomerAddressesAsync(
+        string customerId,
+        string? accessToken = null,
+        Guid? foodicsAccountId = null,
+        int pageSize = 100,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(customerId))
+        {
+            return [];
+        }
+
+        var token = GetAccessToken(accessToken);
+        var addresses = new Dictionary<string, FoodicsAddressLookupDto>(StringComparer.OrdinalIgnoreCase);
+        var currentPage = 1;
+
+        while (true)
+        {
+            var requestUri = await BuildCustomerAddressesUriAsync(customerId, currentPage, pageSize, foodicsAccountId, cancellationToken);
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Get, requestUri);
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "Foodics addresses lookup failed. StatusCode={StatusCode}, Url={Url}, Body={Body}",
+                    (int)response.StatusCode,
+                    requestUri,
+                    body);
+                response.EnsureSuccessStatusCode();
+            }
+
+            var envelope = JsonSerializer.Deserialize<FoodicsPagedEnvelope<FoodicsAddressLookupDto>>(body, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            var pageAddresses = envelope?.Data ?? [];
+            foreach (var address in pageAddresses)
+            {
+                if (!string.IsNullOrWhiteSpace(address.Id))
+                {
+                    addresses[address.Id] = address;
+                }
+            }
+
+            var total = envelope?.Meta?.Total;
+            var actualPerPage = envelope?.Meta?.PerPage ?? pageSize;
+            var reachedLastPage =
+                pageAddresses.Count == 0 ||
+                pageAddresses.Count < pageSize ||
+                (total.HasValue && addresses.Count >= total.Value) ||
+                (total.HasValue && actualPerPage > 0 && currentPage >= (int)Math.Ceiling((double)total.Value / actualPerPage));
+
+            if (reachedLastPage)
+            {
+                break;
+            }
+
+            currentPage++;
+        }
+
+        return addresses.Values
+            .OrderBy(x => x.Name ?? x.Description ?? x.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     private async Task<TResponse?> SendAsync<TRequest, TResponse>(
         string relativePath,
         TRequest payload,
@@ -212,6 +349,54 @@ public class FoodicsCustomerClient
         var builder = new UriBuilder(baseUri)
         {
             Query = string.Join("&", query)
+        };
+
+        return builder.Uri;
+    }
+
+    private async Task<Uri> BuildCustomersBrowseUriAsync(
+        string? query,
+        int page,
+        int pageSize,
+        Guid? foodicsAccountId,
+        CancellationToken cancellationToken)
+    {
+        var baseUri = await BuildUriAsync("customers", foodicsAccountId, cancellationToken);
+        var filters = new List<string>
+        {
+            $"page={page}",
+            $"per_page={pageSize}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            filters.Add($"filter[name]={Uri.EscapeDataString(query)}");
+        }
+
+        var builder = new UriBuilder(baseUri)
+        {
+            Query = string.Join("&", filters)
+        };
+
+        return builder.Uri;
+    }
+
+    private async Task<Uri> BuildCustomerAddressesUriAsync(
+        string customerId,
+        int page,
+        int pageSize,
+        Guid? foodicsAccountId,
+        CancellationToken cancellationToken)
+    {
+        var baseUri = await BuildUriAsync("addresses", foodicsAccountId, cancellationToken);
+        var builder = new UriBuilder(baseUri)
+        {
+            Query = string.Join("&", new[]
+            {
+                $"filter[customer_id]={Uri.EscapeDataString(customerId)}",
+                $"page={page}",
+                $"per_page={pageSize}"
+            })
         };
 
         return builder.Uri;

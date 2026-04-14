@@ -631,6 +631,68 @@ public class FoodicsCatalogClient
         var baseUrl = await _baseUrlResolver.ResolveAsync(foodicsAccountId, cancellationToken);
         return new Uri(new Uri(EnsureEndsWithSlash(baseUrl)), relativePath);
     }
+
+    public async Task<List<FoodicsGroupInfoDto>> GetAllGroupsAsync(
+        string? accessToken = null,
+        Guid? foodicsAccountId = null,
+        int perPage = 100,
+        CancellationToken cancellationToken = default)
+    {
+        var token = GetAccessToken(accessToken);
+        var result = new Dictionary<string, FoodicsGroupInfoDto>(StringComparer.OrdinalIgnoreCase);
+        var currentPage = 1;
+
+        while (true)
+        {
+            var url = $"groups?page={currentPage}&per_page={perPage}";
+            var requestUri = await BuildUriAsync(url, foodicsAccountId, cancellationToken);
+            using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError(
+                    "Foodics groups pagination request failed. Page={Page}, StatusCode={StatusCode}, Body={Body}",
+                    currentPage,
+                    (int)response.StatusCode,
+                    body);
+                response.EnsureSuccessStatusCode();
+            }
+
+            var payload = await response.Content.ReadFromJsonAsync<FoodicsListEnvelope<FoodicsGroupInfoDto>>(_jsonOptions, cancellationToken);
+            var groups = payload?.Data ?? [];
+
+            foreach (var group in groups)
+            {
+                if (!string.IsNullOrWhiteSpace(group.Id) && string.IsNullOrWhiteSpace(group.DeletedAt))
+                {
+                    result[group.Id] = group;
+                }
+            }
+
+            var total = payload?.Meta?.Total;
+            var actualPerPage = payload?.Meta?.PerPage ?? perPage;
+            var reachedLastPage =
+                groups.Count == 0 ||
+                (total.HasValue && result.Count >= total.Value) ||
+                (total.HasValue && actualPerPage > 0 && currentPage >= (int)Math.Ceiling((double)total.Value / actualPerPage)) ||
+                groups.Count < perPage;
+
+            if (reachedLastPage)
+            {
+                break;
+            }
+
+            currentPage++;
+        }
+
+        return result.Values
+            .OrderBy(g => g.Name ?? g.NameLocalized ?? g.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     public async Task<Dictionary<string, FoodicsGroupInfoDto>> GetGroupsByIdsAsync(
         IEnumerable<string> ids,
         string? accessToken = null,

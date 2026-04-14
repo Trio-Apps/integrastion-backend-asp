@@ -240,6 +240,7 @@ public class OrderDispatchDistributedEventHandler
                         webhook,
                         account.VendorCode,
                         accessToken,
+                        account,
                         eventData.FoodicsAccountId);
                 }
                 catch (Exception ex) when (IsAuthFailure(ex))
@@ -255,6 +256,7 @@ public class OrderDispatchDistributedEventHandler
                         webhook,
                         account.VendorCode,
                         accessToken,
+                        account,
                         eventData.FoodicsAccountId);
                 }
 

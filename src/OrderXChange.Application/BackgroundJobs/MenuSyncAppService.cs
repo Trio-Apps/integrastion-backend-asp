@@ -574,12 +574,20 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
     /// <summary>
     /// Gets available groups for a specific FoodicsAccount.
     /// Used for dropdown selection when configuring TalabatAccount group filtering.
-    /// Returns all unique groups that have products assigned to them.
+    /// Returns all groups for the account, plus product counts when products are assigned.
+    /// This is used by the Talabat account create/edit dialog, so it must not silently
+    /// hide groups that currently have zero visible products.
     /// </summary>
     public async Task<List<FoodicsGroupWithProductCountDto>> GetGroupsForAccountAsync(Guid foodicsAccountId)
     {
         var accessToken = await _tokenService.GetAccessTokenWithFallbackAsync(foodicsAccountId, CancellationToken.None);
-        
+
+        var allGroups = await _foodicsCatalogClient.GetAllGroupsAsync(
+            accessToken: accessToken,
+            foodicsAccountId: foodicsAccountId,
+            perPage: 100,
+            cancellationToken: CancellationToken.None);
+
         var allProducts = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
             branchId: null,
             accessToken: accessToken,
@@ -588,31 +596,31 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
             includeDeleted: false,
             includeInactive: false,
             cancellationToken: CancellationToken.None);
-        
-        // Extract unique groups from products and count products per group
-        var groupSummaries = allProducts.Values
+
+        var productCountsByGroupId = allProducts.Values
             .Where(p => p.Groups != null && p.Groups.Any())
             .SelectMany(p => p.Groups!)
             .GroupBy(g => g.Id)
-            .Select(grp =>
-            {
-                var firstGroup = grp.First();
-                var productCount = allProducts.Values.Count(p =>
+            .Where(grp => !string.IsNullOrWhiteSpace(grp.Key))
+            .ToDictionary(
+                grp => grp.Key,
+                grp => allProducts.Values.Count(p =>
                     p.Groups != null &&
-                    p.Groups.Any(pg => string.Equals(pg.Id, firstGroup.Id, StringComparison.OrdinalIgnoreCase)));
+                    p.Groups.Any(pg => string.Equals(pg.Id, grp.Key, StringComparison.OrdinalIgnoreCase))),
+                StringComparer.OrdinalIgnoreCase);
 
-                return new FoodicsGroupWithProductCountDto
-                {
-                    Id = firstGroup.Id,
-                    Name = firstGroup.Name,
-                    NameLocalized = firstGroup.NameLocalized,
-                    ProductCount = productCount
-                };
+        var groupSummaries = allGroups
+            .Where(g => !string.IsNullOrWhiteSpace(g.Id))
+            .Select(g => new FoodicsGroupWithProductCountDto
+            {
+                Id = g.Id,
+                Name = g.Name,
+                NameLocalized = g.NameLocalized,
+                ProductCount = productCountsByGroupId.TryGetValue(g.Id, out var productCount) ? productCount : 0
             })
-            .Where(g => !string.IsNullOrEmpty(g.Id)) // Only groups with valid IDs
-            .OrderBy(g => g.Name)
+            .OrderBy(g => g.Name ?? g.NameLocalized ?? g.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        
+
         return groupSummaries;
     }
 }

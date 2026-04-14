@@ -7,6 +7,9 @@ public class FoodicsListEnvelope<TItem>
 {
 	[JsonPropertyName("data")]
 	public List<TItem> Data { get; set; } = [];
+
+	[JsonPropertyName("meta")]
+	public FoodicsMetaDto? Meta { get; set; }
 }
 
 public class FoodicsProductAvailabilityListEnvelope

@@ -78,8 +78,23 @@ public class FoodicsAddressReferenceDto
     public string? Id { get; set; }
 }
 
+public class FoodicsAddressLookupDto
+{
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+}
+
 public class FoodicsPagedEnvelope<T>
 {
     [JsonPropertyName("data")]
     public List<T>? Data { get; set; }
+
+    [JsonPropertyName("meta")]
+    public FoodicsMetaDto? Meta { get; set; }
 }

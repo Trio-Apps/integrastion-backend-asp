@@ -1,0 +1,97 @@
+<div class="customer-mapping-page">
+  <div class="page-header">
+    <div>
+      <h2 class="page-title">Customer Mapping</h2>
+      <p class="page-subtitle">Choose the default Foodics customer and address used for Talabat orders that should not create a delivery customer dynamically.</p>
+    </div>
+    <button pButton type="button" label="Refresh" icon="pi pi-refresh" [outlined]="true" (click)="refresh()" [loading]="loading()"></button>
+  </div>
+
+  <div class="mapping-card">
+    <div class="field-grid">
+      <div class="field-block">
+        <label class="field-label">Talabat Account</label>
+        <p-select
+          [options]="accounts()"
+          optionLabel="name"
+          optionValue="talabatAccountId"
+          [showClear]="false"
+          [filter]="true"
+          filterBy="name,vendorCode"
+          placeholder="Select Talabat account"
+          class="w-full"
+          styleClass="w-full"
+          [(ngModel)]="selectedTalabatAccountId"
+          (onChange)="onTalabatAccountChange($event.value)">
+          <ng-template let-account pTemplate="item">
+            <div class="option-line">
+              <span>{{ account.name }}</span>
+              <small>{{ account.vendorCode }}</small>
+            </div>
+          </ng-template>
+        </p-select>
+      </div>
+
+      <div class="field-block" *ngIf="selectedAccount() as account">
+        <label class="field-label">Current Mapping</label>
+        <div class="mapping-summary">
+          <div><strong>Customer:</strong> {{ account.defaultCustomerName || '-' }}</div>
+          <div><strong>Address:</strong> {{ account.defaultCustomerAddressName || '-' }}</div>
+        </div>
+      </div>
+
+      <div class="field-block">
+        <label class="field-label">Foodics Customer</label>
+        <p-select
+          [options]="customers()"
+          optionLabel="name"
+          optionValue="id"
+          [filter]="true"
+          filterBy="name,phone,email"
+          placeholder="Search and select Foodics customer"
+          class="w-full"
+          styleClass="w-full"
+          [disabled]="!selectedAccount() || customerLoading()"
+          [(ngModel)]="selectedCustomerId"
+          (onChange)="onCustomerChange($event.value)"
+          (onFilter)="onCustomerFilter($event)">
+          <ng-template let-customer pTemplate="item">
+            <div class="option-line">
+              <span>{{ customer.name || customer.phone || customer.id }}</span>
+              <small>{{ customerLabel(customer) }}</small>
+            </div>
+          </ng-template>
+        </p-select>
+      </div>
+
+      <div class="field-block">
+        <label class="field-label">Customer Address</label>
+        <p-select
+          [options]="addresses()"
+          optionLabel="name"
+          optionValue="id"
+          [filter]="true"
+          filterBy="name,description"
+          placeholder="Select customer address"
+          class="w-full"
+          styleClass="w-full"
+          [disabled]="!selectedCustomerId() || addressLoading()"
+          [(ngModel)]="selectedAddressId">
+          <ng-template let-address pTemplate="item">
+            <div class="option-line">
+              <span>{{ address.name || 'Address' }}</span>
+              <small>{{ address.description || address.id }}</small>
+            </div>
+          </ng-template>
+        </p-select>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button pButton type="button" label="Clear Mapping" severity="secondary" [text]="true" (click)="clearMapping()" [disabled]="!selectedAccount() || saving()"></button>
+      <button pButton type="button" label="Save Mapping" icon="pi pi-check" (click)="save()" [loading]="saving()" [disabled]="!selectedAccount()"></button>
+    </div>
+  </div>
+</div>
+
+<p-toast position="top-right"></p-toast>

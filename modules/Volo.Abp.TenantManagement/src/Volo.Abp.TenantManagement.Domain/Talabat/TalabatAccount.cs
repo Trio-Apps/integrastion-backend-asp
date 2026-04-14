@@ -88,6 +88,26 @@ namespace Volo.Abp.TenantManagement.Talabat
         /// </summary>
         public string? FoodicsGroupName { get; set; }
 
+        /// <summary>
+        /// Default Foodics customer used for orders that should not create a delivery customer dynamically.
+        /// </summary>
+        public string? DefaultFoodicsCustomerId { get; set; }
+
+        /// <summary>
+        /// Display name of the selected default Foodics customer.
+        /// </summary>
+        public string? DefaultFoodicsCustomerName { get; set; }
+
+        /// <summary>
+        /// Default Foodics customer address paired with DefaultFoodicsCustomerId.
+        /// </summary>
+        public string? DefaultFoodicsCustomerAddressId { get; set; }
+
+        /// <summary>
+        /// Display name of the selected default Foodics customer address.
+        /// </summary>
+        public string? DefaultFoodicsCustomerAddressName { get; set; }
+
         public Guid? TenantId { get; set; }
     }
 }
