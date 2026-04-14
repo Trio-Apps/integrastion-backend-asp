@@ -21,6 +21,10 @@ public class AbpTenantManagementApplicationAutoMapperProfile : Profile
             .ForMember(dest => dest.TenantId, opt => opt.Ignore())
             .ForMember(dest => dest.FoodicsAccount, opt => opt.Ignore())
             .ForMember(dest => dest.Password, opt => opt.Ignore())
+            .ForMember(dest => dest.DefaultFoodicsCustomerId, opt => opt.Ignore())
+            .ForMember(dest => dest.DefaultFoodicsCustomerName, opt => opt.Ignore())
+            .ForMember(dest => dest.DefaultFoodicsCustomerAddressId, opt => opt.Ignore())
+            .ForMember(dest => dest.DefaultFoodicsCustomerAddressName, opt => opt.Ignore())
             .ReverseMap();
 
         CreateMap<SmtpConfigDto, SmtpConfig>()
