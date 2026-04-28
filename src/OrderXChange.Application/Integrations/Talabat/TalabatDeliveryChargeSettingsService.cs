@@ -110,7 +110,7 @@ public class TalabatDeliveryChargeSettingsService : ITransientDependency
     {
         if (foodicsAccountId.HasValue)
         {
-            var accountToken = await _foodicsAccountTokenService.GetAccessTokenAsync(foodicsAccountId.Value, cancellationToken);
+            var accountToken = await _foodicsAccountTokenService.GetAccessTokenWithFallbackAsync(foodicsAccountId.Value, cancellationToken);
             if (!string.IsNullOrWhiteSpace(accountToken))
             {
                 return (accountToken, "RequestedFoodicsAccount");
@@ -124,7 +124,7 @@ public class TalabatDeliveryChargeSettingsService : ITransientDependency
         }
 
         throw new UserFriendlyException(
-            "No Foodics access token is available in the database. Configure the Foodics account token for the requested account or current tenant.");
+            "No Foodics access token is available. Configure the Foodics account token or OAuth client credentials for the requested account or current tenant.");
     }
 
     private static bool IsSupportedDeliveryCharge(TalabatDeliveryChargeDto charge)

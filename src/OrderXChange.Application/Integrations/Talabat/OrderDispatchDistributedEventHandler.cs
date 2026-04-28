@@ -408,7 +408,7 @@ public class OrderDispatchDistributedEventHandler
 
     private async Task<(string AccessToken, bool IsOverrideToken)> GetOrderAccessTokenAsync(Guid foodicsAccountId)
     {
-        var token = await _tokenService.GetAccessTokenAsync(foodicsAccountId);
+        var token = await _tokenService.GetAccessTokenWithFallbackAsync(foodicsAccountId);
         return (token, false);
     }
 

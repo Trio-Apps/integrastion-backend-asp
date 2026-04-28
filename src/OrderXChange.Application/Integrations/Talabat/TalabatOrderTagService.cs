@@ -52,7 +52,7 @@ public class TalabatOrderTagService : ITransientDependency
             }
         }
 
-        var accessToken = await _foodicsAccountTokenService.GetAccessTokenAsync(foodicsAccountId, cancellationToken);
+        var accessToken = await _foodicsAccountTokenService.GetAccessTokenWithFallbackAsync(foodicsAccountId, cancellationToken);
         var tag = await _foodicsTagClient.FindOrderTagByNameAsync(
             TalabatOrderTagName,
             accessToken,

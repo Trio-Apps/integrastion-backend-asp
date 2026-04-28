@@ -45,28 +45,37 @@ public class FoodicsAccountTokenService : ITransientDependency
 	/// <param name="foodicsAccountId">FoodicsAccount ID</param>
 	/// <param name="cancellationToken">Cancellation token</param>
 	/// <returns>Access token</returns>
-	/// <exception cref="InvalidOperationException">Thrown if account not found or token is missing</exception>
+	/// <exception cref="InvalidOperationException">Thrown if account not found or no token/client credentials are configured</exception>
 	public async Task<string> GetAccessTokenAsync(Guid foodicsAccountId, CancellationToken cancellationToken = default)
 	{
-		using var uow = _unitOfWorkManager.Begin(requiresNew: true);
+		FoodicsAccount account;
 		
-		var account = await _foodicsAccountRepository.GetAsync(
-			x => x.Id == foodicsAccountId,
-			cancellationToken: cancellationToken);
-		
-		await uow.CompleteAsync(cancellationToken);
+		using (var uow = _unitOfWorkManager.Begin(requiresNew: true))
+		{
+			account = await _foodicsAccountRepository.GetAsync(
+				x => x.Id == foodicsAccountId,
+				cancellationToken: cancellationToken);
+
+			await uow.CompleteAsync(cancellationToken);
+		}
 		
 		if (account == null)
 		{
 			throw new InvalidOperationException($"FoodicsAccount with Id {foodicsAccountId} not found.");
 		}
 
-		if (string.IsNullOrWhiteSpace(account.AccessToken))
+		if (!string.IsNullOrWhiteSpace(account.AccessToken))
 		{
-			throw new InvalidOperationException($"Access token is not configured for FoodicsAccount {foodicsAccountId}.");
+			return account.AccessToken;
 		}
 
-		return account.AccessToken;
+		if (HasOAuthCredentials(account))
+		{
+			return await RefreshAccessTokenAsync(foodicsAccountId, cancellationToken);
+		}
+
+		throw new InvalidOperationException(
+			$"Foodics access token/client credentials are not configured for FoodicsAccount {foodicsAccountId}.");
 	}
 
 	/// <summary>
@@ -89,7 +98,7 @@ public class FoodicsAccountTokenService : ITransientDependency
 			throw new InvalidOperationException($"FoodicsAccount with Id {foodicsAccountId} not found.");
 		}
 
-		if (string.IsNullOrWhiteSpace(account.OAuthClientId) || string.IsNullOrWhiteSpace(account.OAuthClientSecret))
+		if (!HasOAuthCredentials(account))
 		{
 			throw new InvalidOperationException(
 				$"OAuth client credentials are missing for FoodicsAccount {foodicsAccountId}.");
@@ -121,15 +130,30 @@ public class FoodicsAccountTokenService : ITransientDependency
 			return null;
 		}
 
-		using var uow = _unitOfWorkManager.Begin(requiresNew: true);
-		
-		var account = await _foodicsAccountRepository.FirstOrDefaultAsync(
-			x => x.TenantId == _currentTenant.Id.Value,
-			cancellationToken: cancellationToken);
-		
-		await uow.CompleteAsync(cancellationToken);
+		FoodicsAccount? account;
 
-		return account?.AccessToken;
+		using (var uow = _unitOfWorkManager.Begin(requiresNew: true))
+		{
+			account = await _foodicsAccountRepository.FirstOrDefaultAsync(
+				x => x.TenantId == _currentTenant.Id.Value,
+				cancellationToken: cancellationToken);
+
+			await uow.CompleteAsync(cancellationToken);
+		}
+
+		if (account == null)
+		{
+			return null;
+		}
+
+		if (!string.IsNullOrWhiteSpace(account.AccessToken))
+		{
+			return account.AccessToken;
+		}
+
+		return HasOAuthCredentials(account)
+			? await RefreshAccessTokenAsync(account.Id, cancellationToken)
+			: null;
 	}
 
 	/// <summary>
@@ -159,7 +183,13 @@ public class FoodicsAccountTokenService : ITransientDependency
 		}
 
 		throw new InvalidOperationException(
-			"Foodics access token not found in database. Configure the FoodicsAccount access token for the requested account or current tenant.");
+			"Foodics access token not found. Configure an access token or OAuth client credentials for the requested account or current tenant.");
+	}
+
+	private static bool HasOAuthCredentials(FoodicsAccount account)
+	{
+		return !string.IsNullOrWhiteSpace(account.OAuthClientId) &&
+		       !string.IsNullOrWhiteSpace(account.OAuthClientSecret);
 	}
 }
 

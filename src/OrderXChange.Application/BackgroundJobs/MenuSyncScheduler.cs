@@ -252,8 +252,8 @@ public class MenuSyncScheduler : ITransientDependency
             _logger.LogInformation("⚡ [Job] Found {Count} TalabatAccounts linked to FoodicsAccount {AccountId}. CorrelationId={CorrelationId}",
                 talabatAccounts.Count, foodicsAccount.Id, correlationId);
 
-            // FIXED: Get access token using service with requiresNew UoW
-            var accessToken = await _tokenService.GetAccessTokenAsync(foodicsAccount.Id, cancellationToken);
+            // Get access token or generate one from OAuth client credentials.
+            var accessToken = await _tokenService.GetAccessTokenWithFallbackAsync(foodicsAccount.Id, cancellationToken);
 
 
             var allProducts = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
