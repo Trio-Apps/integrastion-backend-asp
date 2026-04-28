@@ -36,6 +36,36 @@
   flex-wrap: wrap;
 }
 
+.connection-test-result {
+  display: flex;
+  flex-direction: column;
+}
+
+.test-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  color: var(--text-color-secondary);
+}
+
+.test-output {
+  width: 100%;
+  max-height: 8rem;
+  overflow: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+  background: var(--surface-50);
+  color: var(--text-color);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.875rem;
+}
+
+.test-output.details {
+  max-height: 16rem;
+}
+
 @media (max-width: 640px) {
   .foodics-form-field {
     width: 100%;

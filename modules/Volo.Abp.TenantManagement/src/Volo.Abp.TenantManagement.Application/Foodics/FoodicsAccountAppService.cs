@@ -94,6 +94,42 @@ namespace Foodics
             await _foodicsAccountRepository.DeleteAsync(x => x.Id == id);
         }
 
+        public async Task<FoodicsConnectionTestResultDto> TestConnectionAsync(Guid id)
+        {
+            var account = await _foodicsAccountRepository.GetAsync(x => x.Id == id);
+
+            try
+            {
+                var branches = await _menuSyncAppService.GetBranchesForAccountAsync(id);
+
+                return new FoodicsConnectionTestResultDto
+                {
+                    Success = true,
+                    Message = $"Foodics connection succeeded. Active branches returned: {branches.Count}.",
+                    Details = branches.Count > 0
+                        ? $"First branch: {branches[0].Name ?? branches[0].Id}"
+                        : "Token was accepted, but Foodics returned no active branches.",
+                    ApiEnvironment = FoodicsApiEnvironment.Normalize(account.ApiEnvironment),
+                    AccessTokenConfigured = !string.IsNullOrWhiteSpace(account.AccessToken),
+                    TestedAtUtc = DateTime.UtcNow
+                };
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Foodics connection test failed for FoodicsAccountId {FoodicsAccountId}.", id);
+
+                return new FoodicsConnectionTestResultDto
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    Details = BuildExceptionDetails(ex),
+                    ApiEnvironment = FoodicsApiEnvironment.Normalize(account.ApiEnvironment),
+                    AccessTokenConfigured = !string.IsNullOrWhiteSpace(account.AccessToken),
+                    TestedAtUtc = DateTime.UtcNow
+                };
+            }
+        }
+
         private async Task TriggerMenuSyncSafelyAsync(Guid foodicsAccountId)
         {
             try
@@ -104,6 +140,18 @@ namespace Foodics
             {
                 Logger.LogWarning(ex, "Failed to trigger menu sync for FoodicsAccountId {FoodicsAccountId}.", foodicsAccountId);
             }
+        }
+
+        private static string BuildExceptionDetails(Exception exception)
+        {
+            var messages = new List<string>();
+
+            for (var current = exception; current != null; current = current.InnerException)
+            {
+                messages.Add($"{current.GetType().Name}: {current.Message}");
+            }
+
+            return string.Join(Environment.NewLine, messages);
         }
     }
 }

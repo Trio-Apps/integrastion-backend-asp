@@ -19,7 +19,7 @@ import { MessageService, ConfirmationService } from 'primeng/api';
 
 // ABP & Services
 import { FoodicsService } from '../../proxy/foodics/foodics.service';
-import { FoodicsAccountDto, CreateUpdateFoodicsAccountDto } from '../../proxy/foodics/models';
+import { FoodicsAccountDto, CreateUpdateFoodicsAccountDto, FoodicsConnectionTestResultDto } from '../../proxy/foodics/models';
 import { LocalizationModule, LocalizationService, PagedResultDto, PagedAndSortedResultRequestDto } from '@abp/ng.core';
 
 @Component({
@@ -69,6 +69,9 @@ export class FoodicsListComponent implements OnInit {
   selectedAccountId?: string;
   accountForm!: FormGroup;
   submitting: boolean = false;
+  testingAccountId?: string;
+  testResult?: FoodicsConnectionTestResultDto;
+  displayTestDialog: boolean = false;
   readonly environmentOptions = [
     { label: this.l('::Foodics.Environment.Sandbox'), value: 'Sandbox' },
     { label: this.l('::Foodics.Environment.Production'), value: 'Production' }
@@ -330,6 +333,47 @@ export class FoodicsListComponent implements OnInit {
             });
           }
         });
+      }
+    });
+  }
+
+  testConnection(account: FoodicsAccountDto): void {
+    if (!account.id || this.testingAccountId) {
+      return;
+    }
+
+    this.testingAccountId = account.id;
+    this.testResult = undefined;
+
+    this.foodicsService.testConnection(account.id).subscribe({
+      next: result => {
+        this.testResult = result;
+        this.displayTestDialog = true;
+        this.testingAccountId = undefined;
+
+        this.messageService.add({
+          severity: result.success ? 'success' : 'error',
+          summary: result.success ? 'Connection succeeded' : 'Connection failed',
+          detail: result.message || 'Foodics connection test completed.',
+          life: result.success ? 3000 : 7000
+        });
+
+        if (result.success) {
+          this.refresh();
+        }
+      },
+      error: error => {
+        console.error('Error testing Foodics connection:', error);
+        this.testResult = {
+          success: false,
+          message: error?.error?.error?.message || error?.message || 'Connection test request failed.',
+          details: JSON.stringify(error?.error || error, null, 2),
+          apiEnvironment: account.apiEnvironment,
+          accessTokenConfigured: !!account.accessToken,
+          testedAtUtc: new Date().toISOString()
+        };
+        this.displayTestDialog = true;
+        this.testingAccountId = undefined;
       }
     });
   }

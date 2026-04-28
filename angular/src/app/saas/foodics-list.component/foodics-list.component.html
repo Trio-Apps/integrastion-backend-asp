@@ -99,6 +99,18 @@
         </td>
         <td>
           <div class="flex gap-2">
+            <p-button
+              icon="pi pi-wifi"
+              [rounded]="true"
+              [outlined]="true"
+              severity="info"
+              size="small"
+              (onClick)="testConnection(account)"
+              [loading]="testingAccountId === account.id"
+              [disabled]="!!testingAccountId"
+              pTooltip="Test Connection"
+              tooltipPosition="bottom" />
+
             <p-button 
               icon="pi pi-pencil" 
               [rounded]="true"
@@ -315,6 +327,51 @@
         [loading]="submitting"
         [disabled]="submitting" />
     </div>
+  </ng-template>
+</p-dialog>
+
+<p-dialog
+  [(visible)]="displayTestDialog"
+  [modal]="true"
+  [style]="{ width: '720px' }"
+  [breakpoints]="{ '960px': '90vw', '640px': '96vw' }"
+  [draggable]="false"
+  [resizable]="false"
+  header="Foodics Connection Test">
+
+  @if (testResult) {
+    <div class="connection-test-result">
+      <div class="flex items-center gap-2 mb-3">
+        <p-tag
+          [value]="testResult.success ? 'Success' : 'Failed'"
+          [severity]="testResult.success ? 'success' : 'danger'"
+          [rounded]="true"
+          [icon]="testResult.success ? 'pi pi-check-circle' : 'pi pi-times-circle'" />
+        <span class="text-sm text-surface-500">
+          {{ testResult.testedAtUtc | date: 'medium' }}
+        </span>
+      </div>
+
+      <div class="test-meta">
+        <span>Environment: <strong>{{ testResult.apiEnvironment || 'N/A' }}</strong></span>
+        <span>Access Token: <strong>{{ testResult.accessTokenConfigured ? 'Configured' : 'Not Set' }}</strong></span>
+      </div>
+
+      <label class="font-semibold mt-4 mb-2 block">Message</label>
+      <pre class="test-output">{{ testResult.message || 'No message returned.' }}</pre>
+
+      <label class="font-semibold mt-4 mb-2 block">Details</label>
+      <pre class="test-output details">{{ testResult.details || 'No details returned.' }}</pre>
+    </div>
+  }
+
+  <ng-template pTemplate="footer">
+    <p-button
+      label="Close"
+      icon="pi pi-times"
+      severity="secondary"
+      [outlined]="true"
+      (onClick)="displayTestDialog = false" />
   </ng-template>
 </p-dialog>
 

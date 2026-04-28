@@ -1,4 +1,4 @@
-import type { CreateUpdateFoodicsAccountDto, FoodicsAccountDto } from './models';
+import type { CreateUpdateFoodicsAccountDto, FoodicsAccountDto, FoodicsConnectionTestResultDto } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { PagedAndSortedResultRequestDto, PagedResultDto } from '@abp/ng.core';
 import { Injectable } from '@angular/core';
@@ -42,6 +42,13 @@ export class FoodicsService {
       method: 'PATCH',
       url: `/api/foodics/${id}`,
       body: input,
+    },
+    { apiName: this.apiName,...config });
+
+  testConnection = (id: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, FoodicsConnectionTestResultDto>({
+      method: 'POST',
+      url: `/api/foodics/${id}/test-connection`,
     },
     { apiName: this.apiName,...config });
 

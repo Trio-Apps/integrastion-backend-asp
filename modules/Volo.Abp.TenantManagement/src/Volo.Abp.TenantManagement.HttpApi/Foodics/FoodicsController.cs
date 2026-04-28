@@ -42,6 +42,13 @@ namespace Foodics
             return await _foodicsAccountAppService.GetListAsync(input);
         }
 
+        [HttpPost]
+        [Route("{id}/test-connection")]
+        public Task<FoodicsConnectionTestResultDto> TestConnectionAsync(Guid id)
+        {
+            return _foodicsAccountAppService.TestConnectionAsync(id);
+        }
+
         [HttpPatch]
         [Route("{id}")]
 

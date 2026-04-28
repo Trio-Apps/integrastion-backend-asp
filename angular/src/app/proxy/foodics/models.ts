@@ -15,3 +15,12 @@ export interface FoodicsAccountDto extends FullAuditedEntityDto<string> {
   accessToken?: string;
   apiEnvironment?: string;
 }
+
+export interface FoodicsConnectionTestResultDto {
+  success: boolean;
+  message?: string;
+  details?: string;
+  apiEnvironment?: string;
+  accessTokenConfigured: boolean;
+  testedAtUtc?: string;
+}
