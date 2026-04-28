@@ -39,7 +39,7 @@ public class FoodicsAuthClient : ITransientDependency
     {
         var tokenUrl = await ResolveTokenUrlAsync(foodicsAccountId, cancellationToken);
         var scope = _configuration["Foodics:OAuthScope"];
-        var grantType = _configuration["Foodics:OAuthGrantType"] ?? "client_credentials";
+        var grantType = _configuration["Foodics:OAuthGrantType"] ?? "authorization_code";
         var useBasicAuth = bool.TryParse(_configuration["Foodics:OAuthUseBasicAuth"], out var parsed) && parsed;
         var includeClientCreds = !useBasicAuth;
 
@@ -112,6 +112,12 @@ public class FoodicsAuthClient : ITransientDependency
                 (int)response.StatusCode,
                 tokenUrl,
                 body);
+
+            if (body.Contains("Invalid grant type", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Foodics token request failed because grant_type '{grantType}' is not supported by Foodics for this application.");
+            }
 
             throw new InvalidOperationException(
                 $"Foodics token request failed with status {(int)response.StatusCode}.");
