@@ -1,4 +1,4 @@
-import type { CreateUpdateFoodicsAccountDto, FoodicsAccountDto, FoodicsConnectionTestResultDto } from './models';
+import type { CompleteFoodicsAuthorizationDto, CreateUpdateFoodicsAccountDto, FoodicsAccountDto, FoodicsAuthorizationUrlDto, FoodicsConnectionTestResultDto, FoodicsOAuthCallbackResultDto } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { PagedAndSortedResultRequestDto, PagedResultDto } from '@abp/ng.core';
 import { Injectable } from '@angular/core';
@@ -49,6 +49,21 @@ export class FoodicsService {
     this.restService.request<any, FoodicsConnectionTestResultDto>({
       method: 'POST',
       url: `/api/foodics/${id}/test-connection`,
+    },
+    { apiName: this.apiName,...config });
+
+  getAuthorizationUrl = (id: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, FoodicsAuthorizationUrlDto>({
+      method: 'POST',
+      url: `/api/foodics/${id}/authorization-url`,
+    },
+    { apiName: this.apiName,...config });
+
+  completeAuthorization = (input: CompleteFoodicsAuthorizationDto, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, FoodicsOAuthCallbackResultDto>({
+      method: 'POST',
+      url: '/api/foodics/complete-authorization',
+      body: input,
     },
     { apiName: this.apiName,...config });
 

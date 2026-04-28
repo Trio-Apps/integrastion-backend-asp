@@ -39,7 +39,7 @@ public class FoodicsAuthClient : ITransientDependency
     {
         var tokenUrl = await ResolveTokenUrlAsync(foodicsAccountId, cancellationToken);
         var scope = _configuration["Foodics:OAuthScope"];
-        var grantType = _configuration["Foodics:OAuthGrantType"] ?? "client_credentials";
+        var grantType = _configuration["Foodics:OAuthGrantType"] ?? "authorization_code";
         var useBasicAuth = bool.TryParse(_configuration["Foodics:OAuthUseBasicAuth"], out var parsed) && parsed;
         var includeClientCreds = !useBasicAuth;
 
@@ -102,27 +102,42 @@ public class FoodicsAuthClient : ITransientDependency
             $"JSON response: {jsonResult.StatusCode} {jsonResult.Body}");
     }
 
-    private async Task<FoodicsTokenResponse> RequestAuthorizationCodeTokenAsync(
-        string tokenUrl,
+    public async Task<FoodicsTokenResponse> RequestAccessTokenWithAuthorizationCodeAsync(
         string clientId,
         string clientSecret,
-        CancellationToken cancellationToken)
+        string code,
+        string redirectUri,
+        Guid? foodicsAccountId = null,
+        CancellationToken cancellationToken = default)
     {
-        var code = _configuration["Foodics:OAuthCode"];
-        var redirectUri = _configuration["Foodics:OAuthRedirectUri"];
-
         if (string.IsNullOrWhiteSpace(code))
         {
-            throw new InvalidOperationException(
-                "Foodics OAuth authorization_code flow requires Foodics:OAuthCode configuration.");
+            throw new InvalidOperationException("Foodics authorization code is missing.");
         }
 
         if (string.IsNullOrWhiteSpace(redirectUri))
         {
-            throw new InvalidOperationException(
-                "Foodics OAuth authorization_code flow requires Foodics:OAuthRedirectUri configuration.");
+            throw new InvalidOperationException("Foodics OAuth redirect URI is missing.");
         }
 
+        var tokenUrl = await ResolveTokenUrlAsync(foodicsAccountId, cancellationToken);
+        return await RequestAuthorizationCodeTokenAsync(
+            tokenUrl,
+            clientId,
+            clientSecret,
+            code,
+            redirectUri,
+            cancellationToken);
+    }
+
+    private async Task<FoodicsTokenResponse> RequestAuthorizationCodeTokenAsync(
+        string tokenUrl,
+        string clientId,
+        string clientSecret,
+        string code,
+        string redirectUri,
+        CancellationToken cancellationToken)
+    {
         var jsonBody = new Dictionary<string, string?>
         {
             ["grant_type"] = "authorization_code",
@@ -146,6 +161,36 @@ public class FoodicsAuthClient : ITransientDependency
 
         throw new InvalidOperationException(
             $"Foodics token request failed for grant_type 'authorization_code'. Response: {result.StatusCode} {result.Body}");
+    }
+
+    private async Task<FoodicsTokenResponse> RequestAuthorizationCodeTokenAsync(
+        string tokenUrl,
+        string clientId,
+        string clientSecret,
+        CancellationToken cancellationToken)
+    {
+        var code = _configuration["Foodics:OAuthCode"];
+        var redirectUri = _configuration["Foodics:OAuthRedirectUri"];
+
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            throw new InvalidOperationException(
+                "Foodics OAuth authorization_code flow requires Foodics:OAuthCode configuration.");
+        }
+
+        if (string.IsNullOrWhiteSpace(redirectUri))
+        {
+            throw new InvalidOperationException(
+                "Foodics OAuth authorization_code flow requires Foodics:OAuthRedirectUri configuration.");
+        }
+
+        return await RequestAuthorizationCodeTokenAsync(
+            tokenUrl,
+            clientId,
+            clientSecret,
+            code,
+            redirectUri,
+            cancellationToken);
     }
 
     private async Task<TokenRequestResult> SendTokenRequestAsync(

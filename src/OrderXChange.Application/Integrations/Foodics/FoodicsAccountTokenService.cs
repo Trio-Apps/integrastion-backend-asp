@@ -69,13 +69,8 @@ public class FoodicsAccountTokenService : ITransientDependency
 			return account.AccessToken;
 		}
 
-		if (HasOAuthCredentials(account))
-		{
-			return await RefreshAccessTokenAsync(foodicsAccountId, cancellationToken);
-		}
-
 		throw new InvalidOperationException(
-			$"Foodics access token/client credentials are not configured for FoodicsAccount {foodicsAccountId}.");
+			$"FoodicsAccount {foodicsAccountId} is not connected. Use the Foodics authorization flow to generate and store an access token.");
 	}
 
 	/// <summary>
@@ -151,9 +146,7 @@ public class FoodicsAccountTokenService : ITransientDependency
 			return account.AccessToken;
 		}
 
-		return HasOAuthCredentials(account)
-			? await RefreshAccessTokenAsync(account.Id, cancellationToken)
-			: null;
+		return null;
 	}
 
 	/// <summary>
@@ -183,7 +176,7 @@ public class FoodicsAccountTokenService : ITransientDependency
 		}
 
 		throw new InvalidOperationException(
-			"Foodics access token not found. Configure an access token or OAuth client credentials for the requested account or current tenant.");
+			"Foodics access token not found. Connect the Foodics account through the authorization flow before running this operation.");
 	}
 
 	private static bool HasOAuthCredentials(FoodicsAccount account)

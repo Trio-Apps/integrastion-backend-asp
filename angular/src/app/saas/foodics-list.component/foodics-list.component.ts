@@ -70,6 +70,7 @@ export class FoodicsListComponent implements OnInit {
   accountForm!: FormGroup;
   submitting: boolean = false;
   testingAccountId?: string;
+  connectingAccountId?: string;
   testResult?: FoodicsConnectionTestResultDto;
   displayTestDialog: boolean = false;
   readonly environmentOptions = [
@@ -374,6 +375,49 @@ export class FoodicsListComponent implements OnInit {
         };
         this.displayTestDialog = true;
         this.testingAccountId = undefined;
+      }
+    });
+  }
+
+  connectFoodics(account: FoodicsAccountDto): void {
+    if (!account.id || this.connectingAccountId) {
+      return;
+    }
+
+    this.connectingAccountId = account.id;
+
+    this.foodicsService.getAuthorizationUrl(account.id).subscribe({
+      next: result => {
+        this.connectingAccountId = undefined;
+
+        if (!result.authorizationUrl) {
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Foodics authorization failed',
+            detail: 'Foodics did not return an authorization URL.',
+            life: 5000
+          });
+          return;
+        }
+
+        window.open(result.authorizationUrl, '_blank', 'noopener,noreferrer');
+
+        this.messageService.add({
+          severity: 'info',
+          summary: 'Foodics authorization opened',
+          detail: `After authorizing, Foodics must redirect to: ${result.redirectUri || 'configured callback URL'}`,
+          life: 7000
+        });
+      },
+      error: error => {
+        console.error('Error creating Foodics authorization URL:', error);
+        this.connectingAccountId = undefined;
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Foodics authorization failed',
+          detail: error?.error?.error?.message || error?.message || 'Could not create Foodics authorization URL.',
+          life: 7000
+        });
       }
     });
   }

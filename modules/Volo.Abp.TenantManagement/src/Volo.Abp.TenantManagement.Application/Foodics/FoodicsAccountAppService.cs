@@ -3,14 +3,21 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using System.Threading.Tasks;
 using OrderXChange.BackgroundJobs;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
+using Volo.Abp.Data;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.TenantManagement;
 
 namespace Foodics
@@ -22,15 +29,21 @@ namespace Foodics
         private readonly ITenantRepository _tenantRepository;
         private readonly IRepository<FoodicsAccount> _foodicsAccountRepository;
         private readonly IMenuSyncAppService _menuSyncAppService;
+        private readonly IConfiguration _configuration;
+        private readonly IDataFilter<IMultiTenant> _multiTenantFilter;
 
         public FoodicsAccountAppService(
             ITenantRepository tenantRepository,
             IRepository<FoodicsAccount> foodicsAccountRepository,
-            IMenuSyncAppService menuSyncAppService)
+            IMenuSyncAppService menuSyncAppService,
+            IConfiguration configuration,
+            IDataFilter<IMultiTenant> multiTenantFilter)
         {
             _tenantRepository = tenantRepository;
             _foodicsAccountRepository = foodicsAccountRepository;
             _menuSyncAppService = menuSyncAppService;
+            _configuration = configuration;
+            _multiTenantFilter = multiTenantFilter;
         }
 
         public  async Task<FoodicsAccountDto> CreateAsync(CreateUpdateFoodicsAccountDto input)
@@ -53,7 +66,10 @@ namespace Foodics
             tenant.FoodicsAccounts.Add(foodicsAccount);
             await _tenantRepository.UpdateAsync(tenant , autoSave: true);
 
-            await TriggerMenuSyncSafelyAsync(foodicsAccount.Id);
+            if (!string.IsNullOrWhiteSpace(foodicsAccount.AccessToken))
+            {
+                await TriggerMenuSyncSafelyAsync(foodicsAccount.Id);
+            }
 
             return ObjectMapper.Map<FoodicsAccount,FoodicsAccountDto>(foodicsAccount);
         }
@@ -74,7 +90,10 @@ namespace Foodics
             //tenant.FoodicsAccounts.Add(foodics);
             await _tenantRepository.UpdateAsync(tenant, autoSave: true);
 
-            await TriggerMenuSyncSafelyAsync(foodics.Id);
+            if (!string.IsNullOrWhiteSpace(foodics.AccessToken))
+            {
+                await TriggerMenuSyncSafelyAsync(foodics.Id);
+            }
             return ObjectMapper.Map<FoodicsAccount, FoodicsAccountDto>(foodics);
         }
 
@@ -92,6 +111,89 @@ namespace Foodics
         public async Task DeleteAsync([Required]Guid id)
         {
             await _foodicsAccountRepository.DeleteAsync(x => x.Id == id);
+        }
+
+        public async Task<FoodicsAuthorizationUrlDto> GetAuthorizationUrlAsync(Guid id)
+        {
+            var account = await _foodicsAccountRepository.GetAsync(x => x.Id == id);
+
+            if (string.IsNullOrWhiteSpace(account.OAuthClientId))
+            {
+                throw new UserFriendlyException("Foodics OAuth client id is missing for this account.");
+            }
+
+            var state = BuildAuthorizationState(account.Id);
+            var baseUrl = FoodicsApiEnvironment.Normalize(account.ApiEnvironment) == FoodicsApiEnvironment.Production
+                ? "https://console.foodics.com/authorize"
+                : "https://console-sandbox.foodics.com/authorize";
+
+            var authorizationUrl =
+                $"{baseUrl}?client_id={Uri.EscapeDataString(account.OAuthClientId)}&state={Uri.EscapeDataString(state)}";
+
+            return new FoodicsAuthorizationUrlDto
+            {
+                AuthorizationUrl = authorizationUrl,
+                State = state,
+                RedirectUri = GetOAuthRedirectUri()
+            };
+        }
+
+        [AllowAnonymous]
+        public async Task<FoodicsOAuthCallbackResultDto> CompleteAuthorizationAsync(CompleteFoodicsAuthorizationDto input)
+        {
+            if (string.IsNullOrWhiteSpace(input.Code))
+            {
+                return new FoodicsOAuthCallbackResultDto
+                {
+                    Success = false,
+                    Message = "Foodics authorization callback did not include a code."
+                };
+            }
+
+            if (!TryGetAccountIdFromState(input.State, out var foodicsAccountId))
+            {
+                return new FoodicsOAuthCallbackResultDto
+                {
+                    Success = false,
+                    Message = "Foodics authorization state is invalid or missing.",
+                    Details = input.State
+                };
+            }
+
+            using (_multiTenantFilter.Disable())
+            {
+                var account = await _foodicsAccountRepository.GetAsync(x => x.Id == foodicsAccountId);
+                var redirectUri = GetOAuthRedirectUri();
+
+                try
+                {
+                    var accessToken = await RequestAccessTokenAsync(account, input.Code, redirectUri);
+
+                    account.AccessToken = accessToken;
+                    await _foodicsAccountRepository.UpdateAsync(account, autoSave: true);
+
+                    await TriggerMenuSyncSafelyAsync(account.Id);
+
+                    return new FoodicsOAuthCallbackResultDto
+                    {
+                        Success = true,
+                        FoodicsAccountId = account.Id,
+                        Message = "Foodics account connected successfully."
+                    };
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "Foodics authorization callback failed for FoodicsAccountId {FoodicsAccountId}.", account.Id);
+
+                    return new FoodicsOAuthCallbackResultDto
+                    {
+                        Success = false,
+                        FoodicsAccountId = account.Id,
+                        Message = ex.Message,
+                        Details = BuildExceptionDetails(ex)
+                    };
+                }
+            }
         }
 
         public async Task<FoodicsConnectionTestResultDto> TestConnectionAsync(Guid id)
@@ -152,6 +254,104 @@ namespace Foodics
             }
 
             return string.Join(Environment.NewLine, messages);
+        }
+
+        private async Task<string> RequestAccessTokenAsync(FoodicsAccount account, string code, string redirectUri)
+        {
+            var tokenUrl = FoodicsApiEnvironment.Normalize(account.ApiEnvironment) == FoodicsApiEnvironment.Production
+                ? "https://api.foodics.com/oauth/token"
+                : "https://api-sandbox.foodics.com/oauth/token";
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, tokenUrl)
+            {
+                Content = JsonContent.Create(new Dictionary<string, string>
+                {
+                    ["grant_type"] = "authorization_code",
+                    ["code"] = code,
+                    ["client_id"] = account.OAuthClientId,
+                    ["client_secret"] = account.OAuthClientSecret,
+                    ["redirect_uri"] = redirectUri
+                })
+            };
+
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            using var httpClient = new HttpClient();
+            var response = await httpClient.SendAsync(request);
+            var body = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(
+                    $"Foodics token request failed. StatusCode={(int)response.StatusCode}, Body={body}");
+            }
+
+            var token = JsonSerializer.Deserialize<FoodicsTokenResponse>(body, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            if (token == null || string.IsNullOrWhiteSpace(token.AccessToken))
+            {
+                throw new InvalidOperationException($"Foodics token response missing access_token. Body={body}");
+            }
+
+            return token.AccessToken;
+        }
+
+        private string GetOAuthRedirectUri()
+        {
+            var configuredRedirectUri = _configuration["Foodics:OAuthRedirectUri"];
+            if (!string.IsNullOrWhiteSpace(configuredRedirectUri))
+            {
+                return configuredRedirectUri;
+            }
+
+            var selfUrl = _configuration["App:SelfUrl"]?.TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(selfUrl))
+            {
+                throw new InvalidOperationException("Foodics:OAuthRedirectUri or App:SelfUrl must be configured.");
+            }
+
+            return $"{selfUrl}/api/foodics/oauth/callback";
+        }
+
+        private static string BuildAuthorizationState(Guid foodicsAccountId)
+        {
+            var value = $"{foodicsAccountId:N}:{Guid.NewGuid():N}";
+            return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(value))
+                .TrimEnd('=')
+                .Replace('+', '-')
+                .Replace('/', '_');
+        }
+
+        private static bool TryGetAccountIdFromState(string? state, out Guid foodicsAccountId)
+        {
+            foodicsAccountId = default;
+
+            if (string.IsNullOrWhiteSpace(state))
+            {
+                return false;
+            }
+
+            try
+            {
+                var base64 = state.Replace('-', '+').Replace('_', '/');
+                base64 = base64.PadRight(base64.Length + (4 - base64.Length % 4) % 4, '=');
+                var decoded = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(base64));
+                var accountIdText = decoded.Split(':')[0];
+                return Guid.TryParse(accountIdText, out foodicsAccountId);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private class FoodicsTokenResponse
+        {
+            public string AccessToken { get; set; } = string.Empty;
+            public string TokenType { get; set; } = string.Empty;
         }
     }
 }

@@ -100,6 +100,18 @@
         <td>
           <div class="flex gap-2">
             <p-button
+              icon="pi pi-link"
+              [rounded]="true"
+              [outlined]="true"
+              severity="success"
+              size="small"
+              (onClick)="connectFoodics(account)"
+              [loading]="connectingAccountId === account.id"
+              [disabled]="!!connectingAccountId"
+              pTooltip="Connect Foodics"
+              tooltipPosition="bottom" />
+
+            <p-button
               icon="pi pi-wifi"
               [rounded]="true"
               [outlined]="true"

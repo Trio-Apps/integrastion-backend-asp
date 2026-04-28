@@ -13,6 +13,8 @@ namespace Foodics
         Task<FoodicsAccountDto> CreateAsync(CreateUpdateFoodicsAccountDto input);
         Task<FoodicsAccountDto> UpdateAsync(Guid id, CreateUpdateFoodicsAccountDto input);
         Task<PagedResultDto<FoodicsAccountDto>> GetListAsync(PagedAndSortedResultRequestDto input);
+        Task<FoodicsAuthorizationUrlDto> GetAuthorizationUrlAsync(Guid id);
+        Task<FoodicsOAuthCallbackResultDto> CompleteAuthorizationAsync(CompleteFoodicsAuthorizationDto input);
         Task<FoodicsConnectionTestResultDto> TestConnectionAsync(Guid id);
         Task DeleteAsync( Guid id);
     }

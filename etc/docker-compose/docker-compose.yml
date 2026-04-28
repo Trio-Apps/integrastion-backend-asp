@@ -44,6 +44,8 @@ services:
       - App__HealthCheckUrl=/health-status
       - App__HealthUiCheckUrl=http://127.0.0.1:8080/health-status
       - App__DisablePII=false
+      - Foodics__OAuthGrantType=authorization_code
+      - Foodics__OAuthRedirectUri=https://igwdev.beon-it.com/api/foodics/oauth/callback
       - ConnectionStrings__Hangfire=Server=mariadb;Port=3306;Database=OrderXChange;User=orderxchange_user;Password=OrderXChange@2024;AllowUserVariables=True;UseAffectedRows=False
       - ConnectionStrings__Default=Server=mariadb;Port=3306;Database=OrderXChange;User=orderxchange_user;Password=OrderXChange@2024;AllowUserVariables=True;UseAffectedRows=False
       - App__CorsOrigins=https://igw.beon-it.com,https://igwdev.beon-it.com

@@ -24,3 +24,21 @@ export interface FoodicsConnectionTestResultDto {
   accessTokenConfigured: boolean;
   testedAtUtc?: string;
 }
+
+export interface FoodicsAuthorizationUrlDto {
+  authorizationUrl?: string;
+  state?: string;
+  redirectUri?: string;
+}
+
+export interface CompleteFoodicsAuthorizationDto {
+  code?: string;
+  state?: string;
+}
+
+export interface FoodicsOAuthCallbackResultDto {
+  success: boolean;
+  foodicsAccountId?: string;
+  message?: string;
+  details?: string;
+}
