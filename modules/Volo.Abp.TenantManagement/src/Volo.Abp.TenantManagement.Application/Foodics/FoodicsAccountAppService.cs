@@ -126,15 +126,19 @@ namespace Foodics
             var baseUrl = FoodicsApiEnvironment.Normalize(account.ApiEnvironment) == FoodicsApiEnvironment.Production
                 ? "https://console.foodics.com/authorize"
                 : "https://console-sandbox.foodics.com/authorize";
+            var redirectUri = GetOAuthRedirectUri();
 
             var authorizationUrl =
-                $"{baseUrl}?client_id={Uri.EscapeDataString(account.OAuthClientId)}&state={Uri.EscapeDataString(state)}";
+                $"{baseUrl}?client_id={Uri.EscapeDataString(account.OAuthClientId)}" +
+                $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
+                "&response_type=code" +
+                $"&state={Uri.EscapeDataString(state)}";
 
             return new FoodicsAuthorizationUrlDto
             {
                 AuthorizationUrl = authorizationUrl,
                 State = state,
-                RedirectUri = GetOAuthRedirectUri()
+                RedirectUri = redirectUri
             };
         }
 
