@@ -39,67 +39,131 @@ public class FoodicsAuthClient : ITransientDependency
     {
         var tokenUrl = await ResolveTokenUrlAsync(foodicsAccountId, cancellationToken);
         var scope = _configuration["Foodics:OAuthScope"];
-        var grantType = _configuration["Foodics:OAuthGrantType"] ?? "authorization_code";
+        var grantType = _configuration["Foodics:OAuthGrantType"] ?? "client_credentials";
         var useBasicAuth = bool.TryParse(_configuration["Foodics:OAuthUseBasicAuth"], out var parsed) && parsed;
         var includeClientCreds = !useBasicAuth;
 
-        HttpContent content;
         if (string.Equals(grantType, "authorization_code", StringComparison.OrdinalIgnoreCase))
         {
-            var code = _configuration["Foodics:OAuthCode"];
-            var redirectUri = _configuration["Foodics:OAuthRedirectUri"];
-
-            if (string.IsNullOrWhiteSpace(code))
-            {
-                throw new InvalidOperationException(
-                    "Foodics OAuth authorization_code flow requires Foodics:OAuthCode configuration.");
-            }
-
-            if (string.IsNullOrWhiteSpace(redirectUri))
-            {
-                throw new InvalidOperationException(
-                    "Foodics OAuth authorization_code flow requires Foodics:OAuthRedirectUri configuration.");
-            }
-
-            var jsonBody = new Dictionary<string, string?>
-            {
-                ["grant_type"] = "authorization_code",
-                ["code"] = code,
-                ["client_id"] = clientId,
-                ["client_secret"] = clientSecret,
-                ["redirect_uri"] = redirectUri
-            };
-
-            content = JsonContent.Create(jsonBody);
-            useBasicAuth = false;
+            return await RequestAuthorizationCodeTokenAsync(
+                tokenUrl,
+                clientId,
+                clientSecret,
+                cancellationToken);
         }
-        else
+
+        var formFields = new Dictionary<string, string?>
         {
-            var form = new Dictionary<string, string?>
-            {
-                ["grant_type"] = grantType,
-                ["scope"] = string.IsNullOrWhiteSpace(scope) ? null : scope
-            };
+            ["grant_type"] = grantType,
+            ["scope"] = string.IsNullOrWhiteSpace(scope) ? null : scope
+        };
 
-            if (includeClientCreds)
-            {
-                form["client_id"] = clientId;
-                form["client_secret"] = clientSecret;
-            }
-
-            content = new FormUrlEncodedContent(form);
+        if (includeClientCreds)
+        {
+            formFields["client_id"] = clientId;
+            formFields["client_secret"] = clientSecret;
         }
 
+        var formResult = await SendTokenRequestAsync(
+            tokenUrl,
+            grantType,
+            new FormUrlEncodedContent(RemoveEmptyValues(formFields)),
+            useBasicAuth ? BuildBasicAuthHeader(clientId, clientSecret) : null,
+            cancellationToken);
+
+        if (formResult.Success)
+        {
+            return formResult.Token!;
+        }
+
+        var jsonFields = new Dictionary<string, string?>
+        {
+            ["grant_type"] = grantType,
+            ["scope"] = string.IsNullOrWhiteSpace(scope) ? null : scope,
+            ["client_id"] = clientId,
+            ["client_secret"] = clientSecret
+        };
+
+        var jsonResult = await SendTokenRequestAsync(
+            tokenUrl,
+            grantType,
+            JsonContent.Create(RemoveEmptyValues(jsonFields)),
+            null,
+            cancellationToken);
+
+        if (jsonResult.Success)
+        {
+            return jsonResult.Token!;
+        }
+
+        throw new InvalidOperationException(
+            $"Foodics token request failed for grant_type '{grantType}'. " +
+            $"Form response: {formResult.StatusCode} {formResult.Body}. " +
+            $"JSON response: {jsonResult.StatusCode} {jsonResult.Body}");
+    }
+
+    private async Task<FoodicsTokenResponse> RequestAuthorizationCodeTokenAsync(
+        string tokenUrl,
+        string clientId,
+        string clientSecret,
+        CancellationToken cancellationToken)
+    {
+        var code = _configuration["Foodics:OAuthCode"];
+        var redirectUri = _configuration["Foodics:OAuthRedirectUri"];
+
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            throw new InvalidOperationException(
+                "Foodics OAuth authorization_code flow requires Foodics:OAuthCode configuration.");
+        }
+
+        if (string.IsNullOrWhiteSpace(redirectUri))
+        {
+            throw new InvalidOperationException(
+                "Foodics OAuth authorization_code flow requires Foodics:OAuthRedirectUri configuration.");
+        }
+
+        var jsonBody = new Dictionary<string, string?>
+        {
+            ["grant_type"] = "authorization_code",
+            ["code"] = code,
+            ["client_id"] = clientId,
+            ["client_secret"] = clientSecret,
+            ["redirect_uri"] = redirectUri
+        };
+
+        var result = await SendTokenRequestAsync(
+            tokenUrl,
+            "authorization_code",
+            JsonContent.Create(jsonBody),
+            null,
+            cancellationToken);
+
+        if (result.Success)
+        {
+            return result.Token!;
+        }
+
+        throw new InvalidOperationException(
+            $"Foodics token request failed for grant_type 'authorization_code'. Response: {result.StatusCode} {result.Body}");
+    }
+
+    private async Task<TokenRequestResult> SendTokenRequestAsync(
+        string tokenUrl,
+        string grantType,
+        HttpContent content,
+        AuthenticationHeaderValue? authorization,
+        CancellationToken cancellationToken)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Post, tokenUrl)
         {
             Content = content
         };
 
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        if (useBasicAuth)
+        if (authorization != null)
         {
-            var basicValue = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
-            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", basicValue);
+            request.Headers.Authorization = authorization;
         }
 
         var response = await _httpClient.SendAsync(request, cancellationToken);
@@ -113,14 +177,7 @@ public class FoodicsAuthClient : ITransientDependency
                 tokenUrl,
                 body);
 
-            if (body.Contains("Invalid grant type", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException(
-                    $"Foodics token request failed because grant_type '{grantType}' is not supported by Foodics for this application.");
-            }
-
-            throw new InvalidOperationException(
-                $"Foodics token request failed with status {(int)response.StatusCode}.");
+            return new TokenRequestResult(false, (int)response.StatusCode, body, null);
         }
 
         try
@@ -132,16 +189,36 @@ public class FoodicsAuthClient : ITransientDependency
 
             if (token == null || string.IsNullOrWhiteSpace(token.AccessToken))
             {
-                throw new InvalidOperationException("Foodics token response missing access_token.");
+                return new TokenRequestResult(false, (int)response.StatusCode, "Foodics token response missing access_token.", null);
             }
 
-            return token;
+            return new TokenRequestResult(true, (int)response.StatusCode, body, token);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to parse Foodics token response. Body={Body}", body);
-            throw;
+            return new TokenRequestResult(false, (int)response.StatusCode, body, null);
         }
+    }
+
+    private static AuthenticationHeaderValue BuildBasicAuthHeader(string clientId, string clientSecret)
+    {
+        var basicValue = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
+        return new AuthenticationHeaderValue("Basic", basicValue);
+    }
+
+    private static Dictionary<string, string> RemoveEmptyValues(Dictionary<string, string?> values)
+    {
+        var result = new Dictionary<string, string>();
+        foreach (var (key, value) in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                result[key] = value;
+            }
+        }
+
+        return result;
     }
 
     private async Task<string> ResolveTokenUrlAsync(Guid? foodicsAccountId, CancellationToken cancellationToken)
@@ -175,3 +252,9 @@ public sealed class FoodicsTokenResponse
     public string? TokenType { get; set; }
     public int? ExpiresIn { get; set; }
 }
+
+internal sealed record TokenRequestResult(
+    bool Success,
+    int StatusCode,
+    string Body,
+    FoodicsTokenResponse? Token);
