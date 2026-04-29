@@ -265,6 +265,8 @@ public class MenuSyncScheduler : ITransientDependency
                 includeInactive: false,
                 cancellationToken: cancellationToken);
 
+            FoodicsModifierSanitizer.SanitizeProductsForMenuProjection(allProducts.Values);
+
             _logger.LogInformation("⚡ [Job] Fetched {Count} products from Foodics (all branches). AccountId={AccountId}, CorrelationId={CorrelationId}",
                 allProducts.Count, foodicsAccount.Id, correlationId);
 

@@ -8,6 +8,14 @@ namespace OrderXChange.Application.Integrations.Foodics;
 
 internal static class FoodicsModifierSanitizer
 {
+    public static void SanitizeProductsForMenuProjection(IEnumerable<FoodicsProductDetailDto> products)
+    {
+        foreach (var product in products)
+        {
+            product.Modifiers = SanitizeForMenuProjection(product.Modifiers);
+        }
+    }
+
     public static List<FoodicsModifierDto>? SanitizeForMenuProjection(List<FoodicsModifierDto>? modifiers)
     {
         if (modifiers == null || modifiers.Count == 0)

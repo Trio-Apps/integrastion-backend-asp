@@ -421,8 +421,10 @@ public class MenuSyncRecurringJob : ITransientDependency
                 includeInactive: false,
                 cancellationToken: cancellationToken);
 
+            FoodicsModifierSanitizer.SanitizeProductsForMenuProjection(allProducts.Values);
+
             _logger.LogInformation(
-                "Fetched {Count} products from Foodics for account {AccountId}",
+                "Fetched and sanitized {Count} products from Foodics for account {AccountId}",
                 allProducts.Count,
                 foodicsAccountId);
 
