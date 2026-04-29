@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -1397,13 +1398,11 @@ public class FoodicsToTalabatMapper : ITransientDependency
         return true;
     }
 
-    private static (string Name, decimal Price) BuildModifierOptionDisplayKey(FoodicsModifierOptionDto option)
+    private static string BuildModifierOptionDisplayKey(FoodicsModifierOptionDto option)
     {
-        var name = NormalizeModifierOptionName(option.Name)
+        return NormalizeModifierOptionName(option.Name)
             ?? NormalizeModifierOptionName(option.NameLocalized)
-            ?? $"id:{option.Id}";
-
-        return (name, option.Price ?? 0m);
+            ?? $"ID:{option.Id}";
     }
 
     private static string? NormalizeModifierOptionName(string? value)
@@ -1413,13 +1412,35 @@ public class FoodicsToTalabatMapper : ITransientDependency
             return null;
         }
 
-        var normalized = new string(value
-            .Normalize(NormalizationForm.FormKC)
-            .Where(c => c is not ('\u200B' or '\u200C' or '\u200D' or '\uFEFF'))
-            .ToArray());
+        var normalized = value.Normalize(NormalizationForm.FormKC);
+        var builder = new StringBuilder(normalized.Length);
+        var previousWasSpace = false;
 
-        return string.Join(" ", normalized.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
-            .ToUpperInvariant();
+        foreach (var c in normalized)
+        {
+            var category = char.GetUnicodeCategory(c);
+            if (category is UnicodeCategory.Control or UnicodeCategory.Format)
+            {
+                continue;
+            }
+
+            if (char.IsWhiteSpace(c) || char.IsPunctuation(c) || char.IsSeparator(c))
+            {
+                if (!previousWasSpace && builder.Length > 0)
+                {
+                    builder.Append(' ');
+                    previousWasSpace = true;
+                }
+
+                continue;
+            }
+
+            builder.Append(char.ToUpperInvariant(c));
+            previousWasSpace = false;
+        }
+
+        var result = builder.ToString().Trim();
+        return result.Length == 0 ? null : result;
     }
 
     /// <summary>

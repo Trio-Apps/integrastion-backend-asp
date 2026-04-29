@@ -23,7 +23,7 @@ namespace OrderXChange.Application.Versioning;
 /// </summary>
 public class MenuVersioningService : ITransientDependency
 {
-    private const string TalabatMenuProjectionVersion = "talabat-menu-projection:v2-modifier-exclusions-display-dedupe";
+    private const string TalabatMenuProjectionVersion = "talabat-menu-projection:v3-modifier-display-name-dedupe";
 
     private readonly IRepository<MenuSnapshot, Guid> _snapshotRepository;
     private readonly IRepository<MenuChangeLog, Guid> _changeLogRepository;
