@@ -300,6 +300,15 @@ public class FoodicsModifierOptionDto
 	[JsonPropertyName("image")]
 	public string? Image { get; set; }
 
+	[JsonPropertyName("is_active")]
+	public bool? IsActive { get; set; }
+
+	[JsonPropertyName("is_deleted")]
+	public bool? IsDeleted { get; set; }
+
+	[JsonPropertyName("deleted_at")]
+	public string? DeletedAt { get; set; }
+
 	[JsonPropertyName("branches")]
 	public List<FoodicsBranchDto>? Branches { get; set; }
 }

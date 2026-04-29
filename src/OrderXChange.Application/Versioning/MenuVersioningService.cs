@@ -586,6 +586,9 @@ public class MenuVersioningService : ITransientDependency
                             AppendValue(sb, option.NameLocalized);
                             AppendValue(sb, option.Price);
                             AppendValue(sb, option.Image);
+                            AppendValue(sb, option.IsActive);
+                            AppendValue(sb, option.IsDeleted);
+                            AppendValue(sb, option.DeletedAt);
                             if (option.Branches != null && option.Branches.Count > 0)
                             {
                                 foreach (var branch in option.Branches.OrderBy(b => b.Id))
@@ -597,6 +600,11 @@ public class MenuVersioningService : ITransientDependency
                                     AppendValue(sb, branch.Timezone);
                                     AppendValue(sb, branch.IsOpen);
                                     AppendValue(sb, branch.IsActive);
+                                    if (branch.Pivot != null)
+                                    {
+                                        AppendValue(sb, branch.Pivot.IsActive);
+                                        AppendValue(sb, branch.Pivot.IsInStock);
+                                    }
                                 }
                             }
                         }

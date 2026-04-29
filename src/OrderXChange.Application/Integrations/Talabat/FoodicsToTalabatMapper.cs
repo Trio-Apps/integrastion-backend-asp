@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -1351,6 +1352,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
     {
         return OrderModifierOptions(options)
             .Where(o => !string.IsNullOrWhiteSpace(o.Id))
+            .Where(IsVisibleModifierOption)
             .GroupBy(o => o.Id, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First());
     }
@@ -1368,9 +1370,31 @@ public class FoodicsToTalabatMapper : ITransientDependency
             ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         return DistinctOrderedModifierOptions(modifier.Options)
+            .Where(IsVisibleModifierOption)
             .Where(option => !excludedOptionIds.Contains(option.Id))
             .GroupBy(BuildModifierOptionDisplayKey)
             .Select(group => group.First());
+    }
+
+    private static bool IsVisibleModifierOption(FoodicsModifierOptionDto option)
+    {
+        if (string.IsNullOrWhiteSpace(option.Id))
+        {
+            return false;
+        }
+
+        if (option.IsDeleted == true || !string.IsNullOrWhiteSpace(option.DeletedAt) || option.IsActive == false)
+        {
+            return false;
+        }
+
+        if (option.Branches is { Count: > 0 } &&
+            option.Branches.All(branch => branch.IsActive == false || branch.Pivot?.IsActive == false))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static (string Name, decimal Price) BuildModifierOptionDisplayKey(FoodicsModifierOptionDto option)
@@ -1389,7 +1413,12 @@ public class FoodicsToTalabatMapper : ITransientDependency
             return null;
         }
 
-        return string.Join(" ", value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        var normalized = new string(value
+            .Normalize(NormalizationForm.FormKC)
+            .Where(c => c is not ('\u200B' or '\u200C' or '\u200D' or '\uFEFF'))
+            .ToArray());
+
+        return string.Join(" ", normalized.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
             .ToUpperInvariant();
     }
 

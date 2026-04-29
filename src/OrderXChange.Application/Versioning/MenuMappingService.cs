@@ -239,11 +239,33 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
 
         return modifier.Options
             .Where(o => !string.IsNullOrWhiteSpace(o.Id))
+            .Where(IsVisibleModifierOption)
             .GroupBy(o => o.Id, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
             .Where(o => !excludedOptionIds.Contains(o.Id))
             .GroupBy(BuildModifierOptionDisplayKey)
             .Select(g => g.First());
+    }
+
+    private static bool IsVisibleModifierOption(FoodicsModifierOptionDto option)
+    {
+        if (string.IsNullOrWhiteSpace(option.Id))
+        {
+            return false;
+        }
+
+        if (option.IsDeleted == true || !string.IsNullOrWhiteSpace(option.DeletedAt) || option.IsActive == false)
+        {
+            return false;
+        }
+
+        if (option.Branches is { Count: > 0 } &&
+            option.Branches.All(branch => branch.IsActive == false || branch.Pivot?.IsActive == false))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static (string Name, decimal Price) BuildModifierOptionDisplayKey(FoodicsModifierOptionDto option)
@@ -262,7 +284,12 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
             return null;
         }
 
-        return string.Join(" ", value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        var normalized = new string(value
+            .Normalize(NormalizationForm.FormKC)
+            .Where(c => c is not ('\u200B' or '\u200C' or '\u200D' or '\uFEFF'))
+            .ToArray());
+
+        return string.Join(" ", normalized.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
             .ToUpperInvariant();
     }
 
