@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -1349,98 +1347,9 @@ public class FoodicsToTalabatMapper : ITransientDependency
             .Select(g => g.First());
     }
 
-    private static IEnumerable<FoodicsModifierOptionDto> DistinctOrderedModifierOptions(IEnumerable<FoodicsModifierOptionDto> options)
-    {
-        return OrderModifierOptions(options)
-            .Where(o => !string.IsNullOrWhiteSpace(o.Id))
-            .Where(IsVisibleModifierOption)
-            .GroupBy(o => o.Id, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First());
-    }
-
     private static IEnumerable<FoodicsModifierOptionDto> GetVisibleModifierOptions(FoodicsModifierDto modifier)
     {
-        if (modifier.Options == null || modifier.Options.Count == 0)
-        {
-            return Enumerable.Empty<FoodicsModifierOptionDto>();
-        }
-
-        var excludedOptionIds = modifier.Pivot?.ExcludedOptionIds?
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase)
-            ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        return DistinctOrderedModifierOptions(modifier.Options)
-            .Where(IsVisibleModifierOption)
-            .Where(option => !excludedOptionIds.Contains(option.Id))
-            .GroupBy(BuildModifierOptionDisplayKey)
-            .Select(group => group.First());
-    }
-
-    private static bool IsVisibleModifierOption(FoodicsModifierOptionDto option)
-    {
-        if (string.IsNullOrWhiteSpace(option.Id))
-        {
-            return false;
-        }
-
-        if (option.IsDeleted == true || !string.IsNullOrWhiteSpace(option.DeletedAt) || option.IsActive == false)
-        {
-            return false;
-        }
-
-        if (option.Branches is { Count: > 0 } &&
-            option.Branches.All(branch => branch.IsActive == false || branch.Pivot?.IsActive == false))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    private static string BuildModifierOptionDisplayKey(FoodicsModifierOptionDto option)
-    {
-        return NormalizeModifierOptionName(option.Name)
-            ?? NormalizeModifierOptionName(option.NameLocalized)
-            ?? $"ID:{option.Id}";
-    }
-
-    private static string? NormalizeModifierOptionName(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var normalized = value.Normalize(NormalizationForm.FormKC);
-        var builder = new StringBuilder(normalized.Length);
-        var previousWasSpace = false;
-
-        foreach (var c in normalized)
-        {
-            var category = char.GetUnicodeCategory(c);
-            if (category is UnicodeCategory.Control or UnicodeCategory.Format)
-            {
-                continue;
-            }
-
-            if (char.IsWhiteSpace(c) || char.IsPunctuation(c) || char.IsSeparator(c))
-            {
-                if (!previousWasSpace && builder.Length > 0)
-                {
-                    builder.Append(' ');
-                    previousWasSpace = true;
-                }
-
-                continue;
-            }
-
-            builder.Append(char.ToUpperInvariant(c));
-            previousWasSpace = false;
-        }
-
-        var result = builder.ToString().Trim();
-        return result.Length == 0 ? null : result;
+        return FoodicsModifierSanitizer.GetVisibleOptions(modifier);
     }
 
     /// <summary>

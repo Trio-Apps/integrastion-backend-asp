@@ -331,7 +331,7 @@ public class FoodicsProductStagingService : ITransientDependency
 				Price = product.Price,
 				ProductDetailsJson = SerializeProductDetails(product),
 				BranchesJson = SerializeToJson(product.Branches),
-				ModifiersJson = SerializeToJson(product.Modifiers),
+				ModifiersJson = SerializeToJson(FoodicsModifierSanitizer.SanitizeForMenuProjection(product.Modifiers)),
 				GroupsJson = SerializeToJson(product.Groups),
 				PriceTagsJson = SerializeToJson(product.PriceTags),
 				TagsJson = SerializeToJson(product.Tags),
@@ -378,7 +378,7 @@ public class FoodicsProductStagingService : ITransientDependency
 			staging.Price = product.Price;
 			staging.ProductDetailsJson = SerializeProductDetails(product);
 			staging.BranchesJson = SerializeToJson(product.Branches);
-			staging.ModifiersJson = SerializeToJson(product.Modifiers);
+			staging.ModifiersJson = SerializeToJson(FoodicsModifierSanitizer.SanitizeForMenuProjection(product.Modifiers));
 			staging.GroupsJson = SerializeToJson(product.Groups);
 			staging.PriceTagsJson = SerializeToJson(product.PriceTags);
 			staging.TagsJson = SerializeToJson(product.Tags);
