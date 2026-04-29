@@ -442,7 +442,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
         if (modifiers == null || modifiers.Count == 0)
             return null;
 
-        return OrderModifiers(modifiers)
+        return DistinctOrderedModifiers(modifiers)
             .Where(m => m.Options != null && m.Options.Count > 0)
             .Select((m, idx) =>
             {
@@ -457,7 +457,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
                     SortOrder = idx,
                     Modifiers = m.Options == null
                         ? new List<TalabatModifier>()
-                        : OrderModifierOptions(m.Options)
+                        : DistinctOrderedModifierOptions(m.Options)
                         .Select((o, oIdx) => MapModifierLegacy(o, oIdx))
                         .ToList()
                 };
@@ -628,7 +628,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
         var modifierGroups = new List<TalabatModifierGroup>();
 
         int groupSortOrder = 0;
-        foreach (var modifier in OrderModifiers(modifiers))
+        foreach (var modifier in DistinctOrderedModifiers(modifiers))
         {
             if (modifier.Options == null || modifier.Options.Count == 0)
                 continue;
@@ -657,7 +657,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
 
             // Map modifier options with stable IDs
             int optionSortOrder = 0;
-            foreach (var option in OrderModifierOptions(modifier.Options))
+            foreach (var option in DistinctOrderedModifierOptions(modifier.Options))
             {
                 var mappedOption = MapModifierOptionWithStableId(option, optionSortOrder++, mappings);
                 if (mappedOption != null)
@@ -1005,7 +1005,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
                 productItem.Toppings ??= new Dictionary<string, TalabatV2ItemReference>();
                 
                 int toppingOrder = 0;
-                foreach (var modifier in OrderModifiers(product.Modifiers))
+                foreach (var modifier in DistinctOrderedModifiers(product.Modifiers))
                 {
                     if (string.IsNullOrWhiteSpace(modifier.Id) || modifier.Options == null || modifier.Options.Count == 0)
                         continue;
@@ -1338,6 +1338,22 @@ public class FoodicsToTalabatMapper : ITransientDependency
             .ThenBy(o => o.Id, StringComparer.OrdinalIgnoreCase);
     }
 
+    private static IEnumerable<FoodicsModifierDto> DistinctOrderedModifiers(IEnumerable<FoodicsModifierDto> modifiers)
+    {
+        return OrderModifiers(modifiers)
+            .Where(m => !string.IsNullOrWhiteSpace(m.Id))
+            .GroupBy(m => m.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First());
+    }
+
+    private static IEnumerable<FoodicsModifierOptionDto> DistinctOrderedModifierOptions(IEnumerable<FoodicsModifierOptionDto> options)
+    {
+        return OrderModifierOptions(options)
+            .Where(o => !string.IsNullOrWhiteSpace(o.Id))
+            .GroupBy(o => o.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First());
+    }
+
     /// <summary>
     /// Legacy V2 method for backward compatibility - now uses stable ID-based mapping
     /// </summary>
@@ -1424,7 +1440,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
                 productItem.Toppings ??= new Dictionary<string, TalabatV2ItemReference>();
                 
                 int toppingOrder = 0;
-                foreach (var modifier in OrderModifiers(product.Modifiers))
+                foreach (var modifier in DistinctOrderedModifiers(product.Modifiers))
                 {
                     if (string.IsNullOrWhiteSpace(modifier.Id) || modifier.Options == null || modifier.Options.Count == 0)
                         continue;
@@ -1716,7 +1732,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
         int optionOrder = 0;
         if (modifier.Options != null)
         {
-            foreach (var option in OrderModifierOptions(modifier.Options))
+            foreach (var option in DistinctOrderedModifierOptions(modifier.Options))
             {
                 if (string.IsNullOrWhiteSpace(option.Id))
                     continue;
@@ -1730,7 +1746,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
                     continue;
                 }
 
-                var optionProductId = $"topping-{optionMapping.TalabatRemoteCode}";
+                var optionProductId = BuildToppingOptionProductId(toppingId, optionMapping.TalabatRemoteCode);
                 
                 // Create product item for modifier option
                 var optionProduct = new TalabatV2CatalogItem
@@ -1917,12 +1933,12 @@ public class FoodicsToTalabatMapper : ITransientDependency
         int optionOrder = 0;
         if (modifier.Options != null)
         {
-            foreach (var option in OrderModifierOptions(modifier.Options))
+            foreach (var option in DistinctOrderedModifierOptions(modifier.Options))
             {
                 if (string.IsNullOrWhiteSpace(option.Id))
                     continue;
 
-                var optionProductId = $"topping-{option.Id}";
+                var optionProductId = BuildToppingOptionProductId(toppingId, option.Id);
                 
                 // Create product item for modifier option
                 var optionProduct = new TalabatV2CatalogItem
@@ -1996,6 +2012,11 @@ public class FoodicsToTalabatMapper : ITransientDependency
     private static string BuildProductScopedToppingId(string productKey, string modifierKey)
     {
         return $"tt-{productKey}-{modifierKey}";
+    }
+
+    private static string BuildToppingOptionProductId(string toppingId, string optionKey)
+    {
+        return $"{toppingId}-to-{optionKey}";
     }
 
     private HashSet<string> GetDebugProductIds()

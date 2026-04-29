@@ -144,7 +144,12 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
 
         // Get all existing mappings for this account/branch
         var existingMappings = await GetActiveMappingsAsync(foodicsAccountId, branchId, cancellationToken: cancellationToken);
-        var existingMappingDict = existingMappings.ToDictionary(m => $"{m.EntityType}:{m.FoodicsId}", m => m);
+        var existingMappingDict = existingMappings
+            .GroupBy(m => $"{m.EntityType}:{m.FoodicsId}", StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(m => m.LastVerifiedAt).First(),
+                StringComparer.OrdinalIgnoreCase);
 
         var newMappings = new List<MenuItemMapping>();
         var updatedMappings = new List<MenuItemMapping>();
@@ -169,10 +174,11 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
             // Process modifiers and options
             if (product.Modifiers != null)
             {
-                foreach (var modifier in product.Modifiers)
+                foreach (var modifier in product.Modifiers
+                    .Where(m => !string.IsNullOrWhiteSpace(m.Id))
+                    .GroupBy(m => m.Id, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First()))
                 {
-                    if (string.IsNullOrEmpty(modifier.Id)) continue;
-
                     var modifierMapping = await ProcessEntityMapping(
                         foodicsAccountId, branchId, MenuMappingEntityType.Modifier, modifier.Id, modifier.Name,
                         existingMappingDict, newMappings, updatedMappings);
@@ -181,10 +187,11 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
                     // Process modifier options
                     if (modifier.Options != null)
                     {
-                        foreach (var option in modifier.Options)
+                        foreach (var option in modifier.Options
+                            .Where(o => !string.IsNullOrWhiteSpace(o.Id))
+                            .GroupBy(o => o.Id, StringComparer.OrdinalIgnoreCase)
+                            .Select(g => g.First()))
                         {
-                            if (string.IsNullOrEmpty(option.Id)) continue;
-
                             var optionMapping = await ProcessEntityMapping(
                                 foodicsAccountId, branchId, MenuMappingEntityType.ModifierOption, option.Id, option.Name,
                                 existingMappingDict, newMappings, updatedMappings, modifier.Id);
@@ -299,7 +306,7 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
 
         return await query
             .Where(m => m.FoodicsAccountId == foodicsAccountId)
-            .Where(m => branchId == null || m.BranchId == branchId)
+            .Where(m => m.BranchId == branchId)
             .Where(m => entityType == null || m.EntityType == entityType)
             .Where(m => m.IsActive)
             .OrderBy(m => m.EntityType)
