@@ -443,21 +443,20 @@ public class FoodicsToTalabatMapper : ITransientDependency
             return null;
 
         return DistinctOrderedModifiers(modifiers)
-            .Where(m => m.Options != null && m.Options.Count > 0)
+            .Select(m => new { Modifier = m, Options = GetVisibleModifierOptions(m).ToList() })
+            .Where(x => x.Options.Count > 0)
             .Select((m, idx) =>
             {
-                var (minSelection, maxSelection) = ResolveModifierSelectionBounds(m);
+                var (minSelection, maxSelection) = ResolveModifierSelectionBounds(m.Modifier, m.Options.Count);
                 return new TalabatModifierGroup
                 {
-                    RemoteCode = m.Id,
-                    Name = m.Name ?? $"Modifier-{m.Id}",
-                    NameTranslations = BuildNameTranslations(m.NameLocalized),
+                    RemoteCode = m.Modifier.Id,
+                    Name = m.Modifier.Name ?? $"Modifier-{m.Modifier.Id}",
+                    NameTranslations = BuildNameTranslations(m.Modifier.NameLocalized),
                     MinSelection = minSelection,
                     MaxSelection = maxSelection,
                     SortOrder = idx,
-                    Modifiers = m.Options == null
-                        ? new List<TalabatModifier>()
-                        : DistinctOrderedModifierOptions(m.Options)
+                    Modifiers = m.Options
                         .Select((o, oIdx) => MapModifierLegacy(o, oIdx))
                         .ToList()
                 };
@@ -630,7 +629,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
         int groupSortOrder = 0;
         foreach (var modifier in DistinctOrderedModifiers(modifiers))
         {
-            if (modifier.Options == null || modifier.Options.Count == 0)
+            var visibleOptions = GetVisibleModifierOptions(modifier).ToList();
+            if (visibleOptions.Count == 0)
                 continue;
 
             // Get stable modifier mapping
@@ -642,7 +642,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
                 continue;
             }
 
-            var (minSelection, maxSelection) = ResolveModifierSelectionBounds(modifier);
+            var (minSelection, maxSelection) = ResolveModifierSelectionBounds(modifier, visibleOptions.Count);
 
             var modifierGroup = new TalabatModifierGroup
             {
@@ -657,7 +657,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
 
             // Map modifier options with stable IDs
             int optionSortOrder = 0;
-            foreach (var option in DistinctOrderedModifierOptions(modifier.Options))
+            foreach (var option in visibleOptions)
             {
                 var mappedOption = MapModifierOptionWithStableId(option, optionSortOrder++, mappings);
                 if (mappedOption != null)
@@ -1007,7 +1007,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
                 int toppingOrder = 0;
                 foreach (var modifier in DistinctOrderedModifiers(product.Modifiers))
                 {
-                    if (string.IsNullOrWhiteSpace(modifier.Id) || modifier.Options == null || modifier.Options.Count == 0)
+                    var visibleOptions = GetVisibleModifierOptions(modifier).ToList();
+                    if (string.IsNullOrWhiteSpace(modifier.Id) || visibleOptions.Count == 0)
                         continue;
 
                     // Get stable modifier mapping
@@ -1023,8 +1024,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
 
                     if (isDebugProduct)
                     {
-                        var (resolvedMin, resolvedMax) = ResolveModifierSelectionBounds(modifier);
-                        var optionIds = string.Join(",", modifier.Options.Select(o => o.Id));
+                        var (resolvedMin, resolvedMax) = ResolveModifierSelectionBounds(modifier, visibleOptions.Count);
+                        var optionIds = string.Join(",", visibleOptions.Select(o => o.Id));
 
                         _logger.LogWarning(
                             "Talabat debug product modifier mapping. ProductId={ProductId}, ProductRemoteCode={ProductRemoteCode}, ModifierId={ModifierId}, ModifierRemoteCode={ModifierRemoteCode}, RawMinAllowed={RawMinAllowed}, RawMaxAllowed={RawMaxAllowed}, PivotMin={PivotMin}, PivotMax={PivotMax}, EffectiveMin={EffectiveMin}, EffectiveMax={EffectiveMax}, ResolvedMin={ResolvedMin}, ResolvedMax={ResolvedMax}, OptionsCount={OptionsCount}, OptionIds={OptionIds}, ToppingId={ToppingId}",
@@ -1040,7 +1041,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
                             modifier.MaxAllowed,
                             resolvedMin,
                             resolvedMax,
-                            modifier.Options.Count,
+                            visibleOptions.Count,
                             optionIds,
                             toppingId);
                     }
@@ -1354,6 +1355,22 @@ public class FoodicsToTalabatMapper : ITransientDependency
             .Select(g => g.First());
     }
 
+    private static IEnumerable<FoodicsModifierOptionDto> GetVisibleModifierOptions(FoodicsModifierDto modifier)
+    {
+        if (modifier.Options == null || modifier.Options.Count == 0)
+        {
+            return Enumerable.Empty<FoodicsModifierOptionDto>();
+        }
+
+        var excludedOptionIds = modifier.Pivot?.ExcludedOptionIds?
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        return DistinctOrderedModifierOptions(modifier.Options)
+            .Where(option => !excludedOptionIds.Contains(option.Id));
+    }
+
     /// <summary>
     /// Legacy V2 method for backward compatibility - now uses stable ID-based mapping
     /// </summary>
@@ -1442,7 +1459,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
                 int toppingOrder = 0;
                 foreach (var modifier in DistinctOrderedModifiers(product.Modifiers))
                 {
-                    if (string.IsNullOrWhiteSpace(modifier.Id) || modifier.Options == null || modifier.Options.Count == 0)
+                    var visibleOptions = GetVisibleModifierOptions(modifier).ToList();
+                    if (string.IsNullOrWhiteSpace(modifier.Id) || visibleOptions.Count == 0)
                         continue;
 
                     var toppingId = BuildProductScopedToppingId(product.Id, modifier.Id);
@@ -1644,7 +1662,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
             items.Count,
             categoryMap.Count,
             toppingMap.Count,
-            imageMap.Count);
+            imageMap.Count,
+            vendorCode ?? "<none>");
 
         return request;
     }
@@ -1707,7 +1726,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
         Dictionary<string, TalabatV2CatalogItem>? imageMap = null,
         Dictionary<string, TalabatV2CatalogItem>? items = null)
     {
-        var (minimumSelection, maximumSelection) = ResolveModifierSelectionBounds(modifier);
+        var visibleOptions = GetVisibleModifierOptions(modifier).ToList();
+        var (minimumSelection, maximumSelection) = ResolveModifierSelectionBounds(modifier, visibleOptions.Count);
 
         var toppingItem = new TalabatV2CatalogItem
         {
@@ -1730,9 +1750,9 @@ public class FoodicsToTalabatMapper : ITransientDependency
 
         // Add modifier options as products with order using stable IDs
         int optionOrder = 0;
-        if (modifier.Options != null)
+        if (visibleOptions.Count > 0)
         {
-            foreach (var option in DistinctOrderedModifierOptions(modifier.Options))
+            foreach (var option in visibleOptions)
             {
                 if (string.IsNullOrWhiteSpace(option.Id))
                     continue;
@@ -1908,7 +1928,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
         Dictionary<string, TalabatV2CatalogItem>? imageMap = null,
         Dictionary<string, TalabatV2CatalogItem>? items = null)
     {
-        var (minimumSelection, maximumSelection) = ResolveModifierSelectionBounds(modifier);
+        var visibleOptions = GetVisibleModifierOptions(modifier).ToList();
+        var (minimumSelection, maximumSelection) = ResolveModifierSelectionBounds(modifier, visibleOptions.Count);
 
         var toppingItem = new TalabatV2CatalogItem
         {
@@ -1931,9 +1952,9 @@ public class FoodicsToTalabatMapper : ITransientDependency
 
         // Add modifier options as products with order
         int optionOrder = 0;
-        if (modifier.Options != null)
+        if (visibleOptions.Count > 0)
         {
-            foreach (var option in DistinctOrderedModifierOptions(modifier.Options))
+            foreach (var option in visibleOptions)
             {
                 if (string.IsNullOrWhiteSpace(option.Id))
                     continue;
@@ -2040,7 +2061,13 @@ public class FoodicsToTalabatMapper : ITransientDependency
     /// </summary>
     private (int MinSelection, int MaxSelection) ResolveModifierSelectionBounds(FoodicsModifierDto modifier)
     {
-        var optionsCount = modifier.Options?.Count ?? 0;
+        return ResolveModifierSelectionBounds(modifier, modifier.Options?.Count ?? 0);
+    }
+
+    private (int MinSelection, int MaxSelection) ResolveModifierSelectionBounds(
+        FoodicsModifierDto modifier,
+        int optionsCount)
+    {
         var minSelection = modifier.MinAllowed ?? 0;
         var maxSelection = modifier.MaxAllowed ?? optionsCount;
 
@@ -2076,6 +2103,28 @@ public class FoodicsToTalabatMapper : ITransientDependency
                 optionsCount);
 
             maxSelection = minSelection;
+        }
+
+        if (optionsCount > 0 && minSelection > optionsCount)
+        {
+            _logger.LogWarning(
+                "Modifier min selection is greater than visible option count. ModifierId={ModifierId}, MinAllowed={MinAllowed}, OptionsCount={OptionsCount}. Capping min to option count.",
+                modifier.Id,
+                modifier.MinAllowed,
+                optionsCount);
+
+            minSelection = optionsCount;
+        }
+
+        if (optionsCount > 0 && maxSelection > optionsCount)
+        {
+            _logger.LogWarning(
+                "Modifier max selection is greater than visible option count. ModifierId={ModifierId}, MaxAllowed={MaxAllowed}, OptionsCount={OptionsCount}. Capping max to option count.",
+                modifier.Id,
+                modifier.MaxAllowed,
+                optionsCount);
+
+            maxSelection = optionsCount;
         }
 
         return (minSelection, maxSelection);

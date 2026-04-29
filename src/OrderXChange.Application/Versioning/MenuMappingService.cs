@@ -185,12 +185,10 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
                     result[modifier.Id] = modifierMapping;
 
                     // Process modifier options
-                    if (modifier.Options != null)
+                    var visibleOptions = GetVisibleModifierOptions(modifier).ToList();
+                    if (visibleOptions.Count > 0)
                     {
-                        foreach (var option in modifier.Options
-                            .Where(o => !string.IsNullOrWhiteSpace(o.Id))
-                            .GroupBy(o => o.Id, StringComparer.OrdinalIgnoreCase)
-                            .Select(g => g.First()))
+                        foreach (var option in visibleOptions)
                         {
                             var optionMapping = await ProcessEntityMapping(
                                 foodicsAccountId, branchId, MenuMappingEntityType.ModifierOption, option.Id, option.Name,
@@ -225,6 +223,25 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
             newMappings.Count, updatedMappings.Count, result.Count);
 
         return result;
+    }
+
+    private static IEnumerable<FoodicsModifierOptionDto> GetVisibleModifierOptions(FoodicsModifierDto modifier)
+    {
+        if (modifier.Options == null || modifier.Options.Count == 0)
+        {
+            return Enumerable.Empty<FoodicsModifierOptionDto>();
+        }
+
+        var excludedOptionIds = modifier.Pivot?.ExcludedOptionIds?
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        return modifier.Options
+            .Where(o => !string.IsNullOrWhiteSpace(o.Id))
+            .GroupBy(o => o.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .Where(o => !excludedOptionIds.Contains(o.Id));
     }
 
     public async Task<int> UpdateTalabatInternalIdsAsync(
