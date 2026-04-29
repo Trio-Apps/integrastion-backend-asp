@@ -241,7 +241,29 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
             .Where(o => !string.IsNullOrWhiteSpace(o.Id))
             .GroupBy(o => o.Id, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
-            .Where(o => !excludedOptionIds.Contains(o.Id));
+            .Where(o => !excludedOptionIds.Contains(o.Id))
+            .GroupBy(BuildModifierOptionDisplayKey)
+            .Select(g => g.First());
+    }
+
+    private static (string Name, decimal Price) BuildModifierOptionDisplayKey(FoodicsModifierOptionDto option)
+    {
+        var name = NormalizeModifierOptionName(option.Name)
+            ?? NormalizeModifierOptionName(option.NameLocalized)
+            ?? $"id:{option.Id}";
+
+        return (name, option.Price ?? 0m);
+    }
+
+    private static string? NormalizeModifierOptionName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return string.Join(" ", value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .ToUpperInvariant();
     }
 
     public async Task<int> UpdateTalabatInternalIdsAsync(

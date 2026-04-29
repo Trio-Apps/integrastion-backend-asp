@@ -1368,7 +1368,29 @@ public class FoodicsToTalabatMapper : ITransientDependency
             ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         return DistinctOrderedModifierOptions(modifier.Options)
-            .Where(option => !excludedOptionIds.Contains(option.Id));
+            .Where(option => !excludedOptionIds.Contains(option.Id))
+            .GroupBy(BuildModifierOptionDisplayKey)
+            .Select(group => group.First());
+    }
+
+    private static (string Name, decimal Price) BuildModifierOptionDisplayKey(FoodicsModifierOptionDto option)
+    {
+        var name = NormalizeModifierOptionName(option.Name)
+            ?? NormalizeModifierOptionName(option.NameLocalized)
+            ?? $"id:{option.Id}";
+
+        return (name, option.Price ?? 0m);
+    }
+
+    private static string? NormalizeModifierOptionName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return string.Join(" ", value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .ToUpperInvariant();
     }
 
     /// <summary>
