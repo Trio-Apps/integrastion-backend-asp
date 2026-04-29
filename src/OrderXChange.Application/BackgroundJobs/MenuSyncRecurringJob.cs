@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hangfire;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OrderXChange.Application.Idempotency;
 using OrderXChange.Application.Integrations.Foodics;
@@ -45,6 +46,7 @@ public class MenuSyncRecurringJob : ITransientDependency
     private readonly TalabatPaymentMethodSettingsService _talabatPaymentMethodSettingsService;
     private readonly BranchProductFilterService _branchFilterService;
     private readonly GroupProductFilterService _groupFilterService;
+    private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly ILogger<MenuSyncRecurringJob> _logger;
     
     // ✨ NEW: Menu Versioning Services
@@ -66,6 +68,7 @@ public class MenuSyncRecurringJob : ITransientDependency
         TalabatPaymentMethodSettingsService talabatPaymentMethodSettingsService,
         BranchProductFilterService branchProductFilterService,
         GroupProductFilterService groupProductFilterService,
+        IServiceScopeFactory serviceScopeFactory,
         ILogger<MenuSyncRecurringJob> logger,
         MenuVersioningService menuVersioningService,
         MenuSyncRunManager syncRunManager)
@@ -84,6 +87,7 @@ public class MenuSyncRecurringJob : ITransientDependency
         _talabatPaymentMethodSettingsService = talabatPaymentMethodSettingsService;
         _branchFilterService = branchProductFilterService;
         _groupFilterService = groupProductFilterService;
+        _serviceScopeFactory = serviceScopeFactory;
         _logger = logger;
         _menuVersioningService = menuVersioningService;
         _syncRunManager = syncRunManager;
@@ -659,6 +663,7 @@ public class MenuSyncRecurringJob : ITransientDependency
             // ---------------------------------------------------------------------------------
             var talabatEnabled = _configuration.GetValue<bool>("Talabat:Enabled", true);
             var talabatTargets = await GetTalabatSyncTargetsAsync(foodicsAccountId, branchId, cancellationToken);
+            var talabatWorkItems = new List<TalabatSubmissionWorkItem>();
 
             if (talabatEnabled && talabatTargets.Count > 0)
             {
@@ -726,6 +731,19 @@ public class MenuSyncRecurringJob : ITransientDependency
                             foodicsAccountId,
                             talabatVendorCode,
                             effectiveBranchId ?? "<all>");
+                        continue;
+                    }
+
+                    if (_configuration.GetValue<bool>("Talabat:ParallelSubmissionEnabled", true))
+                    {
+                        talabatWorkItems.Add(new TalabatSubmissionWorkItem(
+                            talabatChainCode,
+                            talabatVendorCode,
+                            effectiveBranchId,
+                            talabatTarget.FoodicsGroupId,
+                            talabatTarget.FoodicsGroupName,
+                            branchFilterResult.FilteredProducts.ToList(),
+                            correlationId));
                         continue;
                     }
 
@@ -878,6 +896,69 @@ public class MenuSyncRecurringJob : ITransientDependency
                         }
 
                         // Don't rethrow - staging sync succeeded, Talabat can be retried later
+                    }
+                }
+            }
+            if (talabatEnabled && talabatTargets.Count > 0 && talabatWorkItems.Count > 0)
+            {
+                var maxParallelSubmissions = Math.Max(
+                    1,
+                    _configuration.GetValue<int?>("Talabat:MaxParallelSubmissions") ?? 5);
+
+                _logger.LogInformation(
+                    "Submitting {TargetCount} Talabat catalog(s) with MaxParallelSubmissions={MaxParallelSubmissions}. FoodicsAccount={AccountId}",
+                    talabatWorkItems.Count,
+                    maxParallelSubmissions,
+                    foodicsAccountId);
+
+                var talabatResults = await SubmitTalabatWorkItemsAsync(
+                    talabatWorkItems,
+                    maxParallelSubmissions,
+                    foodicsAccountId,
+                    syncRun?.Id,
+                    cancellationToken);
+
+                var firstSuccessfulResult = talabatResults
+                    .FirstOrDefault(result => result.Success && !string.IsNullOrWhiteSpace(result.ImportId));
+
+                if (firstSuccessfulResult != null && newSnapshot == null && versioningEnabled && changeDetectionResult != null)
+                {
+                    try
+                    {
+                        newSnapshot = await _menuVersioningService.CreateSnapshotAsync(
+                            foodicsAccountId,
+                            branchId,
+                            allProducts.Values.ToList(),
+                            changeDetectionResult.CurrentHash,
+                            changeDetectionResult.PreviousVersion,
+                            menuGroupId: null,
+                            storeCompressedData: _configuration.GetValue<bool>("MenuVersioning:StoreCompressedData", false),
+                            cancellationToken);
+
+                        await _menuVersioningService.MarkSnapshotAsSyncedAsync(
+                            newSnapshot.Id,
+                            firstSuccessfulResult.ImportId!,
+                            firstSuccessfulResult.VendorCode,
+                            cancellationToken);
+
+                        _logger.LogInformation(
+                            "Menu snapshot created and marked as synced. SnapshotId={SnapshotId}, Version={Version}, ImportId={ImportId}",
+                            newSnapshot.Id,
+                            newSnapshot.Version,
+                            firstSuccessfulResult.ImportId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to create menu snapshot for account {AccountId}", foodicsAccountId);
+
+                        if (syncRun != null)
+                        {
+                            await _syncRunManager.AddWarningAsync(
+                                syncRun.Id,
+                                "Failed to create menu snapshot",
+                                new Dictionary<string, object> { ["Exception"] = ex.Message },
+                                cancellationToken);
+                        }
                     }
                 }
             }
@@ -1040,6 +1121,170 @@ public class MenuSyncRecurringJob : ITransientDependency
             }
         }
     }
+
+    private async Task<List<TalabatSubmissionResult>> SubmitTalabatWorkItemsAsync(
+        IReadOnlyCollection<TalabatSubmissionWorkItem> workItems,
+        int maxParallelSubmissions,
+        Guid foodicsAccountId,
+        Guid? syncRunId,
+        CancellationToken cancellationToken)
+    {
+        if (workItems.Count == 0)
+        {
+            return new List<TalabatSubmissionResult>();
+        }
+
+        using var semaphore = new SemaphoreSlim(maxParallelSubmissions, maxParallelSubmissions);
+        var tasks = workItems.Select(async workItem =>
+        {
+            await semaphore.WaitAsync(cancellationToken);
+            try
+            {
+                return await SubmitTalabatWorkItemAsync(workItem, foodicsAccountId, syncRunId, cancellationToken);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        });
+
+        return (await Task.WhenAll(tasks)).ToList();
+    }
+
+    private async Task<TalabatSubmissionResult> SubmitTalabatWorkItemAsync(
+        TalabatSubmissionWorkItem workItem,
+        Guid foodicsAccountId,
+        Guid? syncRunId,
+        CancellationToken cancellationToken)
+    {
+        using var scope = _serviceScopeFactory.CreateScope();
+        var unitOfWorkManager = scope.ServiceProvider.GetRequiredService<IUnitOfWorkManager>();
+        var talabatSyncService = scope.ServiceProvider.GetRequiredService<TalabatCatalogSyncService>();
+        var syncRunManager = scope.ServiceProvider.GetRequiredService<MenuSyncRunManager>();
+
+        using var uow = unitOfWorkManager.Begin(requiresNew: true, isTransactional: false);
+
+        if (syncRunId.HasValue)
+        {
+            await syncRunManager.UpdateProgressAsync(
+                syncRunId.Value,
+                MenuSyncPhase.TalabatSubmission,
+                70,
+                "Pushing catalog to Talabat",
+                new Dictionary<string, object> { ["VendorCode"] = workItem.VendorCode },
+                cancellationToken: cancellationToken);
+        }
+
+        _logger.LogInformation(
+            "Pushing catalog to Talabat. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}, TargetGroup={TargetGroup}, GroupName={GroupName}, TargetBranch={TargetBranch}, ProductCount={ProductCount}",
+            foodicsAccountId,
+            workItem.ChainCode,
+            workItem.VendorCode,
+            workItem.FoodicsGroupId ?? "<all>",
+            workItem.FoodicsGroupName ?? "<unknown>",
+            workItem.BranchId ?? "<all>",
+            workItem.Products.Count);
+
+        try
+        {
+            var talabatResult = await talabatSyncService.SyncCatalogV2Async(
+                workItem.Products,
+                workItem.ChainCode,
+                foodicsAccountId,
+                workItem.BranchId,
+                workItem.CorrelationId,
+                workItem.VendorCode,
+                cancellationToken);
+
+            if (talabatResult.Success)
+            {
+                _logger.LogInformation(
+                    "Talabat catalog sync submitted successfully. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}, ImportId={ImportId}, Categories={Categories}, Products={Products}, Duration={Duration}ms",
+                    foodicsAccountId,
+                    workItem.ChainCode,
+                    workItem.VendorCode,
+                    talabatResult.ImportId,
+                    talabatResult.CategoriesCount,
+                    talabatResult.ProductsCount,
+                    talabatResult.Duration?.TotalMilliseconds ?? 0);
+
+                if (syncRunId.HasValue)
+                {
+                    await syncRunManager.SetTalabatSyncInfoAsync(
+                        syncRunId.Value,
+                        workItem.VendorCode,
+                        talabatResult.ImportId,
+                        "Submitted",
+                        cancellationToken);
+                }
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Talabat catalog sync failed. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}, Message={Message}, Errors={Errors}",
+                    foodicsAccountId,
+                    workItem.ChainCode,
+                    workItem.VendorCode,
+                    talabatResult.Message,
+                    talabatResult.Errors != null ? string.Join("; ", talabatResult.Errors.Take(5)) : "<none>");
+
+                if (syncRunId.HasValue)
+                {
+                    await syncRunManager.AddErrorAsync(
+                        syncRunId.Value,
+                        $"Talabat sync failed: {talabatResult.Message}",
+                        context: new Dictionary<string, object>
+                        {
+                            ["TalabatErrors"] = talabatResult.Errors?.Take(5).ToList() ?? new List<string>(),
+                            ["VendorCode"] = workItem.VendorCode
+                        },
+                        cancellationToken: cancellationToken);
+                }
+            }
+
+            await uow.CompleteAsync(cancellationToken);
+
+            return new TalabatSubmissionResult(
+                workItem.VendorCode,
+                talabatResult.ImportId,
+                talabatResult.Success);
+        }
+        catch (Exception talabatEx)
+        {
+            _logger.LogError(
+                talabatEx,
+                "Error pushing catalog to Talabat. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}. Staging data saved successfully, but Talabat sync failed.",
+                foodicsAccountId,
+                workItem.ChainCode,
+                workItem.VendorCode);
+
+            if (syncRunId.HasValue)
+            {
+                await syncRunManager.AddErrorAsync(
+                    syncRunId.Value,
+                    "Talabat sync exception",
+                    talabatEx,
+                    new Dictionary<string, object> { ["VendorCode"] = workItem.VendorCode },
+                    cancellationToken);
+            }
+
+            return new TalabatSubmissionResult(workItem.VendorCode, null, false);
+        }
+    }
+
+    private sealed record TalabatSubmissionWorkItem(
+        string ChainCode,
+        string VendorCode,
+        string? BranchId,
+        string? FoodicsGroupId,
+        string? FoodicsGroupName,
+        IReadOnlyList<FoodicsProductDetailDto> Products,
+        string CorrelationId);
+
+    private sealed record TalabatSubmissionResult(
+        string VendorCode,
+        string? ImportId,
+        bool Success);
 
     private async Task<TalabatGroupScope> ResolveTalabatGroupScopeAsync(
         (string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches, string? FoodicsGroupId, string? FoodicsGroupName) talabatTarget,

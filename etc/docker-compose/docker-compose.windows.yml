@@ -42,6 +42,8 @@ services:
       # Background Jobs Configuration
       - BackgroundJobs__OrderSync__Cron=0 */1 * * *
       - BackgroundJobs__MenuSync__Cron=0 * * * *
+      - Talabat__ParallelSubmissionEnabled=true
+      - Talabat__MaxParallelSubmissions=5
       # Kafka Configuration
       - Kafka__Connections__Default__BootstrapServers=kafka:29092
       - Kafka__EventBus__GroupId=OrderXChange_Consumer_Group
