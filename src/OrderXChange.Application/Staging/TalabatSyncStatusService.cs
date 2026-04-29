@@ -14,6 +14,7 @@ using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EntityFrameworkCore;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.TenantManagement.Talabat;
 using Volo.Abp.Uow;
 
 namespace OrderXChange.Application.Staging;
@@ -26,6 +27,7 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 {
 	private readonly IRepository<TalabatCatalogSyncLog, Guid> _syncLogRepository;
 	private readonly IRepository<FoodicsProductStaging, Guid> _stagingRepository;
+	private readonly IRepository<TalabatAccount, Guid> _talabatAccountRepository;
 	private readonly IDbContextProvider<OrderXChangeDbContext> _dbContextProvider;
 	private readonly ILogger<TalabatSyncStatusService> _logger;
 	private readonly IDataFilter _dataFilter;
@@ -33,12 +35,14 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 	public TalabatSyncStatusService(
 		IRepository<TalabatCatalogSyncLog, Guid> syncLogRepository,
 		IRepository<FoodicsProductStaging, Guid> stagingRepository,
+		IRepository<TalabatAccount, Guid> talabatAccountRepository,
 		IDbContextProvider<OrderXChangeDbContext> dbContextProvider,
 		ILogger<TalabatSyncStatusService> logger,
 		IDataFilter dataFilter)
 	{
 		_syncLogRepository = syncLogRepository;
 		_stagingRepository = stagingRepository;
+		_talabatAccountRepository = talabatAccountRepository;
 		_dbContextProvider = dbContextProvider;
 		_logger = logger;
 		_dataFilter = dataFilter;
@@ -60,6 +64,44 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 		string apiVersion = "V1",
 		CancellationToken cancellationToken = default)
 	{
+		if (!string.IsNullOrWhiteSpace(importId))
+		{
+			using (_dataFilter.Disable<IMultiTenant>())
+			{
+				var queryable = await _syncLogRepository.GetQueryableAsync();
+				var existingLog = await queryable
+					.FirstOrDefaultAsync(x => x.ImportId == importId, cancellationToken);
+
+				if (existingLog != null)
+				{
+					existingLog.FoodicsAccountId = foodicsAccountId;
+					existingLog.VendorCode = vendorCode;
+					existingLog.ChainCode = chainCode;
+					existingLog.CorrelationId = correlationId ?? existingLog.CorrelationId;
+					existingLog.ApiVersion = apiVersion;
+					existingLog.CategoriesCount = categoriesCount;
+					existingLog.ProductsCount = productsCount;
+					existingLog.CallbackUrl = callbackUrl;
+
+					if (existingLog.Status == TalabatSyncStatus.Submitted || existingLog.Status == TalabatSyncStatus.Processing)
+					{
+						existingLog.Status = TalabatSyncStatus.Submitted;
+					}
+
+					await _syncLogRepository.UpdateAsync(existingLog, autoSave: true, cancellationToken: cancellationToken);
+
+					_logger.LogInformation(
+						"Updated existing Talabat catalog submission record. SyncLogId={SyncLogId}, VendorCode={VendorCode}, ImportId={ImportId}, Status={Status}",
+						existingLog.Id,
+						vendorCode,
+						importId,
+						existingLog.Status);
+
+					return existingLog;
+				}
+			}
+		}
+
 		var syncLog = new TalabatCatalogSyncLog
 		{
 			FoodicsAccountId = foodicsAccountId,
@@ -348,34 +390,73 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 		string status,
 		CancellationToken cancellationToken)
 	{
-		// Try to find FoodicsAccountId from staging products using the ImportId
+		// Prefer the Talabat account mapping because webhooks may arrive before
+		// the original submission response has been persisted.
 		Guid? foodicsAccountId = null;
+		Guid? tenantId = null;
 		
 		try
 		{
-			var dbContext = await _dbContextProvider.GetDbContextAsync();
-			var stagingProduct = await dbContext.Set<FoodicsProductStaging>()
-				.Where(x => x.TalabatImportId == webhook.ImportId)
-				.FirstOrDefaultAsync(cancellationToken);
-			
-			if (stagingProduct != null)
+			if (!string.IsNullOrWhiteSpace(webhook.VendorCode))
 			{
-				foodicsAccountId = stagingProduct.FoodicsAccountId;
-				_logger.LogDebug(
-					"Found FoodicsAccountId={AccountId} from staging products for ImportId={ImportId}",
-					foodicsAccountId,
-					webhook.ImportId);
-			}
-			else
-			{
-				_logger.LogWarning(
-					"No staging products found with ImportId={ImportId}. Cannot determine FoodicsAccountId.",
-					webhook.ImportId);
+				using (_dataFilter.Disable<IMultiTenant>())
+				{
+					var vendorCode = webhook.VendorCode.Trim();
+					var accountQueryable = await _talabatAccountRepository.GetQueryableAsync();
+					var talabatAccount = await accountQueryable
+						.FirstOrDefaultAsync(x =>
+							x.VendorCode != null &&
+							x.VendorCode.ToLower() == vendorCode.ToLower(),
+							cancellationToken);
+
+					if (talabatAccount?.FoodicsAccountId != null)
+					{
+						foodicsAccountId = talabatAccount.FoodicsAccountId.Value;
+						tenantId = talabatAccount.TenantId;
+
+						_logger.LogInformation(
+							"Found FoodicsAccountId={AccountId} from TalabatAccount mapping for VendorCode={VendorCode}, ImportId={ImportId}",
+							foodicsAccountId,
+							webhook.VendorCode,
+							webhook.ImportId);
+					}
+				}
 			}
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, "Error finding FoodicsAccountId for ImportId={ImportId}", webhook.ImportId);
+			_logger.LogError(ex, "Error finding FoodicsAccountId from TalabatAccount for VendorCode={VendorCode}, ImportId={ImportId}", webhook.VendorCode, webhook.ImportId);
+		}
+
+		if (!foodicsAccountId.HasValue)
+		{
+			try
+			{
+				var dbContext = await _dbContextProvider.GetDbContextAsync();
+				var stagingProduct = await dbContext.Set<FoodicsProductStaging>()
+					.Where(x => x.TalabatImportId == webhook.ImportId)
+					.FirstOrDefaultAsync(cancellationToken);
+
+				if (stagingProduct != null)
+				{
+					foodicsAccountId = stagingProduct.FoodicsAccountId;
+					tenantId = stagingProduct.TenantId;
+					_logger.LogDebug(
+						"Found FoodicsAccountId={AccountId} from staging products for ImportId={ImportId}",
+						foodicsAccountId,
+						webhook.ImportId);
+				}
+				else
+				{
+					_logger.LogWarning(
+						"No staging products found with ImportId={ImportId}. Cannot determine FoodicsAccountId from staging fallback.",
+						webhook.ImportId);
+				}
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error finding FoodicsAccountId for ImportId={ImportId}", webhook.ImportId);
+			}
 		}
 
 		// If we still don't have FoodicsAccountId, skip creating the sync log to avoid foreign key constraint
@@ -411,7 +492,8 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 		DetailsJson = detailsJson,
 		WebhookPayloadJson = rawPayload,
 		SubmittedAt = DateTime.UtcNow.AddSeconds(-30), // Approximate - assume 30 seconds ago
-		CompletedAt = DateTime.UtcNow
+		CompletedAt = DateTime.UtcNow,
+		TenantId = tenantId
 	};
 
 		await _syncLogRepository.InsertAsync(syncLog, autoSave: true, cancellationToken: cancellationToken);
