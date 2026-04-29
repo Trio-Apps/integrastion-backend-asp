@@ -49,6 +49,8 @@ public class TalabatCatalogClient : ITransientDependency
 
         _httpClient.BaseAddress = new Uri(EnsureEndsWithSlash(baseUrl));
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        _httpClient.Timeout = TimeSpan.FromSeconds(
+            Math.Max(100, configuration.GetValue<int?>("Talabat:CatalogRequestTimeoutSeconds") ?? 300));
     }
 
     /// <summary>

@@ -83,14 +83,7 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 			vendorCode,
 			importId);
 
-		// Update staging products status to Submitted
-		await UpdateStagingProductsStatusAsync(
-			foodicsAccountId,
-			vendorCode,
-			TalabatSyncStatus.Submitted,
-			importId,
-			null,
-			cancellationToken);
+		LogSkippedStagingStatusUpdate(foodicsAccountId, vendorCode, TalabatSyncStatus.Submitted, importId);
 
 		return syncLog;
 	}
@@ -127,14 +120,7 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 
 			await _syncLogRepository.UpdateAsync(syncLog, autoSave: true, cancellationToken: cancellationToken);
 
-			// Update staging products status
-			await UpdateStagingProductsStatusAsync(
-				syncLog.FoodicsAccountId,
-				syncLog.VendorCode,
-				TalabatSyncStatus.Success,
-				webhook.ImportId,
-				null,
-				cancellationToken);
+			LogSkippedStagingStatusUpdate(syncLog.FoodicsAccountId, syncLog.VendorCode, TalabatSyncStatus.Success, webhook.ImportId);
 
 			_logger.LogInformation(
 				"Updated sync log for completed import. SyncLogId={SyncLogId}, VendorCode={VendorCode}, ImportId={ImportId}",
@@ -190,14 +176,7 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 
 			await _syncLogRepository.UpdateAsync(syncLog, autoSave: true, cancellationToken: cancellationToken);
 
-			// Update staging products status
-			await UpdateStagingProductsStatusAsync(
-				syncLog.FoodicsAccountId,
-				syncLog.VendorCode,
-				TalabatSyncStatus.Failed,
-				webhook.ImportId,
-				errorMessage,
-				cancellationToken);
+			LogSkippedStagingStatusUpdate(syncLog.FoodicsAccountId, syncLog.VendorCode, TalabatSyncStatus.Failed, webhook.ImportId);
 
 			_logger.LogWarning(
 				"Updated sync log for failed import. SyncLogId={SyncLogId}, VendorCode={VendorCode}, ImportId={ImportId}, ErrorCount={ErrorCount}",
@@ -254,14 +233,7 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 
 			await _syncLogRepository.UpdateAsync(syncLog, autoSave: true, cancellationToken: cancellationToken);
 
-			// Update staging products status
-			await UpdateStagingProductsStatusAsync(
-				syncLog.FoodicsAccountId,
-				syncLog.VendorCode,
-				TalabatSyncStatus.Partial,
-				webhook.ImportId,
-				$"Partial success with {webhook.Errors?.Count ?? 0} errors",
-				cancellationToken);
+			LogSkippedStagingStatusUpdate(syncLog.FoodicsAccountId, syncLog.VendorCode, TalabatSyncStatus.Partial, webhook.ImportId);
 
 			_logger.LogWarning(
 				"Updated sync log for partial import. SyncLogId={SyncLogId}, VendorCode={VendorCode}, ImportId={ImportId}",
@@ -520,6 +492,20 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 			status,
 			foodicsAccountId,
 			vendorCode);
+	}
+
+	private void LogSkippedStagingStatusUpdate(
+		Guid foodicsAccountId,
+		string vendorCode,
+		string status,
+		string? importId)
+	{
+		_logger.LogDebug(
+			"Skipping staging status bulk update. Talabat sync logs track per-vendor import status without locking all staging products. FoodicsAccountId={AccountId}, VendorCode={VendorCode}, Status={Status}, ImportId={ImportId}",
+			foodicsAccountId,
+			vendorCode,
+			status,
+			importId);
 	}
 
 	#endregion
