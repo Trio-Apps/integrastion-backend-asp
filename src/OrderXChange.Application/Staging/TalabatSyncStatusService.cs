@@ -31,6 +31,7 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 	private readonly IDbContextProvider<OrderXChangeDbContext> _dbContextProvider;
 	private readonly ILogger<TalabatSyncStatusService> _logger;
 	private readonly IDataFilter _dataFilter;
+	private readonly IUnitOfWorkManager _unitOfWorkManager;
 
 	public TalabatSyncStatusService(
 		IRepository<TalabatCatalogSyncLog, Guid> syncLogRepository,
@@ -38,7 +39,8 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 		IRepository<TalabatAccount, Guid> talabatAccountRepository,
 		IDbContextProvider<OrderXChangeDbContext> dbContextProvider,
 		ILogger<TalabatSyncStatusService> logger,
-		IDataFilter dataFilter)
+		IDataFilter dataFilter,
+		IUnitOfWorkManager unitOfWorkManager)
 	{
 		_syncLogRepository = syncLogRepository;
 		_stagingRepository = stagingRepository;
@@ -46,6 +48,7 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 		_dbContextProvider = dbContextProvider;
 		_logger = logger;
 		_dataFilter = dataFilter;
+		_unitOfWorkManager = unitOfWorkManager;
 	}
 
 	/// <summary>
@@ -64,6 +67,8 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 		string apiVersion = "V1",
 		CancellationToken cancellationToken = default)
 	{
+		using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true);
+
 		if (!string.IsNullOrWhiteSpace(importId))
 		{
 			using (_dataFilter.Disable<IMultiTenant>())
@@ -88,7 +93,8 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 						existingLog.Status = TalabatSyncStatus.Submitted;
 					}
 
-					await _syncLogRepository.UpdateAsync(existingLog, autoSave: true, cancellationToken: cancellationToken);
+					await _syncLogRepository.UpdateAsync(existingLog, autoSave: false, cancellationToken: cancellationToken);
+					await uow.CompleteAsync(cancellationToken);
 
 					_logger.LogInformation(
 						"Updated existing Talabat catalog submission record. SyncLogId={SyncLogId}, VendorCode={VendorCode}, ImportId={ImportId}, Status={Status}",
@@ -117,7 +123,8 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 			SubmittedAt = DateTime.UtcNow
 		};
 
-		await _syncLogRepository.InsertAsync(syncLog, autoSave: true, cancellationToken: cancellationToken);
+		await _syncLogRepository.InsertAsync(syncLog, autoSave: false, cancellationToken: cancellationToken);
+		await uow.CompleteAsync(cancellationToken);
 
 		_logger.LogInformation(
 			"Recorded Talabat catalog submission. SyncLogId={SyncLogId}, VendorCode={VendorCode}, ImportId={ImportId}",
