@@ -8,7 +8,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using OrderXChange.Domain.Versioning;
+using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.MultiTenancy;
 
 namespace OrderXChange.Application.Versioning;
 
@@ -19,6 +21,7 @@ namespace OrderXChange.Application.Versioning;
 public class MenuSyncRunManager : ITransientDependency
 {
     private readonly IMenuSyncRunRepository _syncRunRepository;
+    private readonly IDataFilter _dataFilter;
     private readonly ILogger<MenuSyncRunManager> _logger;
     private readonly Dictionary<Guid, SyncRunTracer> _activeTracers = new();
 
@@ -27,9 +30,11 @@ public class MenuSyncRunManager : ITransientDependency
 
     public MenuSyncRunManager(
         IMenuSyncRunRepository syncRunRepository,
+        IDataFilter dataFilter,
         ILogger<MenuSyncRunManager> logger)
     {
         _syncRunRepository = syncRunRepository;
+        _dataFilter = dataFilter;
         _logger = logger;
     }
 
@@ -94,7 +99,10 @@ public class MenuSyncRunManager : ITransientDependency
             Configuration = configuration
         });
 
-        await _syncRunRepository.InsertAsync(syncRun, autoSave: true, cancellationToken: cancellationToken);
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            await _syncRunRepository.InsertAsync(syncRun, autoSave: true, cancellationToken: cancellationToken);
+        }
 
         return syncRun;
     }
@@ -110,6 +118,7 @@ public class MenuSyncRunManager : ITransientDependency
         Dictionary<string, object>? metrics = null,
         CancellationToken cancellationToken = default)
     {
+        using var tenantFilter = _dataFilter.Disable<IMultiTenant>();
         var syncRun = await _syncRunRepository.GetAsync(syncRunId, cancellationToken: cancellationToken);
         var tracer = GetTracer(syncRunId);
 
@@ -153,6 +162,7 @@ public class MenuSyncRunManager : ITransientDependency
         Dictionary<string, object>? finalMetrics = null,
         CancellationToken cancellationToken = default)
     {
+        using var tenantFilter = _dataFilter.Disable<IMultiTenant>();
         var syncRun = await _syncRunRepository.GetAsync(syncRunId, cancellationToken: cancellationToken);
         var tracer = GetTracer(syncRunId);
 
@@ -211,6 +221,7 @@ public class MenuSyncRunManager : ITransientDependency
         Dictionary<string, object>? errorContext = null,
         CancellationToken cancellationToken = default)
     {
+        using var tenantFilter = _dataFilter.Disable<IMultiTenant>();
         var syncRun = await _syncRunRepository.GetAsync(syncRunId, cancellationToken: cancellationToken);
         var tracer = GetTracer(syncRunId);
 
@@ -259,6 +270,7 @@ public class MenuSyncRunManager : ITransientDependency
         Dictionary<string, object>? context = null,
         CancellationToken cancellationToken = default)
     {
+        using var tenantFilter = _dataFilter.Disable<IMultiTenant>();
         var syncRun = await _syncRunRepository.GetAsync(syncRunId, cancellationToken: cancellationToken);
         var tracer = GetTracer(syncRunId);
 
@@ -293,6 +305,7 @@ public class MenuSyncRunManager : ITransientDependency
         Dictionary<string, object>? context = null,
         CancellationToken cancellationToken = default)
     {
+        using var tenantFilter = _dataFilter.Disable<IMultiTenant>();
         var syncRun = await _syncRunRepository.GetAsync(syncRunId, cancellationToken: cancellationToken);
         var tracer = GetTracer(syncRunId);
 
@@ -330,6 +343,7 @@ public class MenuSyncRunManager : ITransientDependency
         int deleted = 0,
         CancellationToken cancellationToken = default)
     {
+        using var tenantFilter = _dataFilter.Disable<IMultiTenant>();
         var syncRun = await _syncRunRepository.GetAsync(syncRunId, cancellationToken: cancellationToken);
         var tracer = GetTracer(syncRunId);
 
@@ -360,6 +374,7 @@ public class MenuSyncRunManager : ITransientDependency
         string? status = null,
         CancellationToken cancellationToken = default)
     {
+        using var tenantFilter = _dataFilter.Disable<IMultiTenant>();
         var syncRun = await _syncRunRepository.GetAsync(syncRunId, cancellationToken: cancellationToken);
         var tracer = GetTracer(syncRunId);
 
