@@ -10,8 +10,8 @@ Navigate to _etc/docker-compose_ folder and run the `run-docker.ps1` script. The
 > Not: Developer certificate is only valid for **localhost** domain. If you want to deploy to a real DNS in a production environment, use LetsEncrypt or similar tools.
 
 ### Domain Mapping (Production)
-- `https://igw.beon-it.com` -> Angular frontend container (`web_ui`)
-- `https://igwdev.beon-it.com` -> ASP.NET backend container (`web_api`)
+- `https://tfconsole.beon-it.com` -> Angular frontend container (`web_ui`)
+- `https://tfapi.beon-it.com` -> ASP.NET backend container (`web_api`)
 
 ### Nginx TLS certificates
 For DNS-based deployment, place these files in `etc/docker-compose/certs/`:
