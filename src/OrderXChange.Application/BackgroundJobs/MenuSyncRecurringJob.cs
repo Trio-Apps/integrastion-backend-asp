@@ -915,7 +915,7 @@ public class MenuSyncRecurringJob : ITransientDependency
                     talabatWorkItems,
                     maxParallelSubmissions,
                     foodicsAccountId,
-                    syncRun?.Id,
+                    syncRunId: null,
                     cancellationToken);
 
                 var firstSuccessfulResult = talabatResults

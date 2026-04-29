@@ -1,4 +1,7 @@
+using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace OrderXChange.Application.Integrations.Foodics;
@@ -346,6 +349,7 @@ public class FoodicsGroupInfoDto
 	public List<FoodicsProductDetailDto>? Products { get; set; }
 
 	[JsonPropertyName("items_index")]
+	[JsonConverter(typeof(FlexibleStringListJsonConverter))]
 	public List<string>? ItemsIndex { get; set; }
 
 	[JsonPropertyName("pivot")]
@@ -374,4 +378,87 @@ public class FoodicsGroupWithProductCountDto
 	public string? Name { get; set; }
 	public string? NameLocalized { get; set; }
 	public int ProductCount { get; set; }
+}
+
+public class FlexibleStringListJsonConverter : JsonConverter<List<string>?>
+{
+	public override List<string>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+	{
+		if (reader.TokenType == JsonTokenType.Null)
+		{
+			return null;
+		}
+
+		var values = new List<string>();
+		ReadValues(ref reader, values);
+		return values;
+	}
+
+	public override void Write(Utf8JsonWriter writer, List<string>? value, JsonSerializerOptions options)
+	{
+		JsonSerializer.Serialize(writer, value, options);
+	}
+
+	private static void ReadValues(ref Utf8JsonReader reader, List<string> values)
+	{
+		switch (reader.TokenType)
+		{
+			case JsonTokenType.StartArray:
+				while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+				{
+					ReadValues(ref reader, values);
+				}
+				break;
+			case JsonTokenType.StartObject:
+				while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
+				{
+					if (reader.TokenType != JsonTokenType.PropertyName)
+					{
+						continue;
+					}
+
+					var propertyName = reader.GetString();
+					if (reader.Read())
+					{
+						if (reader.TokenType == JsonTokenType.String)
+						{
+							AddIfNotEmpty(values, reader.GetString());
+						}
+						else
+						{
+							AddIfNotEmpty(values, propertyName);
+							ReadValues(ref reader, values);
+						}
+					}
+				}
+				break;
+			case JsonTokenType.String:
+				AddIfNotEmpty(values, reader.GetString());
+				break;
+			case JsonTokenType.Number:
+				if (reader.TryGetInt64(out var longValue))
+				{
+					AddIfNotEmpty(values, longValue.ToString(CultureInfo.InvariantCulture));
+				}
+				else if (reader.TryGetDouble(out var doubleValue))
+				{
+					AddIfNotEmpty(values, doubleValue.ToString(CultureInfo.InvariantCulture));
+				}
+				break;
+			case JsonTokenType.True:
+			case JsonTokenType.False:
+				AddIfNotEmpty(values, reader.GetBoolean().ToString(CultureInfo.InvariantCulture));
+				break;
+			default:
+				break;
+		}
+	}
+
+	private static void AddIfNotEmpty(List<string> values, string? value)
+	{
+		if (!string.IsNullOrWhiteSpace(value))
+		{
+			values.Add(value);
+		}
+	}
 }
