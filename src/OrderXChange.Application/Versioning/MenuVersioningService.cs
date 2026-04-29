@@ -23,6 +23,8 @@ namespace OrderXChange.Application.Versioning;
 /// </summary>
 public class MenuVersioningService : ITransientDependency
 {
+    private const string TalabatMenuProjectionVersion = "talabat-menu-projection:v2-modifier-exclusions-display-dedupe";
+
     private readonly IRepository<MenuSnapshot, Guid> _snapshotRepository;
     private readonly IRepository<MenuChangeLog, Guid> _changeLogRepository;
     private readonly ILogger<MenuVersioningService> _logger;
@@ -441,6 +443,8 @@ public class MenuVersioningService : ITransientDependency
 
         // Build hash input string
         var sb = new StringBuilder();
+        AppendValue(sb, TalabatMenuProjectionVersion);
+
         foreach (var product in sortedProducts)
         {
             AppendValue(sb, product.Id);
@@ -561,6 +565,17 @@ public class MenuVersioningService : ITransientDependency
                     AppendValue(sb, modifier.NameLocalized);
                     AppendValue(sb, modifier.MinAllowed);
                     AppendValue(sb, modifier.MaxAllowed);
+                    if (modifier.Pivot != null)
+                    {
+                        AppendValue(sb, modifier.Pivot.Index);
+                        AppendValue(sb, modifier.Pivot.MinimumOptions);
+                        AppendValue(sb, modifier.Pivot.MaximumOptions);
+                        AppendValue(sb, modifier.Pivot.FreeOptions);
+                        AppendValue(sb, modifier.Pivot.UniqueOptions);
+                        AppendStringList(sb, "MDO:", modifier.Pivot.DefaultOptionIds);
+                        AppendStringList(sb, "MEO:", modifier.Pivot.ExcludedOptionIds);
+                    }
+
                     if (modifier.Options != null && modifier.Options.Count > 0)
                     {
                         foreach (var option in modifier.Options.OrderBy(o => o.Id))
@@ -647,6 +662,22 @@ public class MenuVersioningService : ITransientDependency
     private static void AppendValue(StringBuilder sb, bool? value)
     {
         sb.Append(value?.ToString() ?? string.Empty).Append('|');
+    }
+
+    private static void AppendStringList(StringBuilder sb, string marker, IEnumerable<string>? values)
+    {
+        if (values == null)
+        {
+            return;
+        }
+
+        foreach (var value in values
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .OrderBy(v => v, StringComparer.OrdinalIgnoreCase))
+        {
+            sb.Append(marker);
+            AppendValue(sb, value);
+        }
     }
 
     private static void AppendValue(StringBuilder sb, int? value)
