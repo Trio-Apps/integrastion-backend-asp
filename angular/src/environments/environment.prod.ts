@@ -1,9 +1,9 @@
 import { Environment } from '@abp/ng.core';
 
-const baseUrl = 'https://igw.beon-it.com';
+const baseUrl = 'https://tfconsole.beon-it.com';
 
 const oAuthConfig = {
-  issuer: 'https://igwdev.beon-it.com/',
+  issuer: 'https://tfapi.beon-it.com/',
   redirectUri: baseUrl,
   clientId: 'OrderXChange_App',
   scope: 'offline_access OrderXChange',
@@ -23,15 +23,15 @@ export const environment = {
   oAuthConfig,
   apis: {
     default: {
-      url: 'https://igwdev.beon-it.com',
+      url: 'https://tfapi.beon-it.com',
       rootNamespace: 'OrderXChange',
     },
     Default: {
-      url: 'https://igwdev.beon-it.com',
+      url: 'https://tfapi.beon-it.com',
       rootNamespace: 'OrderXChange',
     },
     AbpTenantManagement: {
-      url: 'https://igwdev.beon-it.com',
+      url: 'https://tfapi.beon-it.com',
       rootNamespace: 'OrderXChange',
     },
     AbpAccountPublic: {
