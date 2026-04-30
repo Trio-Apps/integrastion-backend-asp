@@ -1,7 +1,7 @@
 import { RestService, Rest } from '@abp/ng.core';
 import { Injectable } from '@angular/core';
 import type { PagedResultDto } from '@abp/ng.core';
-import type { GetTalabatOrderLogsInput, TalabatOrderLogDto } from './models';
+import type { GetTalabatOrderLogsInput, RetryTalabatOrderLogsInput, RetryTalabatOrderLogsResultDto, TalabatOrderLogDto } from './models';
 
 @Injectable({
   providedIn: 'root',
@@ -24,6 +24,16 @@ export class TalabatOrderLogsService {
       {
         method: 'POST',
         url: `/api/app/talabat-order-log/${id}/retry`,
+      },
+      { apiName: this.apiName, ...config }
+    );
+
+  retryFailedAndEnqueued = (input: RetryTalabatOrderLogsInput, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, RetryTalabatOrderLogsResultDto>(
+      {
+        method: 'POST',
+        url: '/api/app/talabat-order-log/retry-failed-and-enqueued',
+        body: input,
       },
       { apiName: this.apiName, ...config }
     );

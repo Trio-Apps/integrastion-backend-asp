@@ -156,6 +156,28 @@ public class OrderDispatchDistributedEventHandler
             using (_currentTenant.Change(eventData.TenantId))
             {
                 var orderLog = await _orderSyncLogRepository.GetAsync(eventData.OrderLogId);
+                if (string.Equals(orderLog.Status, "Succeeded", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogInformation(
+                        "Skipping OrderDispatch because order log already succeeded. CorrelationId={CorrelationId}, OrderLogId={OrderLogId}",
+                        eventData.CorrelationId,
+                        eventData.OrderLogId);
+                    await _idempotencyService.MarkSucceededAsync(eventData.AccountId, eventData.IdempotencyKey);
+                    return;
+                }
+
+                if (string.Equals(orderLog.Status, "Processing", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogInformation(
+                        "Skipping OrderDispatch because order log is already processing. CorrelationId={CorrelationId}, OrderLogId={OrderLogId}",
+                        eventData.CorrelationId,
+                        eventData.OrderLogId);
+                    await _idempotencyService.MarkFailedAsync(
+                        eventData.AccountId,
+                        eventData.IdempotencyKey);
+                    return;
+                }
+
                 orderLog.Status = "Processing";
                 orderLog.Attempts = currentAttempt;
                 orderLog.LastAttemptUtc = DateTime.UtcNow;

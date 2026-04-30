@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -106,6 +107,48 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
                 .WithData("OrderLogId", id);
         }
 
+        await QueueRetryAsync(log);
+    }
+
+    public async Task<RetryTalabatOrderLogsResultDto> RetryFailedAndEnqueuedAsync(RetryTalabatOrderLogsInput input)
+    {
+        var queryable = await _orderLogRepository.GetQueryableAsync();
+
+        if (!string.IsNullOrWhiteSpace(input.VendorCode))
+        {
+            var vendor = input.VendorCode.Trim();
+            queryable = queryable.Where(x => x.VendorCode == vendor);
+        }
+
+        var retryableStatuses = new List<string> { "Failed" };
+        if (input.IncludeEnqueued)
+        {
+            retryableStatuses.Add("Enqueued");
+        }
+
+        var logs = await queryable
+            .Where(x => retryableStatuses.Contains(x.Status))
+            .OrderBy(x => x.ReceivedAt)
+            .ToListAsync();
+
+        var result = new RetryTalabatOrderLogsResultDto();
+        foreach (var log in logs)
+        {
+            if (string.IsNullOrWhiteSpace(log.WebhookPayloadJson))
+            {
+                result.SkippedCount++;
+                continue;
+            }
+
+            await QueueRetryAsync(log);
+            result.QueuedCount++;
+        }
+
+        return result;
+    }
+
+    private async Task QueueRetryAsync(TalabatOrderSyncLog log)
+    {
         log.Status = "Enqueued";
         log.ErrorMessage = null;
         log.ErrorCode = null;
@@ -123,7 +166,7 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
             VendorCode = log.VendorCode,
             TenantId = log.TenantId,
             OrderLogId = log.Id,
-            IdempotencyKey = $"order-retry:{log.VendorCode}:{log.Id}:{DateTime.UtcNow:yyyyMMddHHmmss}",
+            IdempotencyKey = $"order-retry:{log.VendorCode}:{log.Id}:{DateTime.UtcNow:yyyyMMddHHmmssfff}",
             OccurredAt = DateTime.UtcNow
         };
 

@@ -5,7 +5,19 @@
       <h2 class="page-title">Talabat Orders</h2>
       <p class="page-subtitle">Incoming webhook orders and their sync status</p>
     </div>
-    <button pButton type="button" icon="pi pi-refresh" label="Refresh" class="p-button-outlined" (click)="refresh()"></button>
+    <div class="header-actions">
+      <button
+        pButton
+        type="button"
+        icon="pi pi-refresh"
+        label="Retry Failed / Enqueued"
+        class="p-button-outlined"
+        [loading]="bulkRetrying()"
+        [disabled]="loading() || bulkRetrying()"
+        (click)="retryFailedAndEnqueued()"
+      ></button>
+      <button pButton type="button" icon="pi pi-refresh" label="Refresh" class="p-button-outlined" (click)="refresh()"></button>
+    </div>
   </div>
 
   <div class="filters">

@@ -38,6 +38,7 @@ export class TalabatOrdersComponent {
   private readonly messageService = inject(MessageService);
 
   readonly loading = signal<boolean>(false);
+  readonly bulkRetrying = signal<boolean>(false);
   readonly logs = signal<TalabatOrderLogDto[]>([]);
   readonly totalRecords = signal<number>(0);
   readonly rows = signal<number>(10);
@@ -186,6 +187,40 @@ export class TalabatOrdersComponent {
             severity: 'error',
             summary: 'Retry failed',
             detail: error?.error?.error?.message || 'Unable to retry this order.'
+          });
+        }
+      });
+  }
+
+  retryFailedAndEnqueued(): void {
+    const vendor = this.vendorCode().trim();
+    const scope = vendor ? ` for ${vendor}` : '';
+    const confirmed = window.confirm(`Retry all failed and stuck enqueued orders${scope}?`);
+    if (!confirmed) {
+      return;
+    }
+
+    this.bulkRetrying.set(true);
+    this.orderLogsService.retryFailedAndEnqueued({
+      vendorCode: vendor || undefined,
+      includeEnqueued: true,
+    })
+      .pipe(finalize(() => this.bulkRetrying.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: result => {
+          this.messageService.add({
+            severity: 'success',
+            summary: 'Bulk retry queued',
+            detail: `${result.queuedCount || 0} order(s) queued. ${result.skippedCount || 0} skipped.`
+          });
+          this.refresh();
+        },
+        error: error => {
+          console.error('Failed to bulk retry orders', error);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Bulk retry failed',
+            detail: error?.error?.error?.message || 'Unable to retry failed orders.'
           });
         }
       });

@@ -98,3 +98,13 @@ export interface TalabatOrderLogDto {
   lastError?: string;
   creationTime?: string;
 }
+
+export interface RetryTalabatOrderLogsInput {
+  vendorCode?: string;
+  includeEnqueued: boolean;
+}
+
+export interface RetryTalabatOrderLogsResultDto {
+  queuedCount: number;
+  skippedCount: number;
+}

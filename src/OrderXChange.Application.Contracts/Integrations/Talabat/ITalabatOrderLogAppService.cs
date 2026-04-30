@@ -9,4 +9,5 @@ public interface ITalabatOrderLogAppService : IApplicationService
 {
     Task<PagedResultDto<TalabatOrderLogDto>> GetListAsync(GetTalabatOrderLogsInput input);
     Task RetryAsync(Guid id);
+    Task<RetryTalabatOrderLogsResultDto> RetryFailedAndEnqueuedAsync(RetryTalabatOrderLogsInput input);
 }

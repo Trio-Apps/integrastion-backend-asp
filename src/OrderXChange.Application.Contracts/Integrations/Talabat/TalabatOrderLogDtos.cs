@@ -32,3 +32,15 @@ public class TalabatOrderLogDto
     public string? LastError { get; set; }
     public DateTime CreationTime { get; set; }
 }
+
+public class RetryTalabatOrderLogsInput
+{
+    public string? VendorCode { get; set; }
+    public bool IncludeEnqueued { get; set; } = true;
+}
+
+public class RetryTalabatOrderLogsResultDto
+{
+    public int QueuedCount { get; set; }
+    public int SkippedCount { get; set; }
+}
