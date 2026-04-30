@@ -2160,31 +2160,78 @@ public class FoodicsToTalabatMapper : ITransientDependency
                 var appliedStoredMin = false;
                 var appliedStoredMax = false;
 
-                if (!modifier.RawMinAllowed.HasValue && modifier.Pivot?.MinimumOptions == null && storedGroup.MinSelection.HasValue)
+                var currentMinSelection = modifier.MinAllowed;
+                var currentMaxSelection = modifier.MaxAllowed;
+                var storedMinSelection = storedGroup.MinSelection;
+                var storedMaxSelection = storedGroup.MaxSelection;
+
+                if (storedMinSelection.HasValue &&
+                    ShouldApplyStoredMinSelection(modifier, currentMinSelection, storedMinSelection.Value, storedGroup.IsRequired))
                 {
-                    modifier.MinAllowed = storedGroup.MinSelection;
+                    modifier.MinAllowed = storedMinSelection;
+                    currentMinSelection = storedMinSelection;
                     appliedStoredMin = true;
                 }
 
-                if (!modifier.RawMaxAllowed.HasValue && modifier.Pivot?.MaximumOptions == null && storedGroup.MaxSelection.HasValue)
+                if (storedMaxSelection.HasValue &&
+                    ShouldApplyStoredMaxSelection(modifier, currentMaxSelection, storedMaxSelection.Value, currentMinSelection))
                 {
-                    modifier.MaxAllowed = storedGroup.MaxSelection;
+                    modifier.MaxAllowed = storedMaxSelection;
                     appliedStoredMax = true;
                 }
 
                 if (appliedStoredMin || appliedStoredMax)
                 {
                     _logger.LogInformation(
-                        "Applied stored modifier selection bounds. ModifierId={ModifierId}, ProductId={ProductId}, StoredMin={StoredMin}, StoredMax={StoredMax}, AppliedMin={AppliedMin}, AppliedMax={AppliedMax}",
+                        "Applied stored modifier selection bounds. ModifierId={ModifierId}, ProductId={ProductId}, StoredMin={StoredMin}, StoredMax={StoredMax}, StoredIsRequired={StoredIsRequired}, AppliedMin={AppliedMin}, AppliedMax={AppliedMax}",
                         modifier.Id,
                         product.Id,
                         storedGroup.MinSelection,
                         storedGroup.MaxSelection,
+                        storedGroup.IsRequired,
                         appliedStoredMin,
                         appliedStoredMax);
                 }
             }
         }
+    }
+
+    private static bool ShouldApplyStoredMinSelection(
+        FoodicsModifierDto modifier,
+        int? currentMinSelection,
+        int storedMinSelection,
+        bool storedIsRequired)
+    {
+        if (storedMinSelection < 0)
+        {
+            return false;
+        }
+
+        if (!modifier.RawMinAllowed.HasValue && modifier.Pivot?.MinimumOptions == null)
+        {
+            return true;
+        }
+
+        return storedIsRequired && storedMinSelection > currentMinSelection.GetValueOrDefault();
+    }
+
+    private static bool ShouldApplyStoredMaxSelection(
+        FoodicsModifierDto modifier,
+        int? currentMaxSelection,
+        int storedMaxSelection,
+        int? currentMinSelection)
+    {
+        if (storedMaxSelection < 0)
+        {
+            return false;
+        }
+
+        if (!modifier.RawMaxAllowed.HasValue && modifier.Pivot?.MaximumOptions == null)
+        {
+            return true;
+        }
+
+        return currentMaxSelection.GetValueOrDefault() < currentMinSelection.GetValueOrDefault();
     }
 
     private TalabatV2CatalogItem? CreateImageItem(string imageId, string imageUrl, string? altText = null)
