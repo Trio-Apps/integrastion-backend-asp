@@ -99,14 +99,6 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
                 .WithData("Status", log.Status);
         }
 
-        if (!string.IsNullOrWhiteSpace(log.ErrorMessage)
-            && (log.ErrorMessage.Contains("Idempotency", StringComparison.OrdinalIgnoreCase)
-                || log.ErrorMessage.Contains("duplicate", StringComparison.OrdinalIgnoreCase)))
-        {
-            throw new BusinessException("ORDER_DUPLICATE_TOKEN")
-                .WithData("OrderLogId", id);
-        }
-
         await QueueRetryAsync(log);
     }
 
