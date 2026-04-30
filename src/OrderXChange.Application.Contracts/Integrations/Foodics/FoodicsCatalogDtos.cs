@@ -229,6 +229,12 @@ public class FoodicsModifierDto
 	[JsonPropertyName("name_localized")]
 	public string? NameLocalized { get; set; }
 
+	[JsonPropertyName("is_ready")]
+	public bool? IsReady { get; set; }
+
+	[JsonPropertyName("deleted_at")]
+	public string? DeletedAt { get; set; }
+
 	[JsonPropertyName("min_allowed")]
 	public int? MinAllowed
 	{

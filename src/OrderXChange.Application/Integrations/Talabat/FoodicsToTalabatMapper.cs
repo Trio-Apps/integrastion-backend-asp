@@ -1341,10 +1341,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
 
     private static IEnumerable<FoodicsModifierDto> DistinctOrderedModifiers(IEnumerable<FoodicsModifierDto> modifiers)
     {
-        return OrderModifiers(modifiers)
-            .Where(m => !string.IsNullOrWhiteSpace(m.Id))
-            .GroupBy(m => m.Id, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First());
+        return FoodicsModifierSanitizer.SanitizeForMenuProjection(modifiers.ToList())
+            ?? Enumerable.Empty<FoodicsModifierDto>();
     }
 
     private static IEnumerable<FoodicsModifierOptionDto> GetVisibleModifierOptions(FoodicsModifierDto modifier)

@@ -23,7 +23,7 @@ namespace OrderXChange.Application.Versioning;
 /// </summary>
 public class MenuVersioningService : ITransientDependency
 {
-    private const string TalabatMenuProjectionVersion = "talabat-menu-projection:v4-sanitized-fetch-modifiers";
+    private const string TalabatMenuProjectionVersion = "talabat-menu-projection:v5-visible-modifier-groups";
 
     private readonly IRepository<MenuSnapshot, Guid> _snapshotRepository;
     private readonly IRepository<MenuChangeLog, Guid> _changeLogRepository;

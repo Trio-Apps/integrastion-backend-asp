@@ -24,6 +24,7 @@ internal static class FoodicsModifierSanitizer
         }
 
         return DistinctOrderedModifiers(modifiers)
+            .Where(IsVisibleModifier)
             .Select(SanitizeModifier)
             .Where(modifier => modifier.Options is { Count: > 0 })
             .ToList();
@@ -62,6 +63,8 @@ internal static class FoodicsModifierSanitizer
             Id = modifier.Id,
             Name = modifier.Name,
             NameLocalized = modifier.NameLocalized,
+            IsReady = modifier.IsReady,
+            DeletedAt = modifier.DeletedAt,
             MinAllowed = modifier.MinAllowed,
             MaxAllowed = modifier.MaxAllowed,
             Pivot = SanitizePivot(modifier.Pivot, visibleOptionIds),
@@ -100,6 +103,21 @@ internal static class FoodicsModifierSanitizer
             .Where(m => !string.IsNullOrWhiteSpace(m.Id))
             .GroupBy(m => m.Id, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First());
+    }
+
+    private static bool IsVisibleModifier(FoodicsModifierDto modifier)
+    {
+        if (string.IsNullOrWhiteSpace(modifier.Id))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(modifier.DeletedAt) || modifier.IsReady == false)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static IEnumerable<FoodicsModifierOptionDto> OrderModifierOptions(IEnumerable<FoodicsModifierOptionDto> options)
