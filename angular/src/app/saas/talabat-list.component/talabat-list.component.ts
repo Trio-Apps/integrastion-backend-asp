@@ -28,6 +28,12 @@ import { FoodicsGroupWithProductCountDto } from '../../proxy/background-jobs/mod
 import { FoodicsBranchDto } from '../../proxy/application/integrations/foodics/models';
 import { LocalizationModule, LocalizationService } from '@abp/ng.core';
 
+type FoodicsBranchOption = FoodicsBranchDto & {
+  displayName: string;
+  searchText: string;
+  reference?: string;
+};
+
 /**
  * Talabat Account Management Component
  * UPDATED: Now supports linking TalabatAccount with FoodicsAccount for multi-tenant sync
@@ -76,7 +82,7 @@ export class TalabatListComponent implements OnInit {
   // Table data
   accounts: TalabatAccountDto[] = [];
   foodicsAccounts: FoodicsAccountDto[] = [];
-  foodicsBranches: FoodicsBranchDto[] = [];
+  foodicsBranches: FoodicsBranchOption[] = [];
   foodicsGroups: FoodicsGroupWithProductCountDto[] = [];
   branchesLoading: boolean = false;
   groupsLoading: boolean = false;
@@ -157,7 +163,7 @@ export class TalabatListComponent implements OnInit {
 
     this.menuSyncService.getBranchesForAccount(foodicsAccountId).subscribe({
       next: (branches) => {
-        this.foodicsBranches = branches || [];
+        this.foodicsBranches = this.toFoodicsBranchOptions(branches || []);
         this.branchesLoading = false;
       },
       error: (error) => {
@@ -212,8 +218,30 @@ export class TalabatListComponent implements OnInit {
     }
 
     const selected = this.foodicsBranches.find(b => (b.id || '').toLowerCase() === branchId.toLowerCase());
-    const name = selected?.name || selected?.name_localized || branchId;
+    const name = selected?.displayName || branchId;
     this.accountForm.patchValue({ foodicsBranchId: branchId, foodicsBranchName: name }, { emitEvent: false });
+  }
+
+  private toFoodicsBranchOptions(branches: FoodicsBranchDto[]): FoodicsBranchOption[] {
+    return branches
+      .filter(branch => !!branch.id)
+      .map(branch => {
+        const displayName = branch.name || branch.name_localized || branch.id || '';
+        return {
+          ...branch,
+          displayName,
+          searchText: [
+            displayName,
+            branch.name,
+            branch.name_localized,
+            branch.id,
+            branch.reference
+          ]
+            .filter(Boolean)
+            .join(' ')
+        };
+      })
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
   }
 
   /**

@@ -288,10 +288,16 @@
           id="foodicsBranchId"
           formControlName="foodicsBranchId"
           [options]="foodicsBranches"
-          optionLabel="name"
+          optionLabel="displayName"
           optionValue="id"
-          placeholder="Select branch (leave empty for all branches)"
+          [placeholder]="branchesLoading ? 'Loading branches...' : 'Select branch (leave empty for all branches)'"
           [showClear]="true"
+          [filter]="true"
+          filterBy="searchText"
+          [virtualScroll]="true"
+          [virtualScrollItemSize]="44"
+          scrollHeight="360px"
+          appendTo="body"
           [disabled]="!accountForm.get('foodicsAccountId')?.value || branchesLoading"
           class="w-full"
           styleClass="w-full"
@@ -300,15 +306,15 @@
             <div class="flex items-center justify-between w-full">
               <div class="flex items-center gap-2">
                 <i class="pi pi-map-marker text-primary"></i>
-                <span>{{ branch.name || branch.name_localized || branch.id }}</span>
+                <span>{{ branch.displayName }}</span>
               </div>
-              <span class="text-surface-500 text-sm" *ngIf="branch.is_active">Active</span>
+              <span class="text-surface-500 text-sm" *ngIf="branch.reference">{{ branch.reference }}</span>
             </div>
           </ng-template>
         </p-select>
         <small class="field-help">
           {{ accountForm.get('foodicsAccountId')?.value
-            ? 'Select a branch to sync branch-specific availability. Clear it to sync all branches.'
+            ? 'Select a branch to sync branch-specific availability. Clear it to sync all branches. Loaded branches: ' + foodicsBranches.length
             : 'Select a linked Foodics account first, then choose a branch if you need branch-specific syncing.' }}
         </small>
       </div>
