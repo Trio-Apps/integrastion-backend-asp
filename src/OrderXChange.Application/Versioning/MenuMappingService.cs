@@ -224,6 +224,17 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
             {
                 await SaveChangesWithLockRetryAsync(dbContext, cancellationToken);
             }
+            catch (Exception ex) when (IsTransientDatabaseLock(ex))
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Skipping menu mapping persistence after database lock timeout. Catalog sync will continue using deterministic in-memory mappings. Created={Created}, Updated={Updated}, Total={Total}",
+                    newMappings.Count,
+                    updatedMappings.Count,
+                    result.Count);
+
+                DetachPendingMappingChanges(dbContext);
+            }
             finally
             {
                 dbContext.Database.SetCommandTimeout(previousCommandTimeout);
@@ -235,6 +246,16 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
             newMappings.Count, updatedMappings.Count, result.Count);
 
         return result;
+    }
+
+    private static void DetachPendingMappingChanges(DbContext dbContext)
+    {
+        foreach (var entry in dbContext.ChangeTracker.Entries<MenuItemMapping>()
+                     .Where(e => e.State is EntityState.Added or EntityState.Modified)
+                     .ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
     }
 
     private async Task SaveChangesWithLockRetryAsync(DbContext dbContext, CancellationToken cancellationToken)
