@@ -227,15 +227,17 @@ export class TalabatListComponent implements OnInit {
       .filter(branch => !!branch.id)
       .map(branch => {
         const displayName = branch.name || branch.name_localized || branch.id || '';
+        const reference = (branch as FoodicsBranchDto & { reference?: string }).reference;
         return {
           ...branch,
+          reference,
           displayName,
           searchText: [
             displayName,
             branch.name,
             branch.name_localized,
             branch.id,
-            branch.reference
+            reference
           ]
             .filter(Boolean)
             .join(' ')
