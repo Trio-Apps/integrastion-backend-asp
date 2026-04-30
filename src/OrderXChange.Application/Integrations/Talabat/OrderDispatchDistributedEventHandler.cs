@@ -125,9 +125,11 @@ public class OrderDispatchDistributedEventHandler
 
         try
         {
+            var orderLockMinutes = Math.Max(1, _configuration.GetValue<int?>("Idempotency:OrderLockMinutes") ?? 10);
             var (canProcess, existingRecord) = await _idempotencyService.CheckAndMarkStartedAsync(
                 eventData.AccountId,
-                eventData.IdempotencyKey);
+                eventData.IdempotencyKey,
+                staleAfter: TimeSpan.FromMinutes(orderLockMinutes));
 
             if (!canProcess)
             {
@@ -172,9 +174,6 @@ public class OrderDispatchDistributedEventHandler
                         "Skipping OrderDispatch because order log is already processing. CorrelationId={CorrelationId}, OrderLogId={OrderLogId}",
                         eventData.CorrelationId,
                         eventData.OrderLogId);
-                    await _idempotencyService.MarkFailedAsync(
-                        eventData.AccountId,
-                        eventData.IdempotencyKey);
                     return;
                 }
 

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OrderXChange.Application.Contracts.Integrations.Talabat;
@@ -369,6 +370,35 @@ public class TalabatWebhookController : AbpController
 
             using (_currentTenant.Change(account.TenantId))
             {
+                var existingOrderLog = await FindExistingOrderLogAsync(
+                    account.FoodicsAccountId.Value,
+                    account.VendorCode,
+                    webhook,
+                    cancellationToken);
+
+                if (existingOrderLog != null
+                    && IsActiveOrCompletedOrderLogStatus(existingOrderLog.Status))
+                {
+                    _logger.LogInformation(
+                        "Duplicate Talabat order webhook ignored because an order log already exists. CorrelationId={CorrelationId}, VendorCode={VendorCode}, ExistingOrderLogId={ExistingOrderLogId}, ExistingStatus={ExistingStatus}, OrderCode={OrderCode}, ShortCode={ShortCode}",
+                        correlationId,
+                        account.VendorCode,
+                        existingOrderLog.Id,
+                        existingOrderLog.Status,
+                        webhook.Code,
+                        webhook.ShortCode);
+
+                    return Ok(new
+                    {
+                        success = true,
+                        correlationId,
+                        duplicate = true,
+                        existingOrderLogId = existingOrderLog.Id,
+                        status = existingOrderLog.Status,
+                        message = "Duplicate order webhook ignored"
+                    });
+                }
+
                 var orderLog = new TalabatOrderSyncLog
                 {
                     FoodicsAccountId = account.FoodicsAccountId.Value,
@@ -404,7 +434,20 @@ public class TalabatWebhookController : AbpController
                     OccurredAt = DateTime.UtcNow
                 };
 
-                await _eventBus.PublishAsync(dispatchEvent);
+                try
+                {
+                    await _eventBus.PublishAsync(dispatchEvent);
+                }
+                catch (Exception publishEx)
+                {
+                    orderLog.Status = "Failed";
+                    orderLog.ErrorMessage = $"Order dispatch enqueue failed: {publishEx.Message}";
+                    orderLog.ErrorCode = publishEx.GetType().Name;
+                    orderLog.LastAttemptUtc = DateTime.UtcNow;
+                    await _orderSyncLogRepository.UpdateAsync(orderLog, autoSave: true, cancellationToken: cancellationToken);
+
+                    throw;
+                }
 
                 _logger.LogInformation(
                     "Talabat order webhook enqueued. CorrelationId={CorrelationId}, VendorCode={VendorCode}, OrderLogId={OrderLogId}, Products={Products}",
@@ -629,6 +672,55 @@ public class TalabatWebhookController : AbpController
                 : Guid.NewGuid().ToString("N");
 
         return $"order:{vendorCode}:{keyPart}";
+    }
+
+    private async Task<TalabatOrderSyncLog?> FindExistingOrderLogAsync(
+        Guid foodicsAccountId,
+        string vendorCode,
+        TalabatOrderWebhook webhook,
+        CancellationToken cancellationToken)
+    {
+        var queryable = await _orderSyncLogRepository.GetQueryableAsync();
+        var query = queryable.Where(x =>
+            x.FoodicsAccountId == foodicsAccountId
+            && x.VendorCode == vendorCode);
+
+        if (!string.IsNullOrWhiteSpace(webhook.Token))
+        {
+            var token = webhook.Token.Trim();
+            return await query
+                .Where(x => x.OrderToken == token)
+                .OrderByDescending(x => x.ReceivedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        if (!string.IsNullOrWhiteSpace(webhook.Code))
+        {
+            var code = webhook.Code.Trim();
+            return await query
+                .Where(x => x.OrderCode == code)
+                .OrderByDescending(x => x.ReceivedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        if (!string.IsNullOrWhiteSpace(webhook.ShortCode))
+        {
+            var shortCode = webhook.ShortCode.Trim();
+            return await query
+                .Where(x => x.ShortCode == shortCode)
+                .OrderByDescending(x => x.ReceivedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        return null;
+    }
+
+    private static bool IsActiveOrCompletedOrderLogStatus(string? status)
+    {
+        return string.Equals(status, "Enqueued", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(status, "Processing", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(status, "Succeeded", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(status, "Completed", StringComparison.OrdinalIgnoreCase);
     }
 
     #endregion
