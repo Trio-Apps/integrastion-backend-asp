@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -73,19 +74,65 @@ public class FoodicsCustomerResolutionService : ITransientDependency
             foodicsAccountId,
             cancellationToken);
 
+        var existingCustomer = customer != null;
         if (customer == null)
         {
-            customer = await _foodicsCustomerClient.CreateCustomerAsync(
-                customerRequest,
-                accessToken,
-                foodicsAccountId,
-                cancellationToken);
+            try
+            {
+                customer = await _foodicsCustomerClient.CreateCustomerAsync(
+                    customerRequest,
+                    accessToken,
+                    foodicsAccountId,
+                    cancellationToken);
+            }
+            catch (FoodicsApiException ex) when (IsDuplicatePhoneCustomerError(ex))
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Foodics customer creation reported duplicate phone. Retrying lookup by phone. VendorCode={VendorCode}, OrderCode={OrderCode}, DialCode={DialCode}, Phone={Phone}",
+                    vendorCode,
+                    webhook.Code,
+                    customerRequest.DialCode,
+                    customerRequest.Phone);
+
+                customer = await _foodicsCustomerClient.FindCustomerAsync(
+                    customerRequest.DialCode,
+                    customerRequest.Phone,
+                    email: null,
+                    name: null,
+                    accessToken: accessToken,
+                    foodicsAccountId: foodicsAccountId,
+                    cancellationToken: cancellationToken);
+
+                existingCustomer = customer != null;
+                if (customer == null)
+                {
+                    throw;
+                }
+            }
         }
 
         var customerId = customer?.Id?.Trim();
         if (string.IsNullOrWhiteSpace(customerId))
         {
             throw new InvalidOperationException("Foodics customer creation succeeded without returning customer id.");
+        }
+
+        if (existingCustomer)
+        {
+            var existingAddresses = await _foodicsCustomerClient.GetCustomerAddressesAsync(
+                customerId,
+                accessToken,
+                foodicsAccountId,
+                cancellationToken: cancellationToken);
+            var existingAddressId = existingAddresses
+                .Select(x => x.Id?.Trim())
+                .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+
+            if (!string.IsNullOrWhiteSpace(existingAddressId))
+            {
+                return new FoodicsOrderCustomerResolution(customerId, existingAddressId, "existing_delivery_customer");
+            }
         }
 
         var addressRequest = BuildAddressRequest(webhook, customerId);
@@ -101,7 +148,21 @@ public class FoodicsCustomerResolutionService : ITransientDependency
             throw new InvalidOperationException("Foodics address creation succeeded without returning address id.");
         }
 
-        return new FoodicsOrderCustomerResolution(customerId, addressId, "vendor_delivery_customer");
+        return new FoodicsOrderCustomerResolution(
+            customerId,
+            addressId,
+            existingCustomer ? "existing_delivery_customer_new_address" : "vendor_delivery_customer");
+    }
+
+    private static bool IsDuplicatePhoneCustomerError(FoodicsApiException ex)
+    {
+        if (ex.StatusCode != HttpStatusCode.UnprocessableEntity)
+        {
+            return false;
+        }
+
+        return ex.ResponseBody?.Contains("same phone", StringComparison.OrdinalIgnoreCase) == true
+               || ex.ResponseBody?.Contains("phone already exists", StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private static bool ShouldUseDefaultCustomer(TalabatOrderWebhook webhook)

@@ -79,36 +79,47 @@ public class FoodicsCustomerClient
         CancellationToken cancellationToken = default)
     {
         var token = GetAccessToken(accessToken);
-        var requestUri = await BuildCustomersSearchUriAsync(dialCode, phone, email, name, foodicsAccountId, cancellationToken);
+        var searchAttempts = BuildCustomerSearchAttempts(dialCode, phone, email, name);
 
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Get, requestUri);
-        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-        var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
+        foreach (var attempt in searchAttempts)
         {
-            _logger.LogWarning(
-                "Foodics customers lookup failed. StatusCode={StatusCode}, Url={Url}, Body={Body}",
-                (int)response.StatusCode,
-                requestUri,
-                body);
+            var requestUri = await BuildCustomersSearchUriAsync(
+                attempt.DialCode,
+                attempt.Phone,
+                attempt.Email,
+                attempt.Name,
+                foodicsAccountId,
+                cancellationToken);
 
-            return null;
-        }
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Get, requestUri);
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var envelope = JsonSerializer.Deserialize<FoodicsPagedEnvelope<FoodicsCustomerResponseDto>>(body, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+            var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
 
-        var customers = envelope?.Data ?? new List<FoodicsCustomerResponseDto>();
-        foreach (var customer in customers)
-        {
-            if (IsCustomerMatch(customer, dialCode, phone, email, name))
+            if (!response.IsSuccessStatusCode)
             {
-                return customer;
+                _logger.LogWarning(
+                    "Foodics customers lookup failed. StatusCode={StatusCode}, Url={Url}, Body={Body}",
+                    (int)response.StatusCode,
+                    requestUri,
+                    body);
+
+                continue;
+            }
+
+            var envelope = JsonSerializer.Deserialize<FoodicsPagedEnvelope<FoodicsCustomerResponseDto>>(body, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            var customers = envelope?.Data ?? new List<FoodicsCustomerResponseDto>();
+            foreach (var customer in customers)
+            {
+                if (IsCustomerMatch(customer, attempt.DialCode, attempt.Phone, attempt.Email, attempt.Name))
+                {
+                    return customer;
+                }
             }
         }
 
@@ -352,6 +363,38 @@ public class FoodicsCustomerClient
         };
 
         return builder.Uri;
+    }
+
+    private static List<(int? DialCode, string? Phone, string? Email, string? Name)> BuildCustomerSearchAttempts(
+        int? dialCode,
+        string? phone,
+        string? email,
+        string? name)
+    {
+        var attempts = new List<(int? DialCode, string? Phone, string? Email, string? Name)>();
+
+        if (!string.IsNullOrWhiteSpace(phone))
+        {
+            attempts.Add((dialCode, phone, null, null));
+            attempts.Add((null, phone, null, null));
+        }
+
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            attempts.Add((null, null, email, null));
+        }
+
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            attempts.Add((null, null, null, name));
+        }
+
+        if (attempts.Count == 0)
+        {
+            attempts.Add((dialCode, phone, email, name));
+        }
+
+        return attempts;
     }
 
     private async Task<Uri> BuildCustomersBrowseUriAsync(
