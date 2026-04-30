@@ -224,11 +224,11 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
             {
                 await SaveChangesWithLockRetryAsync(dbContext, cancellationToken);
             }
-            catch (Exception ex) when (IsTransientDatabaseLock(ex))
+            catch (Exception ex) when (IsRecoverableMappingPersistenceFailure(ex))
             {
                 _logger.LogWarning(
                     ex,
-                    "Skipping menu mapping persistence after database lock timeout. Catalog sync will continue using deterministic in-memory mappings. Created={Created}, Updated={Updated}, Total={Total}",
+                    "Skipping menu mapping persistence after recoverable database failure. Catalog sync will continue using deterministic in-memory mappings. Created={Created}, Updated={Updated}, Total={Total}",
                     newMappings.Count,
                     updatedMappings.Count,
                     result.Count);
@@ -269,7 +269,7 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
                 await dbContext.SaveChangesAsync(cancellationToken);
                 return;
             }
-            catch (Exception ex) when (attempt < maxAttempts && IsTransientDatabaseLock(ex))
+            catch (Exception ex) when (attempt < maxAttempts && IsRecoverableMappingPersistenceFailure(ex))
             {
                 var delay = TimeSpan.FromMilliseconds(750 * attempt);
                 _logger.LogWarning(
@@ -284,7 +284,7 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
         }
     }
 
-    private static bool IsTransientDatabaseLock(Exception exception)
+    private static bool IsRecoverableMappingPersistenceFailure(Exception exception)
     {
         for (var current = exception; current != null; current = current.InnerException)
         {
@@ -292,7 +292,9 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
             if (message.Contains("Lock wait timeout", StringComparison.OrdinalIgnoreCase) ||
                 message.Contains("Deadlock found", StringComparison.OrdinalIgnoreCase) ||
                 message.Contains("Query execution was interrupted", StringComparison.OrdinalIgnoreCase) ||
-                message.Contains("Command Timeout expired", StringComparison.OrdinalIgnoreCase))
+                message.Contains("Command Timeout expired", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("expected to affect 1 row", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("optimistic concurrency", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
