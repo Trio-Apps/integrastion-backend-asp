@@ -206,7 +206,15 @@ public class FoodicsCatalogClient
                 }
             }
 
-            if (items.Count < perPage)
+            var total = payload?.Meta?.Total;
+            var actualPerPage = payload?.Meta?.PerPage ?? perPage;
+            var reachedLastPage =
+                items.Count == 0 ||
+                (total.HasValue && result.Count >= total.Value) ||
+                (total.HasValue && actualPerPage > 0 && currentPage >= (int)Math.Ceiling((double)total.Value / actualPerPage)) ||
+                items.Count < actualPerPage;
+
+            if (reachedLastPage)
             {
                 break;
             }
