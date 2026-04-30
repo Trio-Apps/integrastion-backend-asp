@@ -7,6 +7,7 @@ using Hangfire;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using OrderXChange.Application.Idempotency;
 using OrderXChange.Application.Integrations.Foodics;
 using OrderXChange.Application.Integrations.Talabat;
@@ -18,8 +19,10 @@ using Volo.Abp;
 using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.EntityFrameworkCore;
 using Volo.Abp.MultiTenancy;
 using Foodics;
+using OrderXChange.EntityFrameworkCore;
 using Volo.Abp.Uow;
 using OrderXChange.Idempotency;
 
@@ -1163,8 +1166,12 @@ public class MenuSyncRecurringJob : ITransientDependency
         var unitOfWorkManager = scope.ServiceProvider.GetRequiredService<IUnitOfWorkManager>();
         var talabatSyncService = scope.ServiceProvider.GetRequiredService<TalabatCatalogSyncService>();
         var syncRunManager = scope.ServiceProvider.GetRequiredService<MenuSyncRunManager>();
+        var dbContextProvider = scope.ServiceProvider.GetRequiredService<IDbContextProvider<OrderXChangeDbContext>>();
 
         using var uow = unitOfWorkManager.Begin(requiresNew: true, isTransactional: false);
+        var dbContext = await dbContextProvider.GetDbContextAsync();
+        var previousCommandTimeout = dbContext.Database.GetCommandTimeout();
+        dbContext.Database.SetCommandTimeout(Math.Max(previousCommandTimeout ?? 30, 180));
 
         if (syncRunId.HasValue)
         {
@@ -1271,6 +1278,10 @@ public class MenuSyncRecurringJob : ITransientDependency
             }
 
             return new TalabatSubmissionResult(workItem.VendorCode, null, false);
+        }
+        finally
+        {
+            dbContext.Database.SetCommandTimeout(previousCommandTimeout);
         }
     }
 
