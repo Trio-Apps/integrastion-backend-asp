@@ -90,9 +90,10 @@ export class TalabatListComponent implements OnInit {
   loading: boolean = false;
 
   // Pagination & Sorting
-  rows: number = 10;
+  rows: number = 50;
   first: number = 0;
   filter: string = '';
+  sorting: string = 'name asc';
 
   // Dialog & Form
   displayDialog: boolean = false;
@@ -259,19 +260,17 @@ export class TalabatListComponent implements OnInit {
     this.first = skipCount;
     this.rows = maxResultCount;
 
-    // Build sorting string (ABP format)
-    let sorting = '';
     if (event?.sortField) {
       const sortField = event.sortField as string;
       const sortOrder = event.sortOrder === 1 ? 'asc' : 'desc';
-      sorting = `${sortField} ${sortOrder}`;
+      this.sorting = `${sortField} ${sortOrder}`;
     }
 
     this.talabatAccountService.getList({
       filter: this.filter?.trim() || undefined,
       skipCount,
       maxResultCount,
-      sorting
+      sorting: this.sorting
     }).subscribe({
       next: (response) => {
         this.accounts = response.items || [];
@@ -293,6 +292,11 @@ export class TalabatListComponent implements OnInit {
   onFilterChange(): void {
     this.first = 0;
     this.loadAccounts({ first: 0, rows: this.rows });
+  }
+
+  clearFilter(): void {
+    this.filter = '';
+    this.onFilterChange();
   }
 
   /**

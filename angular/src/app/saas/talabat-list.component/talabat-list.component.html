@@ -1,23 +1,12 @@
 <div class="card">
   <!-- Header Section -->
-  <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-3">
+  <div class="flex flex-col md:flex-row md:items-start md:justify-between mb-4 gap-3">
     <div>
       <h3 class="text-2xl font-bold text-surface-900 dark:text-surface-0 m-0">Talabat Accounts</h3>
       <p class="text-surface-600 dark:text-surface-400 mt-1">Manage Talabat vendor accounts and credentials</p>
     </div>
     
-    <div class="flex flex-col sm:flex-row gap-2">
-      <span class="p-input-icon-left">
-        <i class="pi pi-search"></i>
-        <input
-          pInputText
-          type="search"
-          class="w-full sm:w-18rem"
-          placeholder="Search accounts"
-          [(ngModel)]="filter"
-          [ngModelOptions]="{ standalone: true }"
-          (input)="onFilterChange()" />
-      </span>
+    <div class="flex shrink-0">
       <p-button 
         icon="pi pi-plus" 
         label="New Talabat Account"
@@ -26,6 +15,34 @@
         pTooltip="Create a new Talabat vendor account"
         tooltipPosition="bottom" />
     </div>
+  </div>
+
+  <div class="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
+    <div class="relative w-full sm:w-24rem">
+      <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-surface-400"></i>
+      <input
+        pInputText
+        type="search"
+        class="w-full pl-10 pr-10"
+        placeholder="Search by name, vendor, restaurant ID, branch, or group"
+        [(ngModel)]="filter"
+        [ngModelOptions]="{ standalone: true }"
+        (input)="onFilterChange()" />
+      @if (filter) {
+        <button
+          type="button"
+          class="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-700"
+          (click)="clearFilter()"
+          aria-label="Clear search">
+          <i class="pi pi-times"></i>
+        </button>
+      }
+    </div>
+    @if (filter) {
+      <span class="text-sm text-surface-500">
+        {{ totalRecords }} result{{ totalRecords === 1 ? '' : 's' }}
+      </span>
+    }
   </div>
 
   <!-- Table Section -->
@@ -37,7 +54,7 @@
     [totalRecords]="totalRecords"
     [loading]="loading"
     [first]="first"
-    [rowsPerPageOptions]="[10, 25, 50]"
+    [rowsPerPageOptions]="[50, 100]"
     [showCurrentPageReport]="true"
     currentPageReportTemplate="Showing {first} to {last} of {totalRecords} accounts"
     (onLazyLoad)="loadAccounts($event)"
