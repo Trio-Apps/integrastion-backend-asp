@@ -5,6 +5,7 @@ namespace OrderXChange.Application.Contracts.Integrations.Talabat;
 
 public class GetTalabatOrderLogsInput : PagedAndSortedResultRequestDto
 {
+    public string? SearchTerm { get; set; }
     public string? VendorCode { get; set; }
     public string? Status { get; set; }
     public bool? IsTestOrder { get; set; }

@@ -38,6 +38,21 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
             queryable = queryable.Where(x => x.VendorCode == vendor);
         }
 
+        if (!string.IsNullOrWhiteSpace(input.SearchTerm))
+        {
+            var pattern = $"%{input.SearchTerm.Trim()}%";
+            queryable = queryable.Where(x =>
+                (x.OrderCode != null && EF.Functions.Like(x.OrderCode, pattern))
+                || (x.ShortCode != null && EF.Functions.Like(x.ShortCode, pattern))
+                || (x.OrderToken != null && EF.Functions.Like(x.OrderToken, pattern))
+                || (x.VendorCode != null && EF.Functions.Like(x.VendorCode, pattern))
+                || (x.PlatformRestaurantId != null && EF.Functions.Like(x.PlatformRestaurantId, pattern))
+                || (x.Status != null && EF.Functions.Like(x.Status, pattern))
+                || (x.ErrorCode != null && EF.Functions.Like(x.ErrorCode, pattern))
+                || (x.ErrorMessage != null && EF.Functions.Like(x.ErrorMessage, pattern))
+                || (x.FoodicsOrderId != null && EF.Functions.Like(x.FoodicsOrderId, pattern)));
+        }
+
         if (!string.IsNullOrWhiteSpace(input.Status))
         {
             var status = input.Status.Trim();

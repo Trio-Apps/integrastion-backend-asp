@@ -44,6 +44,18 @@
   min-width: 220px;
 }
 
+.search-filter {
+  min-width: 320px;
+  flex: 1 1 320px;
+}
+
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+}
+
 .status-select {
   height: 2.5rem;
   border-radius: 6px;

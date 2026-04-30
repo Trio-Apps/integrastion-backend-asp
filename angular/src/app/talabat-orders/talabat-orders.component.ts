@@ -44,6 +44,7 @@ export class TalabatOrdersComponent {
   readonly rows = signal<number>(10);
   readonly first = signal<number>(0);
 
+  readonly searchTerm = signal<string>('');
   readonly vendorCode = signal<string>('');
   readonly status = signal<string>('');
   readonly errorDialogVisible = signal<boolean>(false);
@@ -76,6 +77,7 @@ export class TalabatOrdersComponent {
       skipCount,
       maxResultCount,
       sorting: sorting || undefined,
+      searchTerm: this.searchTerm().trim() || undefined,
       vendorCode: this.vendorCode().trim() || undefined,
       status: this.status() || undefined,
     };
@@ -224,5 +226,12 @@ export class TalabatOrdersComponent {
           });
         }
       });
+  }
+
+  clearFilters(): void {
+    this.searchTerm.set('');
+    this.vendorCode.set('');
+    this.status.set('');
+    this.refresh();
   }
 }

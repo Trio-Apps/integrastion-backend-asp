@@ -21,6 +21,18 @@
   </div>
 
   <div class="filters">
+    <span class="filter-item search-filter">
+      <label for="orderSearch">Search</label>
+      <input
+        id="orderSearch"
+        type="text"
+        pInputText
+        [ngModel]="searchTerm()"
+        (ngModelChange)="searchTerm.set($event)"
+        (keyup.enter)="refresh()"
+        placeholder="Order ID, vendor, status, error..."
+      />
+    </span>
     <span class="filter-item">
       <label for="vendorCode">Vendor Code</label>
       <input
@@ -30,6 +42,7 @@
         [ngModel]="vendorCode()"
         (ngModelChange)="vendorCode.set($event)"
         placeholder="PH-SIDDIQ-002"
+        (keyup.enter)="refresh()"
       />
     </span>
     <span class="filter-item">
@@ -44,6 +57,24 @@
           {{ option.label }}
         </option>
       </select>
+    </span>
+    <span class="filter-actions">
+      <button
+        pButton
+        type="button"
+        icon="pi pi-search"
+        label="Search"
+        class="p-button-outlined"
+        (click)="refresh()"
+      ></button>
+      <button
+        pButton
+        type="button"
+        icon="pi pi-times"
+        label="Clear"
+        class="p-button-text"
+        (click)="clearFilters()"
+      ></button>
     </span>
   </div>
 

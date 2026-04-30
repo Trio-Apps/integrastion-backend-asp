@@ -72,6 +72,7 @@ export interface TalabatSyncLogItemDto {
 }
 
 export interface GetTalabatOrderLogsInput extends PagedAndSortedResultRequestDto {
+  searchTerm?: string;
   vendorCode?: string;
   status?: string;
   isTestOrder?: boolean;
