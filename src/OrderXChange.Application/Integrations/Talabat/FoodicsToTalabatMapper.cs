@@ -736,6 +736,37 @@ public class FoodicsToTalabatMapper : ITransientDependency
         };
     }
 
+    private TalabatV2Title BuildV2Title(string? defaultText, string? localizedText = null, string? fallbackText = null)
+    {
+        var title = new TalabatV2Title
+        {
+            Default = !string.IsNullOrWhiteSpace(defaultText)
+                ? defaultText
+                : !string.IsNullOrWhiteSpace(localizedText)
+                    ? localizedText
+                    : fallbackText ?? string.Empty
+        };
+
+        if (!string.IsNullOrWhiteSpace(localizedText))
+        {
+            var defaultLocale = _configuration["Talabat:DefaultLocale"] ?? "ar";
+            title.Translations = new Dictionary<string, object?>
+            {
+                { defaultLocale, localizedText }
+            };
+        }
+
+        return title;
+    }
+
+    private TalabatV2Title? BuildOptionalV2Title(string? defaultText, string? localizedText = null)
+    {
+        if (string.IsNullOrWhiteSpace(defaultText) && string.IsNullOrWhiteSpace(localizedText))
+            return null;
+
+        return BuildV2Title(defaultText, localizedText);
+    }
+
     /// <summary>
     /// Normalizes image URL to ensure it meets Talabat requirements
     /// - Must be HTTPS
@@ -1656,13 +1687,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
         {
             Id = productMapping.TalabatRemoteCode, // Use stable remote code
             Type = "Product",
-            Title = new TalabatV2Title
-            {
-                Default = product.Name ?? $"Product-{product.Id}"
-            },
-            Description = product.Description != null
-                ? new TalabatV2Title { Default = product.Description }
-                : null,
+            Title = BuildV2Title(product.Name, product.NameLocalized, $"Product-{product.Id}"),
+            Description = BuildOptionalV2Title(product.Description, product.DescriptionLocalized),
             Price = (product.Price ?? 0).ToString("F2"),
             Active = product.IsActive ?? true,
             IsPrepackedItem = false,
@@ -1681,14 +1707,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
             Id = categoryId,
             Type = "Category",
             Order = order,
-            Title = new TalabatV2Title
-            {
-                Default = categoryInfo?.Name ?? $"Category-{categoryMapping.FoodicsId}"
-            },
-            Description = new TalabatV2Title
-            {
-                Default = categoryInfo?.NameLocalized ?? categoryInfo?.Name ?? "Category"
-            },
+            Title = BuildV2Title(categoryInfo?.Name, categoryInfo?.NameLocalized, $"Category-{categoryMapping.FoodicsId}"),
+            Description = BuildOptionalV2Title(categoryInfo?.Name, categoryInfo?.NameLocalized),
             Products = new Dictionary<string, TalabatV2ItemReference>()
         };
     }
@@ -1713,10 +1733,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
             Id = toppingId,
             Type = "Topping",
             Order = toppingOrder,
-            Title = new TalabatV2Title
-            {
-                Default = modifier.Name ?? $"Topping-{modifier.Id}"
-            },
+            Title = BuildV2Title(modifier.Name, modifier.NameLocalized, $"Topping-{modifier.Id}"),
             Quantity = new TalabatV2Quantity
             {
                 Minimum = minimumSelection,
@@ -1753,13 +1770,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
                     Id = optionProductId,
                     Type = "Product",
                     Order = optionOrder,
-                    Title = new TalabatV2Title
-                    {
-                        Default = option.Name ?? $"Option-{option.Id}"
-                    },
-                    Description = !string.IsNullOrWhiteSpace(option.Name) 
-                        ? new TalabatV2Title { Default = option.Name } 
-                        : null,
+                    Title = BuildV2Title(option.Name, option.NameLocalized, $"Option-{option.Id}"),
+                    Description = BuildOptionalV2Title(option.Name, option.NameLocalized),
                     Price = (option.Price ?? 0).ToString("F2"),
                     Active = true
                 };
@@ -1822,13 +1834,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
         {
             Id = product.Id,
             Type = "Product",
-            Title = new TalabatV2Title
-            {
-                Default = product.Name ?? $"Product-{product.Id}"
-            },
-            Description = product.Description != null
-                ? new TalabatV2Title { Default = product.Description }
-                : null,
+            Title = BuildV2Title(product.Name, product.NameLocalized, $"Product-{product.Id}"),
+            Description = BuildOptionalV2Title(product.Description, product.DescriptionLocalized),
             Price = (product.Price ?? 0).ToString("F2"),
             Active = product.IsActive ?? true,
             IsPrepackedItem = false,
@@ -1888,14 +1895,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
             Id = categoryId,
             Type = "Category",
             Order = order,
-            Title = new TalabatV2Title
-            {
-                Default = categoryInfo?.Name ?? $"Category-{categoryId}"
-            },
-            Description = new TalabatV2Title
-            {
-                Default = categoryInfo?.NameLocalized ?? categoryInfo?.Name ?? "Category"
-            },
+            Title = BuildV2Title(categoryInfo?.Name, categoryInfo?.NameLocalized, $"Category-{categoryId}"),
+            Description = BuildOptionalV2Title(categoryInfo?.Name, categoryInfo?.NameLocalized),
             Products = new Dictionary<string, TalabatV2ItemReference>()
         };
     }
@@ -1915,10 +1916,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
             Id = toppingId,
             Type = "Topping",
             Order = toppingOrder,
-            Title = new TalabatV2Title
-            {
-                Default = modifier.Name ?? $"Topping-{modifier.Id}"
-            },
+            Title = BuildV2Title(modifier.Name, modifier.NameLocalized, $"Topping-{modifier.Id}"),
             Quantity = new TalabatV2Quantity
             {
                 Minimum = minimumSelection,
@@ -1946,13 +1944,8 @@ public class FoodicsToTalabatMapper : ITransientDependency
                     Id = optionProductId,
                     Type = "Product",
                     Order = optionOrder,
-                    Title = new TalabatV2Title
-                    {
-                        Default = option.Name ?? $"Option-{option.Id}"
-                    },
-                    Description = !string.IsNullOrWhiteSpace(option.Name) 
-                        ? new TalabatV2Title { Default = option.Name } 
-                        : null,
+                    Title = BuildV2Title(option.Name, option.NameLocalized, $"Option-{option.Id}"),
+                    Description = BuildOptionalV2Title(option.Name, option.NameLocalized),
                     Price = (option.Price ?? 0).ToString("F2"),
                     Active = true
                 };

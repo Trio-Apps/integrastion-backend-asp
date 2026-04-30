@@ -426,8 +426,8 @@ public class TalabatV2Title
     [JsonPropertyName("default")]
     public string Default { get; set; } = string.Empty;
 
-    // Additional localized fields can be added here if needed
-    // e.g., "ar", "en", etc.
+    [JsonExtensionData]
+    public Dictionary<string, object?>? Translations { get; set; }
 }
 
 /// <summary>
