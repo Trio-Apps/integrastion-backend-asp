@@ -39,7 +39,7 @@ public class TalabatAccountController : AbpController, ITalabatAccountAppService
     }
 
     [HttpGet]
-    public virtual Task<PagedResultDto<TalabatAccountDto>> GetListAsync(PagedAndSortedResultRequestDto input)
+    public virtual Task<PagedResultDto<TalabatAccountDto>> GetListAsync(GetTalabatAccountListDto input)
     {
         return _talabatAccountAppService.GetListAsync(input);
     }
