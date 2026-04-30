@@ -411,12 +411,14 @@ public class MenuSyncRecurringJob : ITransientDependency
                     cancellationToken: cancellationToken);
             }
 
-            // Fetch ALL products with full includes using the products endpoint
+            // Fetch ALL products with full includes using the products endpoint.
+            // Foodics rejects branch_id on this endpoint for some accounts, and we need
+            // full branch metadata so the local Talabat branch filter can scope the run.
             // NOTE:
             // - We set includeDeleted = false to avoid returning deleted products from Foodics.
             // - Active products are filtered later at the staging / Talabat submission layers.
             var allProducts = await _foodicsCatalogClient.GetAllProductsWithIncludesAsync(
-                branchId,
+                branchId: null,
                 accessToken: accessToken,
                 foodicsAccountId: foodicsAccountId,
                 perPage: 100,
