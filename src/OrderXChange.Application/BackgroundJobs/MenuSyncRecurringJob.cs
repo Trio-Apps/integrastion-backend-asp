@@ -1294,10 +1294,18 @@ public class MenuSyncRecurringJob : ITransientDependency
         string accessToken,
         CancellationToken cancellationToken)
     {
-        const string rootGroupName = "Talabat";
+        const string fallbackRootGroupName = "Talabat";
 
-        var rootGroup = await _foodicsCatalogClient.GetGroupByNameAsync(
-            rootGroupName,
+        var rootGroup = !string.IsNullOrWhiteSpace(talabatTarget.FoodicsGroupId)
+            ? await _foodicsCatalogClient.GetGroupByIdAsync(
+                talabatTarget.FoodicsGroupId,
+                accessToken: accessToken,
+                foodicsAccountId: foodicsAccountId,
+                cancellationToken: cancellationToken)
+            : null;
+
+        rootGroup ??= await _foodicsCatalogClient.GetGroupByNameAsync(
+            fallbackRootGroupName,
             accessToken: accessToken,
             foodicsAccountId: foodicsAccountId,
             cancellationToken: cancellationToken);
@@ -1305,11 +1313,12 @@ public class MenuSyncRecurringJob : ITransientDependency
         if (rootGroup == null || string.IsNullOrWhiteSpace(rootGroup.Id))
         {
             _logger.LogWarning(
-                "Unable to resolve Talabat root group from Foodics. FoodicsAccount={AccountId}, ExpectedRootGroup={ExpectedRootGroup}, VendorCode={VendorCode}",
+                "Unable to resolve Talabat root group from Foodics. FoodicsAccount={AccountId}, ExpectedGroupId={ExpectedGroupId}, ExpectedRootGroup={ExpectedRootGroup}, VendorCode={VendorCode}",
                 foodicsAccountId,
-                rootGroupName,
+                talabatTarget.FoodicsGroupId ?? "<none>",
+                fallbackRootGroupName,
                 talabatTarget.VendorCode);
-            return new TalabatGroupScope(Array.Empty<string>(), rootGroupName);
+            return new TalabatGroupScope(Array.Empty<string>(), talabatTarget.FoodicsGroupName ?? fallbackRootGroupName);
         }
 
         var groupIds = FlattenGroupIds(rootGroup)
@@ -1325,7 +1334,7 @@ public class MenuSyncRecurringJob : ITransientDependency
 
         return new TalabatGroupScope(
             groupIds,
-            rootGroup.Name ?? rootGroup.NameLocalized ?? rootGroupName);
+            rootGroup.Name ?? rootGroup.NameLocalized ?? fallbackRootGroupName);
     }
 
     private static IEnumerable<string> FlattenGroupIds(FoodicsGroupInfoDto rootGroup)
