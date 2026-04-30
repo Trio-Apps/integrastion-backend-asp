@@ -216,7 +216,18 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
         // Save all changes
         if (newMappings.Any() || updatedMappings.Any())
         {
-            await _mappingRepository.GetDbContext().SaveChangesAsync(cancellationToken);
+            var dbContext = _mappingRepository.GetDbContext();
+            var previousCommandTimeout = dbContext.Database.GetCommandTimeout();
+            dbContext.Database.SetCommandTimeout(Math.Max(previousCommandTimeout ?? 30, 120));
+
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+            finally
+            {
+                dbContext.Database.SetCommandTimeout(previousCommandTimeout);
+            }
         }
 
         _logger.LogInformation(

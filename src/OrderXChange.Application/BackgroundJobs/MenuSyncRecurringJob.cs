@@ -905,7 +905,7 @@ public class MenuSyncRecurringJob : ITransientDependency
             {
                 var maxParallelSubmissions = Math.Max(
                     1,
-                    _configuration.GetValue<int?>("Talabat:MaxParallelSubmissions") ?? 5);
+                    _configuration.GetValue<int?>("Talabat:MaxParallelSubmissions") ?? 1);
 
                 _logger.LogInformation(
                     "Submitting {TargetCount} Talabat catalog(s) with MaxParallelSubmissions={MaxParallelSubmissions}. FoodicsAccount={AccountId}",
