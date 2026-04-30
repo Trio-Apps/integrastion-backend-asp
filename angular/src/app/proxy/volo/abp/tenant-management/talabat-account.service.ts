@@ -1,6 +1,6 @@
-import type { CreateUpdateTalabatAccountDto, TalabatAccountDto } from './talabat/models';
+import type { CreateUpdateTalabatAccountDto, GetTalabatAccountListDto, TalabatAccountDto } from './talabat/models';
 import { RestService, Rest } from '@abp/ng.core';
-import type { PagedAndSortedResultRequestDto, PagedResultDto } from '@abp/ng.core';
+import type { PagedResultDto } from '@abp/ng.core';
 import { Injectable } from '@angular/core';
 
 @Injectable({
@@ -35,11 +35,11 @@ export class TalabatAccountService {
     { apiName: this.apiName,...config });
   
 
-  getList = (input: PagedAndSortedResultRequestDto, config?: Partial<Rest.Config>) =>
+  getList = (input: GetTalabatAccountListDto, config?: Partial<Rest.Config>) =>
     this.restService.request<any, PagedResultDto<TalabatAccountDto>>({
       method: 'GET',
       url: '/api/app/talabat-account',
-      params: { sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+      params: { filter: input.filter, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
     },
     { apiName: this.apiName,...config });
   

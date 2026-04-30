@@ -10,7 +10,7 @@ namespace Volo.Abp.TenantManagement.Talabat
         Task<TalabatAccountDto> CreateAsync(CreateUpdateTalabatAccountDto input);
         Task<TalabatAccountDto> UpdateAsync(Guid id, CreateUpdateTalabatAccountDto input);
         Task<TalabatAccountDto> GetAsync(Guid id);
-        Task<PagedResultDto<TalabatAccountDto>> GetListAsync(PagedAndSortedResultRequestDto input);
+        Task<PagedResultDto<TalabatAccountDto>> GetListAsync(GetTalabatAccountListDto input);
         Task DeleteAsync(Guid id);
     }
 }

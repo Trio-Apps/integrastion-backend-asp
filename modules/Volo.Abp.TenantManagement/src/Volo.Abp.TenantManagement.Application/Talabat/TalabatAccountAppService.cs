@@ -219,10 +219,26 @@ namespace Volo.Abp.TenantManagement.Talabat
             return await MapToDto(talabatAccount);
         }
 
-        public async Task<PagedResultDto<TalabatAccountDto>> GetListAsync(PagedAndSortedResultRequestDto input)
+        public async Task<PagedResultDto<TalabatAccountDto>> GetListAsync(GetTalabatAccountListDto input)
         {
             var queryable = await _talabatAccountRepository.GetQueryableAsync();
+            var filter = input.Filter?.Trim();
+            if (!string.IsNullOrWhiteSpace(filter))
+            {
+                var loweredFilter = filter.ToLowerInvariant();
+                queryable = queryable.Where(account =>
+                    (account.Name != null && account.Name.ToLower().Contains(loweredFilter)) ||
+                    (account.VendorCode != null && account.VendorCode.ToLower().Contains(loweredFilter)) ||
+                    (account.ChainCode != null && account.ChainCode.ToLower().Contains(loweredFilter)) ||
+                    (account.PlatformRestaurantId != null && account.PlatformRestaurantId.ToLower().Contains(loweredFilter)) ||
+                    (account.FoodicsBranchName != null && account.FoodicsBranchName.ToLower().Contains(loweredFilter)) ||
+                    (account.FoodicsGroupName != null && account.FoodicsGroupName.ToLower().Contains(loweredFilter)));
+            }
+
             var totalCount = queryable.Count();
+
+            queryable = ApplySorting(queryable, input.Sorting);
+
             var items = queryable
                 .Skip(input.SkipCount)
                 .Take(input.MaxResultCount)
@@ -238,6 +254,21 @@ namespace Volo.Abp.TenantManagement.Talabat
             {
                 Items = dtos,
                 TotalCount = totalCount
+            };
+        }
+
+        private static IQueryable<TalabatAccount> ApplySorting(IQueryable<TalabatAccount> queryable, string? sorting)
+        {
+            return sorting?.Trim().ToLowerInvariant() switch
+            {
+                "name desc" => queryable.OrderByDescending(x => x.Name),
+                "vendorcode asc" => queryable.OrderBy(x => x.VendorCode),
+                "vendorcode desc" => queryable.OrderByDescending(x => x.VendorCode),
+                "chaincode asc" => queryable.OrderBy(x => x.ChainCode),
+                "chaincode desc" => queryable.OrderByDescending(x => x.ChainCode),
+                "foodicsgroupname asc" => queryable.OrderBy(x => x.FoodicsGroupName),
+                "foodicsgroupname desc" => queryable.OrderByDescending(x => x.FoodicsGroupName),
+                _ => queryable.OrderBy(x => x.Name)
             };
         }
 

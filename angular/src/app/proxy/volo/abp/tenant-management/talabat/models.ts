@@ -1,4 +1,4 @@
-import type { EntityDto, FullAuditedEntityDto } from '@abp/ng.core';
+import type { EntityDto, FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/ng.core';
 
 export interface CreateUpdateTalabatAccountDto extends EntityDto {
   name: string;
@@ -17,6 +17,10 @@ export interface CreateUpdateTalabatAccountDto extends EntityDto {
   syncAllBranches: boolean;
   foodicsGroupId?: string;
   foodicsGroupName?: string;
+}
+
+export interface GetTalabatAccountListDto extends PagedAndSortedResultRequestDto {
+  filter?: string;
 }
 
 export interface TalabatAccountDto extends FullAuditedEntityDto<string> {

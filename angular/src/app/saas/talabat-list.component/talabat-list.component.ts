@@ -92,6 +92,7 @@ export class TalabatListComponent implements OnInit {
   // Pagination & Sorting
   rows: number = 10;
   first: number = 0;
+  filter: string = '';
 
   // Dialog & Form
   displayDialog: boolean = false;
@@ -255,6 +256,8 @@ export class TalabatListComponent implements OnInit {
     // Calculate pagination
     const skipCount = event?.first ?? 0;
     const maxResultCount = event?.rows ?? this.rows;
+    this.first = skipCount;
+    this.rows = maxResultCount;
 
     // Build sorting string (ABP format)
     let sorting = '';
@@ -265,6 +268,7 @@ export class TalabatListComponent implements OnInit {
     }
 
     this.talabatAccountService.getList({
+      filter: this.filter?.trim() || undefined,
       skipCount,
       maxResultCount,
       sorting
@@ -284,6 +288,11 @@ export class TalabatListComponent implements OnInit {
         this.loading = false;
       }
     });
+  }
+
+  onFilterChange(): void {
+    this.first = 0;
+    this.loadAccounts({ first: 0, rows: this.rows });
   }
 
   /**
