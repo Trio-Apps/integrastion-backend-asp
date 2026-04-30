@@ -780,7 +780,8 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             return null;
         }
 
-        var normalized = StripTalabatWrapperPrefixes(talabatRemoteCode.Trim());
+        var normalized = ExtractStableRemoteCodeForEntity(talabatRemoteCode.Trim(), expectedEntityType)
+                         ?? StripTalabatWrapperPrefixes(talabatRemoteCode.Trim());
         var detectedType = MenuMappingStrategy.ExtractEntityType(normalized);
         var extracted = MenuMappingStrategy.ExtractFoodicsId(normalized);
 
@@ -810,6 +811,68 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
 
         // Legacy mode: remoteCode may already be the raw Foodics ID.
         return normalized;
+    }
+
+    private static string? ExtractStableRemoteCodeForEntity(string value, string expectedEntityType)
+    {
+        var prefix = expectedEntityType switch
+        {
+            MenuMappingEntityType.Product => "P_",
+            MenuMappingEntityType.Category => "C_",
+            MenuMappingEntityType.Modifier => "M_",
+            MenuMappingEntityType.ModifierOption => "O_",
+            _ => null
+        };
+
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            return null;
+        }
+
+        var searchStart = 0;
+        while (searchStart < value.Length)
+        {
+            var index = value.IndexOf(prefix, searchStart, StringComparison.OrdinalIgnoreCase);
+            if (index < 0)
+            {
+                return null;
+            }
+
+            var token = TryReadStableRemoteCodeAt(value, index, prefix);
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                return token;
+            }
+
+            searchStart = index + prefix.Length;
+        }
+
+        return null;
+    }
+
+    private static string? TryReadStableRemoteCodeAt(string value, int index, string prefix)
+    {
+        var idStart = index + prefix.Length;
+        const int guidLength = 36;
+        if (idStart + guidLength > value.Length)
+        {
+            return null;
+        }
+
+        var foodicsId = value.Substring(idStart, guidLength);
+        if (!Guid.TryParse(foodicsId, out _))
+        {
+            return null;
+        }
+
+        var tokenEnd = idStart + guidLength;
+        if (tokenEnd + 9 <= value.Length && value[tokenEnd] == '_' &&
+            value.Skip(tokenEnd + 1).Take(8).All(char.IsLetterOrDigit))
+        {
+            tokenEnd += 9;
+        }
+
+        return value[index..tokenEnd];
     }
 
     private static string StripTalabatWrapperPrefixes(string value)
