@@ -218,11 +218,11 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
         {
             var dbContext = _mappingRepository.GetDbContext();
             var previousCommandTimeout = dbContext.Database.GetCommandTimeout();
-            dbContext.Database.SetCommandTimeout(Math.Max(previousCommandTimeout ?? 30, 120));
+            dbContext.Database.SetCommandTimeout(Math.Max(previousCommandTimeout ?? 30, 180));
 
             try
             {
-                await dbContext.SaveChangesAsync(cancellationToken);
+                await SaveChangesWithLockRetryAsync(dbContext, cancellationToken);
             }
             finally
             {
@@ -235,6 +235,49 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
             newMappings.Count, updatedMappings.Count, result.Count);
 
         return result;
+    }
+
+    private async Task SaveChangesWithLockRetryAsync(DbContext dbContext, CancellationToken cancellationToken)
+    {
+        const int maxAttempts = 4;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                return;
+            }
+            catch (Exception ex) when (attempt < maxAttempts && IsTransientDatabaseLock(ex))
+            {
+                var delay = TimeSpan.FromMilliseconds(750 * attempt);
+                _logger.LogWarning(
+                    ex,
+                    "Transient database lock while saving menu mappings. Retrying in {DelayMs}ms. Attempt={Attempt}/{MaxAttempts}",
+                    delay.TotalMilliseconds,
+                    attempt + 1,
+                    maxAttempts);
+
+                await Task.Delay(delay, cancellationToken);
+            }
+        }
+    }
+
+    private static bool IsTransientDatabaseLock(Exception exception)
+    {
+        for (var current = exception; current != null; current = current.InnerException)
+        {
+            var message = current.Message;
+            if (message.Contains("Lock wait timeout", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("Deadlock found", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("Query execution was interrupted", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("Command Timeout expired", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static IEnumerable<FoodicsModifierOptionDto> GetVisibleModifierOptions(FoodicsModifierDto modifier)
