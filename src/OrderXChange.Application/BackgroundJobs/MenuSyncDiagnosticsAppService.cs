@@ -9,7 +9,9 @@ using OrderXChange.Domain.Staging;
 using OrderXChange.Domain.Versioning;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
+using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.TenantManagement.Talabat;
 using System.Linq.Dynamic.Core;
 
@@ -27,23 +29,27 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
     private readonly IRepository<TalabatCatalogSyncLog, Guid> _catalogLogRepository;
     private readonly IRepository<FoodicsProductStaging, Guid> _productStagingRepository;
     private readonly IRepository<TalabatAccount, Guid> _talabatAccountRepository;
+    private readonly IDataFilter _dataFilter;
 
     public MenuSyncDiagnosticsAppService(
         IRepository<MenuSyncRun, Guid> syncRunRepository,
         IRepository<MenuSyncRunStep, Guid> syncRunStepRepository,
         IRepository<TalabatCatalogSyncLog, Guid> catalogLogRepository,
         IRepository<FoodicsProductStaging, Guid> productStagingRepository,
-        IRepository<TalabatAccount, Guid> talabatAccountRepository)
+        IRepository<TalabatAccount, Guid> talabatAccountRepository,
+        IDataFilter dataFilter)
     {
         _syncRunRepository = syncRunRepository;
         _syncRunStepRepository = syncRunStepRepository;
         _catalogLogRepository = catalogLogRepository;
         _productStagingRepository = productStagingRepository;
         _talabatAccountRepository = talabatAccountRepository;
+        _dataFilter = dataFilter;
     }
 
     public async Task<PagedResultDto<MenuSyncRunSummaryDto>> GetRunsAsync(GetMenuSyncRunsInput input)
     {
+        using var multiTenantFilter = _dataFilter.Disable<IMultiTenant>();
         var queryable = await _syncRunRepository.GetQueryableAsync();
 
         if (input.FoodicsAccountId.HasValue)
@@ -99,6 +105,7 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
 
     public async Task<MenuSyncRunDetailsDto> GetRunDetailsAsync(Guid id)
     {
+        using var multiTenantFilter = _dataFilter.Disable<IMultiTenant>();
         var run = await _syncRunRepository.GetAsync(id);
         var summary = await MapRunSummaryAsync(run);
 
@@ -151,6 +158,7 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
 
     public async Task<List<MenuSyncVendorItemDto>> GetVendorItemsAsync(Guid id, string vendorCode)
     {
+        using var multiTenantFilter = _dataFilter.Disable<IMultiTenant>();
         var run = await _syncRunRepository.GetAsync(id);
         var account = await FindTalabatAccountAsync(run.FoodicsAccountId, vendorCode);
         if (account == null)
