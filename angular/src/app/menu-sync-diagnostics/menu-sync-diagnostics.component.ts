@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
@@ -34,9 +35,11 @@ import {
   styleUrls: ['./menu-sync-diagnostics.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class MenuSyncDiagnosticsComponent {
+export class MenuSyncDiagnosticsComponent implements OnInit {
   private readonly service = inject(MenuSyncDiagnosticsService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   readonly loadingRuns = signal(false);
   readonly loadingDetails = signal(false);
@@ -59,6 +62,7 @@ export class MenuSyncDiagnosticsComponent {
   readonly status = signal('');
   readonly fromDate = signal('');
   readonly toDate = signal('');
+  readonly isDetailsRoute = signal(false);
 
   readonly statusOptions = [
     { label: 'All', value: '' },
@@ -67,6 +71,22 @@ export class MenuSyncDiagnosticsComponent {
     { label: 'Failed', value: 'Failed' },
     { label: 'Cancelled', value: 'Cancelled' },
   ];
+
+  ngOnInit(): void {
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+      const runId = params.get('id');
+      this.isDetailsRoute.set(!!runId);
+      this.selectedVendor.set(null);
+      this.vendorItems.set([]);
+
+      if (runId) {
+        this.loadRunDetails(runId);
+        return;
+      }
+
+      this.selectedRun.set(null);
+    });
+  }
 
   readonly filteredItems = computed(() => {
     const term = this.itemSearch().trim().toLowerCase();
@@ -129,12 +149,27 @@ export class MenuSyncDiagnosticsComponent {
   }
 
   openRun(run: MenuSyncRunSummaryDto): void {
+    this.router.navigate(['/menu-sync-diagnostics', run.id]);
+  }
+
+  backToRuns(): void {
+    this.router.navigate(['/menu-sync-diagnostics']);
+  }
+
+  refreshCurrentRun(): void {
+    const run = this.selectedRun();
+    if (run) {
+      this.loadRunDetails(run.id);
+    }
+  }
+
+  private loadRunDetails(runId: string): void {
     this.loadingDetails.set(true);
     this.selectedVendor.set(null);
     this.vendorItems.set([]);
 
     this.service
-      .getRunDetails(run.id)
+      .getRunDetails(runId)
       .pipe(finalize(() => this.loadingDetails.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: details => this.selectedRun.set(details),

@@ -1,12 +1,16 @@
 <div class="sync-page">
   <div class="page-header">
     <div>
-      <h2 class="page-title">Menu Sync Diagnostics</h2>
-      <p class="page-subtitle">Inspect every menu sync run, branch submission, payload counts, and item modifiers.</p>
+      <h2 class="page-title">{{ isDetailsRoute() ? 'Sync Run Details' : 'Menu Sync Diagnostics' }}</h2>
+      <p class="page-subtitle">{{ isDetailsRoute() ? 'Review branch submissions, payload counts, staging data, and run steps.' : 'Inspect every menu sync run, branch submission, payload counts, and item modifiers.' }}</p>
     </div>
-    <button pButton type="button" icon="pi pi-refresh" label="Refresh" class="p-button-outlined" (click)="refresh()"></button>
+    <div class="page-actions">
+      <button *ngIf="isDetailsRoute()" pButton type="button" icon="pi pi-arrow-left" label="Back" class="p-button-text" (click)="backToRuns()"></button>
+      <button pButton type="button" icon="pi pi-refresh" label="Refresh" class="p-button-outlined" (click)="isDetailsRoute() ? refreshCurrentRun() : refresh()"></button>
+    </div>
   </div>
 
+  <ng-container *ngIf="!isDetailsRoute()">
   <div class="filters">
     <span class="filter-item search-filter">
       <label for="syncSearch">Search</label>
@@ -93,6 +97,11 @@
       </tr>
     </ng-template>
   </p-table>
+  </ng-container>
+
+  <section class="details loading-details" *ngIf="isDetailsRoute() && loadingDetails() && !selectedRun()">
+    <p-progressBar mode="indeterminate"></p-progressBar>
+  </section>
 
   <section class="details" *ngIf="selectedRun() as run">
     <div class="section-header">

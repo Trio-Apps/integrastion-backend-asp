@@ -59,11 +59,16 @@ small {
 }
 
 .filter-actions,
+.page-actions,
 .section-actions {
   display: flex;
   gap: 0.5rem;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.loading-details {
+  padding: 1.25rem 0;
 }
 
 .plain-select,
