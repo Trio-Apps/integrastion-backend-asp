@@ -122,10 +122,11 @@ public class OrderDispatchDistributedEventHandler
     private async Task ProcessOrderAsync(OrderDispatchEto eventData, int currentAttempt)
     {
         const int maxAttempts = 3;
+        var orderLockMinutes = Math.Max(1, _configuration.GetValue<int?>("Idempotency:OrderLockMinutes") ?? 10);
+        var processingStaleCutoff = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(orderLockMinutes));
 
         try
         {
-            var orderLockMinutes = Math.Max(1, _configuration.GetValue<int?>("Idempotency:OrderLockMinutes") ?? 10);
             var (canProcess, existingRecord) = await _idempotencyService.CheckAndMarkStartedAsync(
                 eventData.AccountId,
                 eventData.IdempotencyKey,
@@ -146,12 +147,6 @@ public class OrderDispatchDistributedEventHandler
                     eventData.CorrelationId,
                     existingRecord?.Status,
                     reason);
-
-                await TryUpdateOrderLogFailedAsync(
-                    eventData.OrderLogId,
-                    eventData.TenantId,
-                    new InvalidOperationException(reason),
-                    currentAttempt);
                 return;
             }
 
@@ -170,11 +165,24 @@ public class OrderDispatchDistributedEventHandler
 
                 if (string.Equals(orderLog.Status, "Processing", StringComparison.OrdinalIgnoreCase))
                 {
-                    _logger.LogInformation(
-                        "Skipping OrderDispatch because order log is already processing. CorrelationId={CorrelationId}, OrderLogId={OrderLogId}",
-                        eventData.CorrelationId,
-                        eventData.OrderLogId);
-                    return;
+                    if (orderLog.LastAttemptUtc.HasValue && orderLog.LastAttemptUtc.Value <= processingStaleCutoff)
+                    {
+                        _logger.LogWarning(
+                            "Taking over stale Processing order log. CorrelationId={CorrelationId}, OrderLogId={OrderLogId}, LastAttemptUtc={LastAttemptUtc}, StaleAfterMinutes={StaleAfterMinutes}",
+                            eventData.CorrelationId,
+                            eventData.OrderLogId,
+                            orderLog.LastAttemptUtc,
+                            orderLockMinutes);
+                    }
+                    else
+                    {
+                        _logger.LogInformation(
+                            "Skipping OrderDispatch because order log is already processing. CorrelationId={CorrelationId}, OrderLogId={OrderLogId}",
+                            eventData.CorrelationId,
+                            eventData.OrderLogId);
+                        await _idempotencyService.MarkSucceededAsync(eventData.AccountId, eventData.IdempotencyKey);
+                        return;
+                    }
                 }
 
                 orderLog.Status = "Processing";
@@ -347,14 +355,9 @@ public class OrderDispatchDistributedEventHandler
         catch (BusinessException ex) when (ex.Code == "OPERATION_IN_PROGRESS")
         {
             _logger.LogWarning(
-                "Order dispatch already in progress. CorrelationId={CorrelationId}",
-                eventData.CorrelationId);
-
-            await TryUpdateOrderLogFailedAsync(
-                eventData.OrderLogId,
-                eventData.TenantId,
-                new InvalidOperationException("Idempotency lock: order already in progress or duplicate id/token."),
-                currentAttempt);
+                "Skipping duplicate OrderDispatch because the idempotency key is already in progress. CorrelationId={CorrelationId}, OrderLogId={OrderLogId}",
+                eventData.CorrelationId,
+                eventData.OrderLogId);
         }
         catch (Exception ex)
         {
