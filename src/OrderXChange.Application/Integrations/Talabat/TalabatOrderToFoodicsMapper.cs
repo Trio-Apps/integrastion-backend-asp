@@ -1055,7 +1055,11 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
         var dueAtValue = dueAt.Value;
         if (string.IsNullOrWhiteSpace(businessDateTimeZone))
         {
-            return dueAtValue.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+            var futureDueAt = EnsureFutureDueAt(
+                dueAtValue.Kind == DateTimeKind.Local ? dueAtValue.ToUniversalTime() : DateTime.SpecifyKind(dueAtValue, DateTimeKind.Utc),
+                DateTime.UtcNow,
+                null);
+            return futureDueAt.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         }
 
         try
@@ -1069,7 +1073,9 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
 
             var timezone = ResolveTimeZoneInfo(businessDateTimeZone);
             var localDueAt = TimeZoneInfo.ConvertTimeFromUtc(utcDueAt, timezone);
-            return localDueAt.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+            var localNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timezone);
+            var futureDueAt = EnsureFutureDueAt(localDueAt, localNow, businessDateTimeZone);
+            return futureDueAt.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         }
         catch (Exception ex)
         {
@@ -1078,8 +1084,31 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
                 "Failed to convert due_at to business timezone. TimeZone={TimeZone}. Falling back to original timestamp.",
                 businessDateTimeZone);
 
-            return dueAtValue.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+            var fallbackDueAt = EnsureFutureDueAt(
+                dueAtValue.Kind == DateTimeKind.Local ? dueAtValue.ToUniversalTime() : DateTime.SpecifyKind(dueAtValue, DateTimeKind.Utc),
+                DateTime.UtcNow,
+                null);
+            return fallbackDueAt.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         }
+    }
+
+    private DateTime EnsureFutureDueAt(DateTime dueAt, DateTime now, string? timeZone)
+    {
+        var minimumBufferMinutes = Math.Max(1, _configuration.GetValue<int?>("Foodics:MinimumDueAtBufferMinutes") ?? 5);
+        if (dueAt > now.AddMinutes(1))
+        {
+            return dueAt;
+        }
+
+        var adjustedDueAt = now.AddMinutes(minimumBufferMinutes);
+        _logger.LogInformation(
+            "Adjusted Foodics due_at to a near future time. OriginalDueAt={OriginalDueAt}, AdjustedDueAt={AdjustedDueAt}, TimeZone={TimeZone}, BufferMinutes={BufferMinutes}",
+            dueAt,
+            adjustedDueAt,
+            timeZone ?? "<unspecified>",
+            minimumBufferMinutes);
+
+        return adjustedDueAt;
     }
 
     private static TimeZoneInfo ResolveTimeZoneInfo(string timezoneId)
