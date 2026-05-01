@@ -133,6 +133,7 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
             .OrderBy(x => x.SequenceNumber)
             .ThenBy(x => x.Timestamp)
             .ToListAsync();
+        var vendors = await BuildVendorSubmissionsAsync(run);
 
         var details = new MenuSyncRunDetailsDto
         {
@@ -155,9 +156,9 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
             ProductsSkipped = summary.ProductsSkipped,
             CategoriesProcessed = summary.CategoriesProcessed,
             ModifiersProcessed = summary.ModifiersProcessed,
-            VendorSubmissionCount = summary.VendorSubmissionCount,
-            FailedVendorCount = summary.FailedVendorCount,
-            MissingVendorLogCount = summary.MissingVendorLogCount,
+            VendorSubmissionCount = vendors.Count(x => !string.Equals(x.Status, "NotRecorded", StringComparison.OrdinalIgnoreCase)),
+            FailedVendorCount = vendors.Count(x => IsFailedStatus(x.Status)),
+            MissingVendorLogCount = vendors.Count(x => string.Equals(x.Status, "NotRecorded", StringComparison.OrdinalIgnoreCase)),
             TalabatVendorCode = run.TalabatVendorCode,
             TalabatImportId = run.TalabatImportId,
             TalabatSyncStatus = run.TalabatSyncStatus,
@@ -168,7 +169,7 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
             MetricsJson = run.MetricsJson,
             ConfigurationJson = run.ConfigurationJson,
             Steps = steps.Select(MapStep).ToList(),
-            Vendors = await BuildVendorSubmissionsAsync(run)
+            Vendors = vendors
         };
 
         return details;
@@ -290,7 +291,13 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
 
             if (includeStagingStats)
             {
-                ApplyStagingStats(dto, await GetFilteredStagedProductsAsync(run.FoodicsAccountId, account));
+                var stagedProducts = await GetFilteredStagedProductsAsync(run.FoodicsAccountId, account);
+                ApplyStagingStats(dto, stagedProducts);
+
+                if (log == null)
+                {
+                    ApplyStagingSubmissionFallback(dto, stagedProducts, logStart, logEnd);
+                }
             }
 
             results.Add(dto);
@@ -318,10 +325,22 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
             .Where(x => x.FoodicsAccountId == foodicsAccountId && x.IsActive && !x.IsDeleted)
             .ToListAsync();
 
-        return products
+        var branchProducts = products
             .Where(product => MatchesBranch(product, account))
+            .ToList();
+
+        if (string.IsNullOrWhiteSpace(account.FoodicsGroupId))
+        {
+            return branchProducts;
+        }
+
+        var groupProducts = branchProducts
             .Where(product => MatchesGroup(product, account))
             .ToList();
+
+        // The sync flow can target a root Foodics menu group while products are attached to child groups.
+        // If diagnostics filters only by the root id it shows a false "0 items" even though branch staging exists.
+        return groupProducts.Count > 0 ? groupProducts : branchProducts;
     }
 
     private static bool MatchesBranch(FoodicsProductStaging product, TalabatAccount account)
@@ -369,6 +388,33 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
         {
             dto.Diagnostic = $"Talabat payload product count ({dto.ProductsCount}) differs from current staging filter ({dto.StagedProducts}).";
         }
+    }
+
+    private static void ApplyStagingSubmissionFallback(
+        MenuSyncVendorSubmissionDto dto,
+        List<FoodicsProductStaging> products,
+        DateTime logStart,
+        DateTime logEnd)
+    {
+        var submittedProduct = products
+            .Where(x => x.TalabatSubmittedAt.HasValue
+                        && x.TalabatSubmittedAt.Value >= logStart
+                        && x.TalabatSubmittedAt.Value <= logEnd)
+            .OrderByDescending(x => x.TalabatSubmittedAt)
+            .FirstOrDefault();
+
+        if (submittedProduct == null)
+        {
+            return;
+        }
+
+        dto.Status = string.IsNullOrWhiteSpace(submittedProduct.TalabatSyncStatus)
+            ? "StagingRecorded"
+            : submittedProduct.TalabatSyncStatus!;
+        dto.ImportId = submittedProduct.TalabatImportId;
+        dto.SubmittedAt = submittedProduct.TalabatSubmittedAt;
+        dto.ProductsCount = dto.StagedProducts;
+        dto.Diagnostic = "Catalog sync log was not recorded, but staging has Talabat submission metadata for this run. The submission likely happened while log persistence failed.";
     }
 
     private static MenuSyncVendorItemDto MapVendorItem(FoodicsProductStaging product)
