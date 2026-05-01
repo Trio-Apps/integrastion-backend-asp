@@ -156,9 +156,9 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
             ProductsSkipped = summary.ProductsSkipped,
             CategoriesProcessed = summary.CategoriesProcessed,
             ModifiersProcessed = summary.ModifiersProcessed,
-            VendorSubmissionCount = vendors.Count(x => !string.Equals(x.Status, "NotRecorded", StringComparison.OrdinalIgnoreCase)),
+            VendorSubmissionCount = vendors.Count(x => !IsMissingLogStatus(x.Status)),
             FailedVendorCount = vendors.Count(x => IsFailedStatus(x.Status)),
-            MissingVendorLogCount = vendors.Count(x => string.Equals(x.Status, "NotRecorded", StringComparison.OrdinalIgnoreCase)),
+            MissingVendorLogCount = vendors.Count(x => IsMissingLogStatus(x.Status)),
             TalabatVendorCode = run.TalabatVendorCode,
             TalabatImportId = run.TalabatImportId,
             TalabatSyncStatus = run.TalabatSyncStatus,
@@ -219,9 +219,9 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
             ProductsSkipped = run.ProductsSkipped,
             CategoriesProcessed = run.CategoriesProcessed,
             ModifiersProcessed = run.ModifiersProcessed,
-            VendorSubmissionCount = vendors.Count(x => !string.Equals(x.Status, "NotRecorded", StringComparison.OrdinalIgnoreCase)),
+            VendorSubmissionCount = vendors.Count(x => !IsMissingLogStatus(x.Status)),
             FailedVendorCount = vendors.Count(x => IsFailedStatus(x.Status)),
-            MissingVendorLogCount = vendors.Count(x => string.Equals(x.Status, "NotRecorded", StringComparison.OrdinalIgnoreCase))
+            MissingVendorLogCount = vendors.Count(x => IsMissingLogStatus(x.Status))
         };
     }
 
@@ -296,7 +296,7 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
 
                 if (log == null)
                 {
-                    ApplyStagingSubmissionFallback(dto, stagedProducts, logStart, logEnd);
+                    ApplyMissingLogFallback(dto, stagedProducts, logStart, logEnd);
                 }
             }
 
@@ -305,7 +305,7 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
 
         return results
             .OrderByDescending(x => IsFailedStatus(x.Status))
-            .ThenByDescending(x => string.Equals(x.Status, "NotRecorded", StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(x => IsMissingLogStatus(x.Status))
             .ThenBy(x => x.VendorCode)
             .ToList();
     }
@@ -390,12 +390,17 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
         }
     }
 
-    private static void ApplyStagingSubmissionFallback(
+    private static void ApplyMissingLogFallback(
         MenuSyncVendorSubmissionDto dto,
         List<FoodicsProductStaging> products,
         DateTime logStart,
         DateTime logEnd)
     {
+        if (products.Count == 0)
+        {
+            return;
+        }
+
         var submittedProduct = products
             .Where(x => x.TalabatSubmittedAt.HasValue
                         && x.TalabatSubmittedAt.Value >= logStart
@@ -403,18 +408,21 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
             .OrderByDescending(x => x.TalabatSubmittedAt)
             .FirstOrDefault();
 
-        if (submittedProduct == null)
+        if (submittedProduct != null)
         {
+            dto.Status = string.IsNullOrWhiteSpace(submittedProduct.TalabatSyncStatus)
+                ? "StagingRecorded"
+                : submittedProduct.TalabatSyncStatus!;
+            dto.ImportId = submittedProduct.TalabatImportId;
+            dto.SubmittedAt = submittedProduct.TalabatSubmittedAt;
+            dto.ProductsCount = dto.StagedProducts;
+            dto.Diagnostic = "Catalog sync log was not recorded, but staging has Talabat submission metadata for this run. The submission likely happened while log persistence failed.";
             return;
         }
 
-        dto.Status = string.IsNullOrWhiteSpace(submittedProduct.TalabatSyncStatus)
-            ? "StagingRecorded"
-            : submittedProduct.TalabatSyncStatus!;
-        dto.ImportId = submittedProduct.TalabatImportId;
-        dto.SubmittedAt = submittedProduct.TalabatSubmittedAt;
+        dto.Status = "MissingLog";
         dto.ProductsCount = dto.StagedProducts;
-        dto.Diagnostic = "Catalog sync log was not recorded, but staging has Talabat submission metadata for this run. The submission likely happened while log persistence failed.";
+        dto.Diagnostic = "Staging data exists for this vendor, but no catalog sync log or staging submission metadata was recorded for this run window. Check backend logs around this run to confirm whether Talabat submission was skipped or log persistence failed before metadata was updated.";
     }
 
     private static MenuSyncVendorItemDto MapVendorItem(FoodicsProductStaging product)
@@ -569,6 +577,12 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
         return string.Equals(status, "Failed", StringComparison.OrdinalIgnoreCase)
                || string.Equals(status, "Error", StringComparison.OrdinalIgnoreCase)
                || string.Equals(status, "Partial", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsMissingLogStatus(string? status)
+    {
+        return string.Equals(status, "NotRecorded", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(status, "MissingLog", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<List<Guid>?> GetCurrentTenantFoodicsAccountScopeAsync()

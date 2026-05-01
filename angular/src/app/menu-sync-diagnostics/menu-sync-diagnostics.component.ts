@@ -235,6 +235,7 @@ export class MenuSyncDiagnosticsComponent implements OnInit {
         return 'info';
       case 'pending':
       case 'notrecorded':
+      case 'missinglog':
         return 'warn';
       default:
         return 'secondary';
