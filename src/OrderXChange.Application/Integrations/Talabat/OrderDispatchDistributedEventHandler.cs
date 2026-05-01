@@ -45,6 +45,7 @@ public class OrderDispatchDistributedEventHandler
     private readonly IConfiguration _configuration;
     private readonly IdempotencyService _idempotencyService;
     private readonly ICurrentTenant _currentTenant;
+    private readonly IUnitOfWorkManager _unitOfWorkManager;
     private readonly IDistributedEventBus _eventBus;
     private readonly IBackgroundJobClient _backgroundJobs;
     private readonly ILogger<OrderDispatchDistributedEventHandler> _logger;
@@ -76,6 +77,7 @@ public class OrderDispatchDistributedEventHandler
         IConfiguration configuration,
         IdempotencyService idempotencyService,
         ICurrentTenant currentTenant,
+        IUnitOfWorkManager unitOfWorkManager,
         IDistributedEventBus eventBus,
         IBackgroundJobClient backgroundJobs,
         ILogger<OrderDispatchDistributedEventHandler> logger)
@@ -95,6 +97,7 @@ public class OrderDispatchDistributedEventHandler
         _configuration = configuration;
         _idempotencyService = idempotencyService;
         _currentTenant = currentTenant;
+        _unitOfWorkManager = unitOfWorkManager;
         _eventBus = eventBus;
         _backgroundJobs = backgroundJobs;
         _logger = logger;
@@ -670,11 +673,30 @@ public class OrderDispatchDistributedEventHandler
                 continue;
             }
 
-            var stagingProduct = await _stagingRepository.FirstOrDefaultAsync(p =>
-                p.FoodicsAccountId == foodicsAccountId &&
-                p.FoodicsProductId == orderProduct.ProductId);
+            string productName;
+            decimal? productBasePrice;
+            string? modifiersJson;
 
-            if (stagingProduct == null || string.IsNullOrWhiteSpace(stagingProduct.ModifiersJson))
+            using (var readUow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: false))
+            {
+                var stagingProduct = await _stagingRepository.FirstOrDefaultAsync(p =>
+                    p.FoodicsAccountId == foodicsAccountId &&
+                    p.FoodicsProductId == orderProduct.ProductId);
+
+                if (stagingProduct == null)
+                {
+                    await readUow.CompleteAsync();
+                    continue;
+                }
+
+                productName = stagingProduct.Name;
+                productBasePrice = stagingProduct.Price;
+                modifiersJson = stagingProduct.ModifiersJson;
+
+                await readUow.CompleteAsync();
+            }
+
+            if (string.IsNullOrWhiteSpace(modifiersJson))
             {
                 continue;
             }
@@ -683,7 +705,7 @@ public class OrderDispatchDistributedEventHandler
             try
             {
                 modifiers = JsonSerializer.Deserialize<List<FoodicsModifierDto>>(
-                    stagingProduct.ModifiersJson,
+                    modifiersJson,
                     TalabatWebhookJsonOptions);
             }
             catch (Exception ex)
@@ -735,7 +757,7 @@ public class OrderDispatchDistributedEventHandler
 
                 for (var i = 0; i < missingCount; i++)
                 {
-                    var option = ChooseFallbackRequiredOption(orderProduct, stagingProduct, visibleOptions, selectedOptionIds);
+                    var option = ChooseFallbackRequiredOption(orderProduct, productBasePrice, visibleOptions, selectedOptionIds);
                     if (option == null)
                     {
                         break;
@@ -754,7 +776,7 @@ public class OrderDispatchDistributedEventHandler
                     addedOptions.Add(new
                     {
                         productId = orderProduct.ProductId,
-                        productName = stagingProduct.Name,
+                        productName,
                         modifierId = modifier.Id,
                         modifierName = modifier.Name,
                         optionId = option.Id,
@@ -767,7 +789,7 @@ public class OrderDispatchDistributedEventHandler
                         correlationId,
                         vendorCode,
                         orderProduct.ProductId,
-                        stagingProduct.Name,
+                        productName,
                         modifier.Id,
                         modifier.Name,
                         option.Id,
@@ -791,7 +813,7 @@ public class OrderDispatchDistributedEventHandler
 
     private static FoodicsModifierOptionDto? ChooseFallbackRequiredOption(
         FoodicsOrderProductRequest orderProduct,
-        FoodicsProductStaging stagingProduct,
+        decimal? productBasePrice,
         List<FoodicsModifierOptionDto> visibleOptions,
         HashSet<string> selectedOptionIds)
     {
@@ -805,8 +827,8 @@ public class OrderDispatchDistributedEventHandler
         }
 
         var selectedOptionsTotal = orderProduct.Options?.Sum(o => o.UnitPrice ?? 0m) ?? 0m;
-        var orderUnitPrice = orderProduct.UnitPrice ?? orderProduct.TotalPrice ?? stagingProduct.Price ?? 0m;
-        var expectedRemainingOptionPrice = Math.Max(0m, orderUnitPrice - (stagingProduct.Price ?? 0m) - selectedOptionsTotal);
+        var orderUnitPrice = orderProduct.UnitPrice ?? orderProduct.TotalPrice ?? productBasePrice ?? 0m;
+        var expectedRemainingOptionPrice = Math.Max(0m, orderUnitPrice - (productBasePrice ?? 0m) - selectedOptionsTotal);
 
         return candidates
             .OrderBy(o => Math.Abs((o.Price ?? 0m) - expectedRemainingOptionPrice))
