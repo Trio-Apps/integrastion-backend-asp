@@ -10,6 +10,7 @@ using OrderXChange.Domain.Versioning;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Data;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.TenantManagement.Talabat;
@@ -49,12 +50,27 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
 
     public async Task<PagedResultDto<MenuSyncRunSummaryDto>> GetRunsAsync(GetMenuSyncRunsInput input)
     {
+        var accountScope = await GetCurrentTenantFoodicsAccountScopeAsync();
+        if (accountScope is { Count: 0 })
+        {
+            return new PagedResultDto<MenuSyncRunSummaryDto>(0, new List<MenuSyncRunSummaryDto>());
+        }
+
         using var multiTenantFilter = _dataFilter.Disable<IMultiTenant>();
         var queryable = await _syncRunRepository.GetQueryableAsync();
 
         if (input.FoodicsAccountId.HasValue)
         {
+            if (accountScope != null && !accountScope.Contains(input.FoodicsAccountId.Value))
+            {
+                return new PagedResultDto<MenuSyncRunSummaryDto>(0, new List<MenuSyncRunSummaryDto>());
+            }
+
             queryable = queryable.Where(x => x.FoodicsAccountId == input.FoodicsAccountId.Value);
+        }
+        else if (accountScope != null)
+        {
+            queryable = queryable.Where(x => accountScope.Contains(x.FoodicsAccountId));
         }
 
         if (!string.IsNullOrWhiteSpace(input.Status))
@@ -105,8 +121,10 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
 
     public async Task<MenuSyncRunDetailsDto> GetRunDetailsAsync(Guid id)
     {
+        var accountScope = await GetCurrentTenantFoodicsAccountScopeAsync();
         using var multiTenantFilter = _dataFilter.Disable<IMultiTenant>();
         var run = await _syncRunRepository.GetAsync(id);
+        EnsureRunIsInAccountScope(run, accountScope, id);
         var summary = await MapRunSummaryAsync(run);
 
         var stepsQueryable = await _syncRunStepRepository.GetQueryableAsync();
@@ -158,8 +176,10 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
 
     public async Task<List<MenuSyncVendorItemDto>> GetVendorItemsAsync(Guid id, string vendorCode)
     {
+        var accountScope = await GetCurrentTenantFoodicsAccountScopeAsync();
         using var multiTenantFilter = _dataFilter.Disable<IMultiTenant>();
         var run = await _syncRunRepository.GetAsync(id);
+        EnsureRunIsInAccountScope(run, accountScope, id);
         var account = await FindTalabatAccountAsync(run.FoodicsAccountId, vendorCode);
         if (account == null)
         {
@@ -503,5 +523,28 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
         return string.Equals(status, "Failed", StringComparison.OrdinalIgnoreCase)
                || string.Equals(status, "Error", StringComparison.OrdinalIgnoreCase)
                || string.Equals(status, "Partial", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<List<Guid>?> GetCurrentTenantFoodicsAccountScopeAsync()
+    {
+        if (!CurrentTenant.Id.HasValue)
+        {
+            return null;
+        }
+
+        var accountsQueryable = await _talabatAccountRepository.GetQueryableAsync();
+        return await accountsQueryable
+            .Where(x => x.IsActive && x.FoodicsAccountId.HasValue)
+            .Select(x => x.FoodicsAccountId!.Value)
+            .Distinct()
+            .ToListAsync();
+    }
+
+    private static void EnsureRunIsInAccountScope(MenuSyncRun run, List<Guid>? accountScope, Guid runId)
+    {
+        if (accountScope != null && !accountScope.Contains(run.FoodicsAccountId))
+        {
+            throw new EntityNotFoundException(typeof(MenuSyncRun), runId);
+        }
     }
 }
