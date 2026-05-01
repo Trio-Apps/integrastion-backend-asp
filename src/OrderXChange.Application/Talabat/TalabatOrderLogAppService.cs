@@ -107,9 +107,12 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
                 .WithData("OrderLogId", id);
         }
 
-        if (!string.Equals(log.Status, "Failed", StringComparison.OrdinalIgnoreCase))
+        var isRetryable = string.Equals(log.Status, "Failed", StringComparison.OrdinalIgnoreCase)
+                          || string.Equals(log.Status, "Enqueued", StringComparison.OrdinalIgnoreCase);
+
+        if (!isRetryable)
         {
-            throw new BusinessException("ORDER_NOT_FAILED")
+            throw new BusinessException("ORDER_NOT_RETRYABLE")
                 .WithData("OrderLogId", id)
                 .WithData("Status", log.Status);
         }

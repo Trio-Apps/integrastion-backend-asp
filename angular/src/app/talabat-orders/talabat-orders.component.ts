@@ -167,6 +167,11 @@ export class TalabatOrdersComponent {
     this.errorDialogVisible.set(true);
   }
 
+  isRetryable(log: TalabatOrderLogDto): boolean {
+    const status = (log.status || '').toLowerCase();
+    return status === 'failed' || status === 'enqueued';
+  }
+
   retryOrder(log: TalabatOrderLogDto): void {
     if (!log.id) {
       return;

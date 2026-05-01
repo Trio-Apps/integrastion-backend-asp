@@ -142,7 +142,7 @@
             icon="pi pi-refresh"
             label="Retry"
             class="p-button-outlined p-button-sm"
-            [disabled]="(row.status || '').toLowerCase() !== 'failed'"
+            [disabled]="!isRetryable(row)"
             (click)="retryOrder(row)"
           ></button>
         </td>
