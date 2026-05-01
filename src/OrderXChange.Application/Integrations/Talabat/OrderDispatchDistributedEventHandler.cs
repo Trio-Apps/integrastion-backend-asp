@@ -31,6 +31,7 @@ public class OrderDispatchDistributedEventHandler
     private static readonly JsonSerializerOptions TalabatWebhookJsonOptions = CreateTalabatWebhookJsonOptions();
 
     private readonly IRepository<TalabatOrderSyncLog, Guid> _orderSyncLogRepository;
+    private readonly IRepository<FoodicsProductStaging, Guid> _stagingRepository;
     private readonly TalabatAccountService _talabatAccountService;
     private readonly TalabatOrderToFoodicsMapper _orderMapper;
     private readonly FoodicsOrderClient _foodicsOrderClient;
@@ -61,6 +62,7 @@ public class OrderDispatchDistributedEventHandler
 
     public OrderDispatchDistributedEventHandler(
         IRepository<TalabatOrderSyncLog, Guid> orderSyncLogRepository,
+        IRepository<FoodicsProductStaging, Guid> stagingRepository,
         TalabatAccountService talabatAccountService,
         TalabatOrderToFoodicsMapper orderMapper,
         FoodicsOrderClient foodicsOrderClient,
@@ -79,6 +81,7 @@ public class OrderDispatchDistributedEventHandler
         ILogger<OrderDispatchDistributedEventHandler> logger)
     {
         _orderSyncLogRepository = orderSyncLogRepository;
+        _stagingRepository = stagingRepository;
         _talabatAccountService = talabatAccountService;
         _orderMapper = orderMapper;
         _foodicsOrderClient = foodicsOrderClient;
@@ -261,6 +264,12 @@ public class OrderDispatchDistributedEventHandler
                     businessDate.Source,
                     activePaymentMethodId,
                     deliveryChargeId);
+
+                await FillMissingRequiredModifierOptionsAsync(
+                    request,
+                    eventData.FoodicsAccountId,
+                    account.VendorCode,
+                    eventData.CorrelationId);
 
                 FoodicsOrderCustomerResolution customerResolution;
                 try
@@ -639,6 +648,174 @@ public class OrderDispatchDistributedEventHandler
             return null;
         }
     }
+    private async Task FillMissingRequiredModifierOptionsAsync(
+        FoodicsOrderCreateRequest request,
+        Guid foodicsAccountId,
+        string vendorCode,
+        string correlationId)
+    {
+        if (!_configuration.GetValue<bool>("Talabat:FillMissingRequiredModifiers", true) ||
+            request.Products == null ||
+            request.Products.Count == 0)
+        {
+            return;
+        }
+
+        var addedOptions = new List<object>();
+
+        foreach (var orderProduct in request.Products)
+        {
+            if (string.IsNullOrWhiteSpace(orderProduct.ProductId))
+            {
+                continue;
+            }
+
+            var stagingProduct = await _stagingRepository.FirstOrDefaultAsync(p =>
+                p.FoodicsAccountId == foodicsAccountId &&
+                p.FoodicsProductId == orderProduct.ProductId);
+
+            if (stagingProduct == null || string.IsNullOrWhiteSpace(stagingProduct.ModifiersJson))
+            {
+                continue;
+            }
+
+            List<FoodicsModifierDto>? modifiers;
+            try
+            {
+                modifiers = JsonSerializer.Deserialize<List<FoodicsModifierDto>>(
+                    stagingProduct.ModifiersJson,
+                    TalabatWebhookJsonOptions);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to deserialize staged Foodics modifiers while filling missing required options. CorrelationId={CorrelationId}, ProductId={ProductId}, VendorCode={VendorCode}",
+                    correlationId,
+                    orderProduct.ProductId,
+                    vendorCode);
+                continue;
+            }
+
+            var requiredModifiers = FoodicsModifierSanitizer.SanitizeForMenuProjection(modifiers)
+                ?.Where(m => (m.MinAllowed ?? 0) > 0)
+                .OrderBy(m => m.Pivot?.Index ?? int.MaxValue)
+                .ThenBy(m => m.Id, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (requiredModifiers == null || requiredModifiers.Count == 0)
+            {
+                continue;
+            }
+
+            orderProduct.Options ??= new List<FoodicsOrderProductOptionRequest>();
+            var selectedOptionIds = orderProduct.Options
+                .Where(o => !string.IsNullOrWhiteSpace(o.ModifierOptionId))
+                .Select(o => o.ModifierOptionId)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var modifier in requiredModifiers)
+            {
+                var visibleOptions = FoodicsModifierSanitizer.GetVisibleOptions(modifier)
+                    .OrderBy(o => o.Index ?? int.MaxValue)
+                    .ThenBy(o => o.Id, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                if (visibleOptions.Count == 0)
+                {
+                    continue;
+                }
+
+                var selectedFromModifier = visibleOptions.Count(o => selectedOptionIds.Contains(o.Id));
+                var missingCount = Math.Max(0, (modifier.MinAllowed ?? 0) - selectedFromModifier);
+                if (missingCount == 0)
+                {
+                    continue;
+                }
+
+                for (var i = 0; i < missingCount; i++)
+                {
+                    var option = ChooseFallbackRequiredOption(orderProduct, stagingProduct, visibleOptions, selectedOptionIds);
+                    if (option == null)
+                    {
+                        break;
+                    }
+
+                    var unitPrice = option.Price ?? 0m;
+                    orderProduct.Options.Add(new FoodicsOrderProductOptionRequest
+                    {
+                        ModifierOptionId = option.Id,
+                        Quantity = 1,
+                        UnitPrice = unitPrice,
+                        TotalPrice = unitPrice
+                    });
+                    selectedOptionIds.Add(option.Id);
+
+                    addedOptions.Add(new
+                    {
+                        productId = orderProduct.ProductId,
+                        productName = stagingProduct.Name,
+                        modifierId = modifier.Id,
+                        modifierName = modifier.Name,
+                        optionId = option.Id,
+                        optionName = option.Name,
+                        optionPrice = unitPrice
+                    });
+
+                    _logger.LogWarning(
+                        "Filled missing required Foodics modifier option for Talabat order. CorrelationId={CorrelationId}, VendorCode={VendorCode}, ProductId={ProductId}, ProductName={ProductName}, ModifierId={ModifierId}, ModifierName={ModifierName}, OptionId={OptionId}, OptionName={OptionName}, OptionPrice={OptionPrice}",
+                        correlationId,
+                        vendorCode,
+                        orderProduct.ProductId,
+                        stagingProduct.Name,
+                        modifier.Id,
+                        modifier.Name,
+                        option.Id,
+                        option.Name,
+                        unitPrice);
+                }
+            }
+
+            if (orderProduct.Options.Count == 0)
+            {
+                orderProduct.Options = null;
+            }
+        }
+
+        if (addedOptions.Count > 0)
+        {
+            request.Meta ??= new Dictionary<string, object?>();
+            request.Meta["talabat_missing_required_modifiers_filled"] = addedOptions;
+        }
+    }
+
+    private static FoodicsModifierOptionDto? ChooseFallbackRequiredOption(
+        FoodicsOrderProductRequest orderProduct,
+        FoodicsProductStaging stagingProduct,
+        List<FoodicsModifierOptionDto> visibleOptions,
+        HashSet<string> selectedOptionIds)
+    {
+        var candidates = visibleOptions
+            .Where(o => !selectedOptionIds.Contains(o.Id))
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            candidates = visibleOptions;
+        }
+
+        var selectedOptionsTotal = orderProduct.Options?.Sum(o => o.UnitPrice ?? 0m) ?? 0m;
+        var orderUnitPrice = orderProduct.UnitPrice ?? orderProduct.TotalPrice ?? stagingProduct.Price ?? 0m;
+        var expectedRemainingOptionPrice = Math.Max(0m, orderUnitPrice - (stagingProduct.Price ?? 0m) - selectedOptionsTotal);
+
+        return candidates
+            .OrderBy(o => Math.Abs((o.Price ?? 0m) - expectedRemainingOptionPrice))
+            .ThenBy(o => o.Price ?? 0m)
+            .ThenBy(o => o.Index ?? int.MaxValue)
+            .ThenBy(o => o.Id, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+    }
+
     private static bool IsTransientError(Exception ex)
     {
         if (ex is FoodicsApiException apiEx)
