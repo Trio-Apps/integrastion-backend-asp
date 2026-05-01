@@ -959,8 +959,20 @@ public class FoodicsToTalabatMapper : ITransientDependency
         var toppingMap = new Dictionary<string, TalabatV2CatalogItem>(); // modifierId -> topping item
         var imageMap = new Dictionary<string, TalabatV2CatalogItem>(); // imageId -> image item
         var hiddenOptionProductIds = new HashSet<string>(); // option products must be listed under hidden category
+        var forceModifierRemoteCodeVersion = _configuration.GetValue<bool>("Talabat:ForceModifierRemoteCodeVersion", true);
+        var modifierRemoteCodeVersionSuffix = forceModifierRemoteCodeVersion
+            ? $"_{Guid.NewGuid():N}"[..9].ToUpperInvariant()
+            : string.Empty;
         var scheduleId = "schedule-01";
         var menuId = "Menu_01";
+
+        if (forceModifierRemoteCodeVersion)
+        {
+            _logger.LogInformation(
+                "Talabat modifier remote code versioning enabled. ModifierVersionSuffix={ModifierVersionSuffix}, VendorCode={VendorCode}",
+                modifierRemoteCodeVersionSuffix,
+                vendorCode ?? "<none>");
+        }
 
         // Step 2: Create all products using stable remote codes
         foreach (var product in productsList)
@@ -1051,7 +1063,10 @@ public class FoodicsToTalabatMapper : ITransientDependency
                         continue;
                     }
 
-                    var toppingId = BuildProductScopedToppingId(productMapping.TalabatRemoteCode, modifierMapping.TalabatRemoteCode);
+                    var toppingId = BuildProductScopedToppingId(
+                        productMapping.TalabatRemoteCode,
+                        modifierMapping.TalabatRemoteCode,
+                        modifierRemoteCodeVersionSuffix);
 
                     if (isDebugProduct)
                     {
@@ -2002,9 +2017,12 @@ public class FoodicsToTalabatMapper : ITransientDependency
         return (toppingItem, optionProducts);
     }
 
-    private static string BuildProductScopedToppingId(string productKey, string modifierKey)
+    private static string BuildProductScopedToppingId(
+        string productKey,
+        string modifierKey,
+        string versionSuffix = "")
     {
-        return $"tt-{productKey}-{modifierKey}";
+        return $"tt-{productKey}-{modifierKey}{versionSuffix}";
     }
 
     private static string BuildToppingOptionProductId(string toppingId, string optionKey)
