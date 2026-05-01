@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Hangfire;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -43,6 +44,7 @@ public class TalabatWebhookController : AbpController
     private readonly TalabatAccountService _talabatAccountService;
     private readonly IRepository<TalabatOrderSyncLog, Guid> _orderSyncLogRepository;
     private readonly IDistributedEventBus _eventBus;
+    private readonly IBackgroundJobClient _backgroundJobs;
     private readonly ICurrentTenant _currentTenant;
     private readonly TalabatWebhookSecurityValidator _webhookSecurityValidator;
     private readonly ILogger<TalabatWebhookController> _logger;
@@ -64,6 +66,7 @@ public class TalabatWebhookController : AbpController
         TalabatAccountService talabatAccountService,
         IRepository<TalabatOrderSyncLog, Guid> orderSyncLogRepository,
         IDistributedEventBus eventBus,
+        IBackgroundJobClient backgroundJobs,
         ICurrentTenant currentTenant,
         TalabatWebhookSecurityValidator webhookSecurityValidator,
         ILogger<TalabatWebhookController> logger)
@@ -73,6 +76,7 @@ public class TalabatWebhookController : AbpController
         _talabatAccountService = talabatAccountService;
         _orderSyncLogRepository = orderSyncLogRepository;
         _eventBus = eventBus;
+        _backgroundJobs = backgroundJobs;
         _currentTenant = currentTenant;
         _webhookSecurityValidator = webhookSecurityValidator;
         _logger = logger;
@@ -437,6 +441,13 @@ public class TalabatWebhookController : AbpController
                 try
                 {
                     await _eventBus.PublishAsync(dispatchEvent);
+                    var watchdogDelaySeconds = Math.Max(
+                        15,
+                        _configuration.GetValue<int?>("Talabat:OrderEnqueueWatchdogDelaySeconds") ?? 60);
+
+                    _backgroundJobs.Schedule<TalabatOrderEnqueueWatchdog>(
+                        watchdog => watchdog.RequeueIfStuckAsync(orderLog.Id),
+                        TimeSpan.FromSeconds(watchdogDelaySeconds));
                 }
                 catch (Exception publishEx)
                 {
