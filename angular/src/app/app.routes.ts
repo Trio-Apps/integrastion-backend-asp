@@ -26,6 +26,14 @@ export const APP_ROUTES: Routes = [
     },
   },
   {
+    path: 'menu-sync-diagnostics',
+    loadComponent: () => import('./menu-sync-diagnostics/menu-sync-diagnostics.component').then(c => c.MenuSyncDiagnosticsComponent),
+    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    data: {
+      requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant',
+    },
+  },
+  {
     path: 'talabat-dashboard',
     loadComponent: () => import('./talabat-dashboard/talabat-dashboard.component').then(c => c.TalabatDashboardComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],

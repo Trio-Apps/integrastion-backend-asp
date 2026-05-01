@@ -16,13 +16,16 @@ namespace OrderXChange.Controllers;
 public class MenuSyncController : AbpController
 {
     private readonly IMenuSyncAppService _menuSyncAppService;
+    private readonly IMenuSyncDiagnosticsAppService _menuSyncDiagnosticsAppService;
     private readonly Volo.Abp.EventBus.Distributed.IDistributedEventBus _eventBus;
 
     public MenuSyncController(
         IMenuSyncAppService menuSyncAppService,
+        IMenuSyncDiagnosticsAppService menuSyncDiagnosticsAppService,
         Volo.Abp.EventBus.Distributed.IDistributedEventBus eventBus)
     {
         _menuSyncAppService = menuSyncAppService;
+        _menuSyncDiagnosticsAppService = menuSyncDiagnosticsAppService;
         _eventBus = eventBus;
     }
 
@@ -66,6 +69,36 @@ public class MenuSyncController : AbpController
                 DLQ = "menu.sync.dlq"
             }
         });
+    }
+
+    /// <summary>
+    /// Lists recent menu sync runs for the diagnostics dashboard.
+    /// </summary>
+    [HttpGet("runs")]
+    public async Task<IActionResult> GetRunsAsync([FromQuery] GetMenuSyncRunsInput input)
+    {
+        var result = await _menuSyncDiagnosticsAppService.GetRunsAsync(input);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Gets complete diagnostics for one menu sync run.
+    /// </summary>
+    [HttpGet("runs/{id:guid}")]
+    public async Task<IActionResult> GetRunDetailsAsync(Guid id)
+    {
+        var result = await _menuSyncDiagnosticsAppService.GetRunDetailsAsync(id);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Gets the staged products and modifiers for a vendor in a selected sync run.
+    /// </summary>
+    [HttpGet("runs/{id:guid}/vendors/{vendorCode}/items")]
+    public async Task<IActionResult> GetVendorItemsAsync(Guid id, string vendorCode)
+    {
+        var result = await _menuSyncDiagnosticsAppService.GetVendorItemsAsync(id, vendorCode);
+        return Ok(result);
     }
 
     /// <summary>

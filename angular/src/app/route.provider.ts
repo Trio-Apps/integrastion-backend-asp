@@ -87,6 +87,15 @@ function configureRoutes() {
       requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant',
     },
     {
+      path: '/menu-sync-diagnostics',
+      name: 'Sync Diagnostics',
+      parentName: '::Menu:Dashboard',
+      iconClass: 'pi pi-sitemap',
+      order: 3.5,
+      layout: eLayoutType.application,
+      requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant',
+    },
+    {
       path: '/talabat-orders',
       name: 'Talabat Orders',
       parentName: '::Menu:Dashboard',

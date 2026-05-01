@@ -1,0 +1,251 @@
+<div class="sync-page">
+  <div class="page-header">
+    <div>
+      <h2 class="page-title">Menu Sync Diagnostics</h2>
+      <p class="page-subtitle">Inspect every menu sync run, branch submission, payload counts, and item modifiers.</p>
+    </div>
+    <button pButton type="button" icon="pi pi-refresh" label="Refresh" class="p-button-outlined" (click)="refresh()"></button>
+  </div>
+
+  <div class="filters">
+    <span class="filter-item search-filter">
+      <label for="syncSearch">Search</label>
+      <input id="syncSearch" type="text" pInputText [ngModel]="searchTerm()" (ngModelChange)="searchTerm.set($event)" (keyup.enter)="refresh()" placeholder="Correlation, status, vendor, import..." />
+    </span>
+    <span class="filter-item account-filter">
+      <label for="foodicsAccountId">Foodics Account</label>
+      <input id="foodicsAccountId" type="text" pInputText [ngModel]="foodicsAccountId()" (ngModelChange)="foodicsAccountId.set($event)" (keyup.enter)="refresh()" placeholder="Account ID" />
+    </span>
+    <span class="filter-item compact-filter">
+      <label for="syncStatus">Status</label>
+      <select id="syncStatus" class="plain-select" [ngModel]="status()" (ngModelChange)="status.set($event || '')">
+        <option *ngFor="let option of statusOptions" [value]="option.value">{{ option.label }}</option>
+      </select>
+    </span>
+    <span class="filter-item date-filter">
+      <label for="fromDate">From</label>
+      <input id="fromDate" type="datetime-local" [ngModel]="fromDate()" (ngModelChange)="fromDate.set($event)" />
+    </span>
+    <span class="filter-item date-filter">
+      <label for="toDate">To</label>
+      <input id="toDate" type="datetime-local" [ngModel]="toDate()" (ngModelChange)="toDate.set($event)" />
+    </span>
+    <span class="filter-actions">
+      <button pButton type="button" icon="pi pi-search" label="Search" class="p-button-outlined" (click)="refresh()"></button>
+      <button pButton type="button" icon="pi pi-times" label="Clear" class="p-button-text" (click)="clearFilters()"></button>
+    </span>
+  </div>
+
+  <p-table
+    [value]="runs()"
+    [lazy]="true"
+    [paginator]="true"
+    [rows]="rows()"
+    [totalRecords]="totalRecords()"
+    [first]="first()"
+    [loading]="loadingRuns()"
+    (onLazyLoad)="loadRuns($event)"
+    [rowsPerPageOptions]="[10, 20, 50]"
+    sortField="startedAt"
+    [sortOrder]="-1"
+    dataKey="id"
+  >
+    <ng-template pTemplate="header">
+      <tr>
+        <th pSortableColumn="startedAt">Started <p-sortIcon field="startedAt"></p-sortIcon></th>
+        <th>Status</th>
+        <th>Phase</th>
+        <th>Products</th>
+        <th>Vendors</th>
+        <th>Duration</th>
+        <th>Correlation</th>
+        <th>Actions</th>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="body" let-row>
+      <tr [class.selected-row]="selectedRun()?.id === row.id">
+        <td>{{ formatDate(row.startedAt) }}</td>
+        <td><p-tag [severity]="getStatusSeverity(row.status)" [value]="row.status || 'Unknown'"></p-tag></td>
+        <td>
+          <div class="phase-cell">
+            <span>{{ row.currentPhase || '-' }}</span>
+            <p-progressBar [value]="row.progressPercentage || 0" [showValue]="false"></p-progressBar>
+          </div>
+        </td>
+        <td>{{ row.productsSucceeded || 0 }}/{{ row.totalProductsProcessed || 0 }}</td>
+        <td>
+          <span>{{ row.vendorSubmissionCount || 0 }} submitted</span>
+          <span class="muted" *ngIf="row.failedVendorCount"> · {{ row.failedVendorCount }} failed</span>
+          <span class="muted" *ngIf="row.missingVendorLogCount"> · {{ row.missingVendorLogCount }} missing logs</span>
+        </td>
+        <td>{{ formatDuration(row.durationSeconds) }}</td>
+        <td class="code-cell" [title]="row.correlationId">{{ row.correlationId }}</td>
+        <td>
+          <button pButton type="button" icon="pi pi-eye" label="Open" class="p-button-outlined p-button-sm" (click)="openRun(row)"></button>
+        </td>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="emptymessage">
+      <tr>
+        <td colspan="8">No sync runs found.</td>
+      </tr>
+    </ng-template>
+  </p-table>
+
+  <section class="details" *ngIf="selectedRun() as run">
+    <div class="section-header">
+      <div>
+        <h3>Run {{ formatDate(run.startedAt) }}</h3>
+        <p>{{ run.correlationId }}</p>
+      </div>
+      <div class="section-actions">
+        <button pButton type="button" icon="pi pi-exclamation-triangle" label="Errors" class="p-button-text" [disabled]="!run.errorsJson" (click)="showJson('Run Errors', run.errorsJson)"></button>
+        <button pButton type="button" icon="pi pi-info-circle" label="Metrics" class="p-button-text" [disabled]="!run.metricsJson" (click)="showJson('Run Metrics', run.metricsJson)"></button>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="metric"><span>Status</span><strong>{{ run.status }}</strong></div>
+      <div class="metric"><span>Products</span><strong>{{ run.productsSucceeded }}/{{ run.totalProductsProcessed }}</strong></div>
+      <div class="metric"><span>Submissions</span><strong>{{ run.vendorSubmissionCount }}</strong></div>
+      <div class="metric danger"><span>Failed Vendors</span><strong>{{ run.failedVendorCount }}</strong></div>
+      <div class="metric warn"><span>Missing Logs</span><strong>{{ run.missingVendorLogCount }}</strong></div>
+      <div class="metric"><span>Duration</span><strong>{{ formatDuration(run.durationSeconds) }}</strong></div>
+    </div>
+
+    <div class="split-grid">
+      <div>
+        <h4>Vendor Submissions</h4>
+        <p-table [value]="run.vendors" [loading]="loadingDetails()" dataKey="vendorCode" [scrollable]="true" scrollHeight="360px">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Vendor</th>
+              <th>Branch</th>
+              <th>Status</th>
+              <th>Import</th>
+              <th>Payload</th>
+              <th>Staging</th>
+              <th>Diagnostics</th>
+              <th></th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-vendor>
+            <tr [class.selected-row]="selectedVendor()?.vendorCode === vendor.vendorCode">
+              <td class="code-cell">{{ vendor.vendorCode }}</td>
+              <td>
+                <div>{{ vendor.branchName || '-' }}</div>
+                <small>{{ vendor.branchId || '-' }}</small>
+              </td>
+              <td><p-tag [severity]="getStatusSeverity(vendor.status)" [value]="vendor.status"></p-tag></td>
+              <td class="code-cell">{{ vendor.importId || '-' }}</td>
+              <td>
+                <div>{{ vendor.payloadProducts || vendor.productsCount || 0 }} items</div>
+                <small>{{ vendor.payloadToppings || 0 }} modifiers · {{ vendor.payloadOptionProducts || 0 }} options</small>
+              </td>
+              <td>
+                <div>{{ vendor.stagedProducts }} items</div>
+                <small>{{ vendor.stagedModifierGroups }} modifiers · {{ vendor.stagedRequiredModifierGroups }} required</small>
+              </td>
+              <td class="diagnostic-cell">
+                <button *ngIf="vendor.errorsJson" pButton type="button" icon="pi pi-exclamation-circle" label="Errors" class="p-button-text p-button-sm" (click)="showJson(vendor.vendorCode + ' Errors', vendor.errorsJson)"></button>
+                <span *ngIf="!vendor.errorsJson">{{ vendor.diagnostic || '-' }}</span>
+              </td>
+              <td>
+                <button pButton type="button" icon="pi pi-list" label="Items" class="p-button-outlined p-button-sm" (click)="openVendor(vendor)"></button>
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+
+      <div>
+        <h4>Run Steps</h4>
+        <div class="steps">
+          <div class="step" *ngFor="let step of run.steps">
+            <span class="step-time">{{ formatDate(step.timestamp) }}</span>
+            <strong>{{ step.stepType }}</strong>
+            <p>{{ step.message }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="details" *ngIf="selectedVendor() as vendor">
+    <div class="section-header">
+      <div>
+        <h3>{{ vendor.vendorCode }} Items & Modifiers</h3>
+        <p>{{ vendor.branchName || vendor.branchId || 'All branches' }}</p>
+      </div>
+      <div class="items-search">
+        <input type="text" pInputText [ngModel]="itemSearch()" (ngModelChange)="itemSearch.set($event)" placeholder="Search item, category, import..." />
+      </div>
+    </div>
+
+    <p-table [value]="filteredItems()" [loading]="loadingItems()" dataKey="foodicsProductId" [scrollable]="true" scrollHeight="560px" [expandedRowKeys]="{}">
+      <ng-template pTemplate="header">
+        <tr>
+          <th style="width: 3rem"></th>
+          <th>Item</th>
+          <th>Category</th>
+          <th>Price</th>
+          <th>Modifiers</th>
+          <th>Required</th>
+          <th>Options</th>
+          <th>Staging Sync</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-item let-expanded="expanded">
+        <tr>
+          <td>
+            <button pButton type="button" class="p-button-text p-button-sm" [pRowToggler]="item" [icon]="expanded ? 'pi pi-chevron-down' : 'pi pi-chevron-right'"></button>
+          </td>
+          <td>
+            <div class="item-name">{{ item.name }}</div>
+            <small>{{ item.foodicsProductId }}</small>
+            <small *ngIf="item.nameLocalized"> · {{ item.nameLocalized }}</small>
+          </td>
+          <td>{{ item.categoryName || '-' }}</td>
+          <td>{{ item.price ?? '-' }}</td>
+          <td>{{ item.modifierGroupsCount }}</td>
+          <td>{{ item.requiredModifierGroupsCount }}</td>
+          <td>{{ item.modifierOptionsCount }}</td>
+          <td>{{ formatDate(item.syncDate) }}</td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="rowexpansion" let-item>
+        <tr>
+          <td colspan="8">
+            <div class="modifier-grid" *ngIf="item.modifiers?.length; else noModifiers">
+              <div class="modifier-card" *ngFor="let modifier of item.modifiers">
+                <div class="modifier-head">
+                  <strong>{{ modifier.name || modifier.id }}</strong>
+                  <p-tag *ngIf="modifier.isRequired" value="Required" severity="warn"></p-tag>
+                </div>
+                <small>{{ modifier.id }} · min {{ modifier.minimum }} / max {{ modifier.maximum }}</small>
+                <div class="option-list">
+                  <span *ngFor="let option of modifier.options">
+                    {{ option.name || option.id }}<em *ngIf="option.price"> +{{ option.price }}</em>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <ng-template #noModifiers>No modifiers on this item.</ng-template>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </section>
+
+  <p-dialog
+    [header]="jsonDialogTitle()"
+    [modal]="true"
+    [style]="{ width: '48rem', maxWidth: '92vw' }"
+    [visible]="jsonDialogVisible()"
+    (visibleChange)="jsonDialogVisible.set($event)"
+  >
+    <pre class="json-block">{{ jsonDialogContent() }}</pre>
+  </p-dialog>
+</div>
