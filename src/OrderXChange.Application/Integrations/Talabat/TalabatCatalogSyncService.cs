@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Hangfire;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OrderXChange.Application.Contracts.Integrations.Talabat;
@@ -25,6 +26,7 @@ public class TalabatCatalogSyncService : ITransientDependency
     private readonly FoodicsCatalogClient _foodicsCatalogClient;
     private readonly FoodicsAccountTokenService _foodicsAccountTokenService;
     private readonly TalabatSyncStatusService _syncStatusService;
+    private readonly IBackgroundJobClient _backgroundJobs;
     private readonly IConfiguration _configuration;
     private readonly ILogger<TalabatCatalogSyncService> _logger;
 
@@ -35,6 +37,7 @@ public class TalabatCatalogSyncService : ITransientDependency
         FoodicsCatalogClient foodicsCatalogClient,
         FoodicsAccountTokenService foodicsAccountTokenService,
         TalabatSyncStatusService syncStatusService,
+        IBackgroundJobClient backgroundJobs,
         IConfiguration configuration,
         ILogger<TalabatCatalogSyncService> logger)
     {
@@ -44,6 +47,7 @@ public class TalabatCatalogSyncService : ITransientDependency
         _foodicsCatalogClient = foodicsCatalogClient;
         _foodicsAccountTokenService = foodicsAccountTokenService;
         _syncStatusService = syncStatusService;
+        _backgroundJobs = backgroundJobs;
         _configuration = configuration;
         _logger = logger;
     }
@@ -429,12 +433,12 @@ public class TalabatCatalogSyncService : ITransientDependency
                     response.ImportId,
                     result.Duration?.TotalMilliseconds ?? 0);
 
+                var vendorCodes = catalogRequest.Vendors ?? new List<string>();
+                var vendorCodeStr = vendorCodes.Count > 0 ? vendorCodes[0] : chainCode;
+
                 // Record submission in database
                 try
                 {
-                    var vendorCodes = catalogRequest.Vendors ?? new List<string>();
-                    var vendorCodeStr = vendorCodes.Count > 0 ? vendorCodes[0] : chainCode;
-
                     await _syncStatusService.RecordSubmissionAsync(
                         foodicsAccountId,
                         vendorCodeStr,
@@ -458,6 +462,24 @@ public class TalabatCatalogSyncService : ITransientDependency
                         "Failed to record Talabat submission in database. ImportId={ImportId}, Error={Error}",
                         response.ImportId,
                         ex.Message);
+
+                    _backgroundJobs.Schedule<TalabatSyncStatusService>(
+                        service => service.RecordSubmissionFromJobAsync(
+                            foodicsAccountId,
+                            vendorCodeStr,
+                            chainCode,
+                            response.ImportId,
+                            correlationId,
+                            result.CategoriesCount,
+                            result.ProductsCount,
+                            callbackUrl,
+                            "V2"),
+                        TimeSpan.FromSeconds(30));
+
+                    _logger.LogWarning(
+                        "Scheduled deferred Talabat submission log persistence on Hangfire menu queue. ImportId={ImportId}, VendorCode={VendorCode}",
+                        response.ImportId,
+                        vendorCodeStr);
                     // Don't fail the entire operation
                 }
             }

@@ -107,6 +107,7 @@ public class MenuSyncRecurringJob : ITransientDependency
     /// <param name="skipInternalIdempotency">If true, skips internal idempotency check (used when called from Kafka consumer which already did the check)</param>
     /// <param name="cancellationToken">Cancellation token</param>
     [AutomaticRetry(Attempts = 3, OnAttemptsExceeded = AttemptsExceededAction.Fail)]
+    [Queue("menu")]
     [UnitOfWork]
     public virtual async Task ExecuteAsync(Guid? foodicsAccountId = null, string? branchId = null, bool skipInternalIdempotency = false, CancellationToken cancellationToken = default)
     {

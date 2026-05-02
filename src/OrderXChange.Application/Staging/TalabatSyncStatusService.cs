@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OrderXChange.Application.Contracts.Integrations.Talabat;
@@ -196,6 +197,34 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 		LogSkippedStagingStatusUpdate(foodicsAccountId, vendorCode, TalabatSyncStatus.Submitted, importId);
 
 		return syncLog;
+	}
+
+	/// <summary>
+	/// Updates sync log and staging products when catalog import completes successfully
+	/// </summary>
+	[Queue("menu")]
+	public virtual Task RecordSubmissionFromJobAsync(
+		Guid foodicsAccountId,
+		string vendorCode,
+		string? chainCode,
+		string? importId,
+		string? correlationId,
+		int categoriesCount,
+		int productsCount,
+		string? callbackUrl,
+		string apiVersion)
+	{
+		return RecordSubmissionAsync(
+			foodicsAccountId,
+			vendorCode,
+			chainCode,
+			importId,
+			correlationId,
+			categoriesCount,
+			productsCount,
+			callbackUrl,
+			apiVersion,
+			CancellationToken.None);
 	}
 
 	/// <summary>

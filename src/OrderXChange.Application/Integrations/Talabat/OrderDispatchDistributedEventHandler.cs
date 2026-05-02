@@ -125,6 +125,31 @@ public class OrderDispatchDistributedEventHandler
         await ProcessOrderAsync(eventData.Message, currentAttempt: eventData.Attempts + 1);
     }
 
+    [Queue("orders")]
+    [UnitOfWork]
+    public async Task ProcessHangfireDispatchAsync(OrderDispatchEto eventData)
+    {
+        _logger.LogInformation(
+            "Hangfire orders queue: Received OrderDispatch job. CorrelationId={CorrelationId}, OrderLogId={OrderLogId}",
+            eventData.CorrelationId,
+            eventData.OrderLogId);
+
+        await ProcessOrderAsync(eventData, currentAttempt: 1);
+    }
+
+    [Queue("orders")]
+    [UnitOfWork]
+    public async Task ProcessRetryHangfireDispatchAsync(OrderDispatchRetryEto eventData)
+    {
+        _logger.LogInformation(
+            "Hangfire orders queue: Received OrderDispatch retry job. CorrelationId={CorrelationId}, Attempts={Attempts}",
+            eventData.Message.CorrelationId,
+            eventData.Attempts);
+
+        await ProcessOrderAsync(eventData.Message, currentAttempt: eventData.Attempts + 1);
+    }
+
+    [Queue("orders")]
     [UnitOfWork]
     public async Task ProcessWatchdogDispatchAsync(OrderDispatchEto eventData)
     {
@@ -415,12 +440,12 @@ public class OrderDispatchDistributedEventHandler
                 FailureType = "Transient"
             };
 
-            _backgroundJobs.Schedule<OrderDispatchRetryPublisher>(
-                publisher => publisher.PublishRetryAsync(retryEvent),
+            _backgroundJobs.Schedule<OrderDispatchDistributedEventHandler>(
+                handler => handler.ProcessRetryHangfireDispatchAsync(retryEvent),
                 TimeSpan.FromSeconds(delaySeconds));
 
             _logger.LogInformation(
-                "Scheduled OrderDispatch retry via Hangfire. CorrelationId={CorrelationId}, Attempt={Attempt}, DelaySeconds={DelaySeconds}",
+                "Scheduled OrderDispatch retry on Hangfire orders queue. CorrelationId={CorrelationId}, Attempt={Attempt}, DelaySeconds={DelaySeconds}",
                 eventData.CorrelationId,
                 currentAttempt + 1,
                 delaySeconds);

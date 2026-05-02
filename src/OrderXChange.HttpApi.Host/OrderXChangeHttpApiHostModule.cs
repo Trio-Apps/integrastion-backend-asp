@@ -371,7 +371,16 @@ public class OrderXChangeHttpApiHostModule : AbpModule
 
         context.Services.AddHangfireServer(options =>
         {
-            options.WorkerCount = configuration.GetValue<int?>("Hangfire:WorkerCount") ?? Math.Max(Environment.ProcessorCount, 20);
+            options.ServerName = $"{Environment.MachineName}:orders";
+            options.Queues = new[] { "orders" };
+            options.WorkerCount = configuration.GetValue<int?>("Hangfire:OrdersWorkerCount") ?? 10;
+        });
+
+        context.Services.AddHangfireServer(options =>
+        {
+            options.ServerName = $"{Environment.MachineName}:menu";
+            options.Queues = new[] { "menu", "default" };
+            options.WorkerCount = configuration.GetValue<int?>("Hangfire:MenuWorkerCount") ?? 5;
         });
     }
 

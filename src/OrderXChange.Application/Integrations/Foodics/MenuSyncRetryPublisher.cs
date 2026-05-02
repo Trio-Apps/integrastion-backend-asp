@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using Hangfire;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.EventBus.Distributed;
 using OrderXChange.Integrations.Foodics;
@@ -18,6 +19,7 @@ public class MenuSyncRetryPublisher : ITransientDependency
         _eventBus = eventBus;
     }
 
+    [Queue("menu")]
     public Task PublishRetryAsync(MenuSyncRetryEto eventData)
     {
         return _eventBus.PublishAsync(eventData);

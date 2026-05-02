@@ -19,7 +19,6 @@ using OrderXChange.Integrations.Talabat;
 using OrderXChange.Json;
 using OrderXChange.Security;
 using Volo.Abp.Domain.Repositories;
-using Volo.Abp.EventBus.Distributed;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.AspNetCore.Mvc;
 
@@ -43,7 +42,6 @@ public class TalabatWebhookController : AbpController
     private readonly ITalabatSyncStatusService _syncStatusService;
     private readonly TalabatAccountService _talabatAccountService;
     private readonly IRepository<TalabatOrderSyncLog, Guid> _orderSyncLogRepository;
-    private readonly IDistributedEventBus _eventBus;
     private readonly IBackgroundJobClient _backgroundJobs;
     private readonly ICurrentTenant _currentTenant;
     private readonly TalabatWebhookSecurityValidator _webhookSecurityValidator;
@@ -65,7 +63,6 @@ public class TalabatWebhookController : AbpController
         ITalabatSyncStatusService syncStatusService,
         TalabatAccountService talabatAccountService,
         IRepository<TalabatOrderSyncLog, Guid> orderSyncLogRepository,
-        IDistributedEventBus eventBus,
         IBackgroundJobClient backgroundJobs,
         ICurrentTenant currentTenant,
         TalabatWebhookSecurityValidator webhookSecurityValidator,
@@ -75,7 +72,6 @@ public class TalabatWebhookController : AbpController
         _syncStatusService = syncStatusService;
         _talabatAccountService = talabatAccountService;
         _orderSyncLogRepository = orderSyncLogRepository;
-        _eventBus = eventBus;
         _backgroundJobs = backgroundJobs;
         _currentTenant = currentTenant;
         _webhookSecurityValidator = webhookSecurityValidator;
@@ -440,7 +436,9 @@ public class TalabatWebhookController : AbpController
 
                 try
                 {
-                    await _eventBus.PublishAsync(dispatchEvent);
+                    var orderDispatchJobId = _backgroundJobs.Enqueue<OrderDispatchDistributedEventHandler>(
+                        handler => handler.ProcessHangfireDispatchAsync(dispatchEvent));
+
                     var watchdogDelaySeconds = Math.Max(
                         15,
                         _configuration.GetValue<int?>("Talabat:OrderEnqueueWatchdogDelaySeconds") ?? 60);
@@ -448,6 +446,12 @@ public class TalabatWebhookController : AbpController
                     _backgroundJobs.Schedule<TalabatOrderEnqueueWatchdog>(
                         watchdog => watchdog.RequeueIfStuckAsync(orderLog.Id),
                         TimeSpan.FromSeconds(watchdogDelaySeconds));
+
+                    _logger.LogInformation(
+                        "Talabat order dispatch queued on Hangfire orders queue. CorrelationId={CorrelationId}, OrderLogId={OrderLogId}, HangfireJobId={HangfireJobId}",
+                        correlationId,
+                        orderLog.Id,
+                        orderDispatchJobId);
                 }
                 catch (Exception publishEx)
                 {

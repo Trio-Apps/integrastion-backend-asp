@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Hangfire;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using OrderXChange.Domain.Staging;
@@ -35,6 +36,7 @@ public class TalabatOrderEnqueueWatchdog : ITransientDependency
         _logger = logger;
     }
 
+    [Queue("orders")]
     [UnitOfWork]
     public async Task RequeueIfStuckAsync(Guid orderLogId)
     {
@@ -83,6 +85,7 @@ public class TalabatOrderEnqueueWatchdog : ITransientDependency
         }
     }
 
+    [Queue("orders")]
     [UnitOfWork]
     public async Task SweepStuckEnqueuedAsync(int olderThanSeconds = 90, int take = 25)
     {
