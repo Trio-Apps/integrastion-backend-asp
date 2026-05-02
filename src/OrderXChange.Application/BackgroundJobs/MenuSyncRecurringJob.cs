@@ -108,7 +108,7 @@ public class MenuSyncRecurringJob : ITransientDependency
     /// <param name="cancellationToken">Cancellation token</param>
     [AutomaticRetry(Attempts = 3, OnAttemptsExceeded = AttemptsExceededAction.Fail)]
     [Queue("menu")]
-    [UnitOfWork]
+    [UnitOfWork(false)]
     public virtual async Task ExecuteAsync(Guid? foodicsAccountId = null, string? branchId = null, bool skipInternalIdempotency = false, CancellationToken cancellationToken = default)
     {
         try
