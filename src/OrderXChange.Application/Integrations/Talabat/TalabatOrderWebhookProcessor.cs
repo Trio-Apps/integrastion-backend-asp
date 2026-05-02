@@ -13,6 +13,7 @@ using OrderXChange.Integrations.Talabat;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.TenantManagement.Talabat;
 using Volo.Abp.Uow;
 
 namespace OrderXChange.Application.Integrations.Talabat;
@@ -26,6 +27,7 @@ public class TalabatOrderWebhookProcessor : ITransientDependency
     private readonly IRepository<TalabatOrderSyncLog, Guid> _orderSyncLogRepository;
     private readonly IBackgroundJobClient _backgroundJobs;
     private readonly ICurrentTenant _currentTenant;
+    private readonly IUnitOfWorkManager _unitOfWorkManager;
     private readonly ILogger<TalabatOrderWebhookProcessor> _logger;
 
     public TalabatOrderWebhookProcessor(
@@ -34,6 +36,7 @@ public class TalabatOrderWebhookProcessor : ITransientDependency
         IRepository<TalabatOrderSyncLog, Guid> orderSyncLogRepository,
         IBackgroundJobClient backgroundJobs,
         ICurrentTenant currentTenant,
+        IUnitOfWorkManager unitOfWorkManager,
         ILogger<TalabatOrderWebhookProcessor> logger)
     {
         _configuration = configuration;
@@ -41,6 +44,7 @@ public class TalabatOrderWebhookProcessor : ITransientDependency
         _orderSyncLogRepository = orderSyncLogRepository;
         _backgroundJobs = backgroundJobs;
         _currentTenant = currentTenant;
+        _unitOfWorkManager = unitOfWorkManager;
         _logger = logger;
     }
 
@@ -59,131 +63,226 @@ public class TalabatOrderWebhookProcessor : ITransientDependency
     [UnitOfWork]
     public async Task ProcessAsync(string? vendorCode, string rawBody, string correlationId)
     {
-        var webhook = JsonSerializer.Deserialize<TalabatOrderWebhook>(rawBody, TalabatWebhookJsonOptions);
-        if (webhook == null)
+        TalabatOrderWebhook? webhook = null;
+        string? resolvedVendorCode = null;
+        TalabatAccount? account = null;
+        TalabatOrderSyncLog? orderLog = null;
+
+        try
         {
-            _logger.LogWarning(
-                "Queued Talabat order webhook could not be parsed. CorrelationId={CorrelationId}",
-                correlationId);
-            return;
-        }
-
-        var resolvedVendorCode = ResolveVendorCode(vendorCode, webhook);
-        if (string.IsNullOrWhiteSpace(resolvedVendorCode))
-        {
-            _logger.LogWarning(
-                "Unable to resolve vendor code for queued Talabat order webhook. CorrelationId={CorrelationId}, PlatformRestaurantId={PlatformRestaurantId}",
-                correlationId,
-                webhook.PlatformRestaurant?.Id);
-            return;
-        }
-
-        var account = await _talabatAccountService.GetAccountByVendorCodeAsync(resolvedVendorCode, CancellationToken.None);
-        if (account == null && !string.IsNullOrWhiteSpace(webhook.PlatformRestaurant?.Id))
-        {
-            account = await _talabatAccountService.GetAccountByPlatformRestaurantIdAsync(webhook.PlatformRestaurant.Id, CancellationToken.None);
-        }
-
-        if (account == null)
-        {
-            _logger.LogWarning(
-                "No TalabatAccount found for queued order webhook. CorrelationId={CorrelationId}, VendorCode={VendorCode}, PlatformRestaurantId={PlatformRestaurantId}",
-                correlationId,
-                resolvedVendorCode,
-                webhook.PlatformRestaurant?.Id);
-            return;
-        }
-
-        if (!account.FoodicsAccountId.HasValue)
-        {
-            _logger.LogWarning(
-                "TalabatAccount missing FoodicsAccountId for queued order webhook. CorrelationId={CorrelationId}, VendorCode={VendorCode}, TalabatAccountId={TalabatAccountId}",
-                correlationId,
-                account.VendorCode,
-                account.Id);
-            return;
-        }
-
-        var productsCount = webhook.Products?.Count ?? 0;
-        var categoriesCount = webhook.Products == null
-            ? 0
-            : webhook.Products
-                .Select(x => x.CategoryName)
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Count();
-
-        using (_currentTenant.Change(account.TenantId))
-        {
-            var existingOrderLog = await FindExistingOrderLogAsync(
-                account.FoodicsAccountId.Value,
-                account.VendorCode,
-                webhook);
-
-            if (existingOrderLog != null && IsActiveOrCompletedOrderLogStatus(existingOrderLog.Status))
+            webhook = JsonSerializer.Deserialize<TalabatOrderWebhook>(rawBody, TalabatWebhookJsonOptions);
+            if (webhook == null)
             {
-                _logger.LogInformation(
-                    "Duplicate queued Talabat order webhook ignored because an order log already exists. CorrelationId={CorrelationId}, VendorCode={VendorCode}, ExistingOrderLogId={ExistingOrderLogId}, ExistingStatus={ExistingStatus}, OrderCode={OrderCode}, ShortCode={ShortCode}",
-                    correlationId,
-                    account.VendorCode,
-                    existingOrderLog.Id,
-                    existingOrderLog.Status,
-                    webhook.Code,
-                    webhook.ShortCode);
+                _logger.LogWarning(
+                    "Queued Talabat order webhook could not be parsed. CorrelationId={CorrelationId}",
+                    correlationId);
                 return;
             }
 
-            var orderLog = new TalabatOrderSyncLog
+            resolvedVendorCode = ResolveVendorCode(vendorCode, webhook);
+            if (string.IsNullOrWhiteSpace(resolvedVendorCode))
+            {
+                _logger.LogWarning(
+                    "Unable to resolve vendor code for queued Talabat order webhook. CorrelationId={CorrelationId}, PlatformRestaurantId={PlatformRestaurantId}",
+                    correlationId,
+                    webhook.PlatformRestaurant?.Id);
+                return;
+            }
+
+            account = await _talabatAccountService.GetAccountByVendorCodeAsync(resolvedVendorCode, CancellationToken.None);
+            if (account == null && !string.IsNullOrWhiteSpace(webhook.PlatformRestaurant?.Id))
+            {
+                account = await _talabatAccountService.GetAccountByPlatformRestaurantIdAsync(webhook.PlatformRestaurant.Id, CancellationToken.None);
+            }
+
+            if (account == null)
+            {
+                _logger.LogWarning(
+                    "No TalabatAccount found for queued order webhook. CorrelationId={CorrelationId}, VendorCode={VendorCode}, PlatformRestaurantId={PlatformRestaurantId}",
+                    correlationId,
+                    resolvedVendorCode,
+                    webhook.PlatformRestaurant?.Id);
+                return;
+            }
+
+            if (!account.FoodicsAccountId.HasValue)
+            {
+                _logger.LogWarning(
+                    "TalabatAccount missing FoodicsAccountId for queued order webhook. CorrelationId={CorrelationId}, VendorCode={VendorCode}, TalabatAccountId={TalabatAccountId}",
+                    correlationId,
+                    account.VendorCode,
+                    account.Id);
+                return;
+            }
+
+            var productsCount = webhook.Products?.Count ?? 0;
+            var categoriesCount = webhook.Products == null
+                ? 0
+                : webhook.Products
+                    .Select(x => x.CategoryName)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count();
+
+            using (_currentTenant.Change(account.TenantId))
+            {
+                var existingOrderLog = await FindExistingOrderLogAsync(
+                    account.FoodicsAccountId.Value,
+                    account.VendorCode,
+                    webhook);
+
+                if (existingOrderLog != null && IsActiveOrCompletedOrderLogStatus(existingOrderLog.Status))
+                {
+                    _logger.LogInformation(
+                        "Duplicate queued Talabat order webhook ignored because an order log already exists. CorrelationId={CorrelationId}, VendorCode={VendorCode}, ExistingOrderLogId={ExistingOrderLogId}, ExistingStatus={ExistingStatus}, OrderCode={OrderCode}, ShortCode={ShortCode}",
+                        correlationId,
+                        account.VendorCode,
+                        existingOrderLog.Id,
+                        existingOrderLog.Status,
+                        webhook.Code,
+                        webhook.ShortCode);
+                    return;
+                }
+
+                orderLog = new TalabatOrderSyncLog
+                {
+                    FoodicsAccountId = account.FoodicsAccountId.Value,
+                    VendorCode = account.VendorCode,
+                    PlatformRestaurantId = webhook.PlatformRestaurant?.Id,
+                    OrderToken = webhook.Token,
+                    OrderCode = webhook.Code,
+                    ShortCode = webhook.ShortCode,
+                    CorrelationId = correlationId,
+                    Status = "Enqueued",
+                    IsTestOrder = webhook.Test ?? false,
+                    ProductsCount = productsCount,
+                    CategoriesCount = categoriesCount,
+                    OrderCreatedAt = webhook.CreatedAt,
+                    ReceivedAt = DateTime.UtcNow,
+                    WebhookPayloadJson = ShouldLogOrderPayload() ? rawBody : null,
+                    Attempts = 0
+                };
+
+                await _orderSyncLogRepository.InsertAsync(orderLog, autoSave: true);
+
+                var dispatchEvent = new OrderDispatchEto
+                {
+                    CorrelationId = correlationId,
+                    AccountId = account.FoodicsAccountId.Value,
+                    FoodicsAccountId = account.FoodicsAccountId.Value,
+                    VendorCode = account.VendorCode,
+                    TenantId = account.TenantId,
+                    OrderLogId = orderLog.Id,
+                    IdempotencyKey = BuildOrderIdempotencyKey(account.VendorCode, webhook),
+                    OccurredAt = DateTime.UtcNow
+                };
+
+                var orderDispatchJobId = _backgroundJobs.Enqueue<OrderDispatchDistributedEventHandler>(
+                    handler => handler.ProcessHangfireDispatchAsync(dispatchEvent));
+
+                var watchdogDelaySeconds = Math.Max(
+                    15,
+                    _configuration.GetValue<int?>("Talabat:OrderEnqueueWatchdogDelaySeconds") ?? 60);
+
+                _backgroundJobs.Schedule<TalabatOrderEnqueueWatchdog>(
+                    watchdog => watchdog.RequeueIfStuckAsync(orderLog.Id),
+                    TimeSpan.FromSeconds(watchdogDelaySeconds));
+
+                _logger.LogInformation(
+                    "Queued Talabat order webhook persisted and dispatched on orders queue. CorrelationId={CorrelationId}, VendorCode={VendorCode}, OrderLogId={OrderLogId}, HangfireJobId={HangfireJobId}, Products={Products}",
+                    correlationId,
+                    account.VendorCode,
+                    orderLog.Id,
+                    orderDispatchJobId,
+                    productsCount);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Queued Talabat order webhook processing failed. CorrelationId={CorrelationId}, VendorCode={VendorCode}, OrderLogId={OrderLogId}, OrderCode={OrderCode}, ShortCode={ShortCode}",
+                correlationId,
+                resolvedVendorCode,
+                orderLog?.Id,
+                webhook?.Code,
+                webhook?.ShortCode);
+
+            await PersistWebhookProcessingFailureAsync(
+                account,
+                webhook,
+                rawBody,
+                correlationId,
+                orderLog,
+                ex);
+        }
+    }
+
+    private async Task PersistWebhookProcessingFailureAsync(
+        TalabatAccount? account,
+        TalabatOrderWebhook? webhook,
+        string rawBody,
+        string correlationId,
+        TalabatOrderSyncLog? orderLog,
+        Exception exception)
+    {
+        if (account?.FoodicsAccountId == null)
+        {
+            return;
+        }
+
+        var message = $"Queued webhook processing failed: {exception.Message}";
+        if (orderLog != null)
+        {
+            orderLog.Status = "Failed";
+            orderLog.CompletedAt = DateTime.UtcNow;
+            orderLog.LastAttemptUtc = DateTime.UtcNow;
+            orderLog.ErrorMessage = message;
+            orderLog.ErrorCode = exception.GetType().Name;
+
+            await _orderSyncLogRepository.UpdateAsync(orderLog, autoSave: true);
+            return;
+        }
+
+        using (_currentTenant.Change(account.TenantId))
+        {
+            using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true);
+
+            var productsCount = webhook?.Products?.Count ?? 0;
+            var categoriesCount = webhook?.Products == null
+                ? 0
+                : webhook.Products
+                    .Select(x => x.CategoryName)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count();
+
+            orderLog = new TalabatOrderSyncLog
             {
                 FoodicsAccountId = account.FoodicsAccountId.Value,
                 VendorCode = account.VendorCode,
-                PlatformRestaurantId = webhook.PlatformRestaurant?.Id,
-                OrderToken = webhook.Token,
-                OrderCode = webhook.Code,
-                ShortCode = webhook.ShortCode,
+                PlatformRestaurantId = webhook?.PlatformRestaurant?.Id,
+                OrderToken = webhook?.Token,
+                OrderCode = webhook?.Code,
+                ShortCode = webhook?.ShortCode,
                 CorrelationId = correlationId,
-                Status = "Enqueued",
-                IsTestOrder = webhook.Test ?? false,
+                Status = "Failed",
+                IsTestOrder = webhook?.Test ?? false,
                 ProductsCount = productsCount,
                 CategoriesCount = categoriesCount,
-                OrderCreatedAt = webhook.CreatedAt,
+                OrderCreatedAt = webhook?.CreatedAt,
                 ReceivedAt = DateTime.UtcNow,
+                CompletedAt = DateTime.UtcNow,
+                LastAttemptUtc = DateTime.UtcNow,
+                ErrorMessage = message,
+                ErrorCode = exception.GetType().Name,
                 WebhookPayloadJson = ShouldLogOrderPayload() ? rawBody : null,
-                Attempts = 0
+                Attempts = 1
             };
 
             await _orderSyncLogRepository.InsertAsync(orderLog, autoSave: true);
 
-            var dispatchEvent = new OrderDispatchEto
-            {
-                CorrelationId = correlationId,
-                AccountId = account.FoodicsAccountId.Value,
-                FoodicsAccountId = account.FoodicsAccountId.Value,
-                VendorCode = account.VendorCode,
-                TenantId = account.TenantId,
-                OrderLogId = orderLog.Id,
-                IdempotencyKey = BuildOrderIdempotencyKey(account.VendorCode, webhook),
-                OccurredAt = DateTime.UtcNow
-            };
-
-            var orderDispatchJobId = _backgroundJobs.Enqueue<OrderDispatchDistributedEventHandler>(
-                handler => handler.ProcessHangfireDispatchAsync(dispatchEvent));
-
-            var watchdogDelaySeconds = Math.Max(
-                15,
-                _configuration.GetValue<int?>("Talabat:OrderEnqueueWatchdogDelaySeconds") ?? 60);
-
-            _backgroundJobs.Schedule<TalabatOrderEnqueueWatchdog>(
-                watchdog => watchdog.RequeueIfStuckAsync(orderLog.Id),
-                TimeSpan.FromSeconds(watchdogDelaySeconds));
-
-            _logger.LogInformation(
-                "Queued Talabat order webhook persisted and dispatched on orders queue. CorrelationId={CorrelationId}, VendorCode={VendorCode}, OrderLogId={OrderLogId}, HangfireJobId={HangfireJobId}, Products={Products}",
-                correlationId,
-                account.VendorCode,
-                orderLog.Id,
-                orderDispatchJobId,
-                productsCount);
+            await uow.CompleteAsync();
         }
     }
 
