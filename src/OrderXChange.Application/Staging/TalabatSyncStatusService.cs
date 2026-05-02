@@ -54,7 +54,6 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 	/// <summary>
 	/// Records a new catalog submission to Talabat
 	/// </summary>
-	[UnitOfWork]
 	public virtual async Task<TalabatCatalogSyncLog> RecordSubmissionAsync(
 		Guid foodicsAccountId,
 		string vendorCode,
@@ -67,45 +66,47 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 		string apiVersion = "V1",
 		CancellationToken cancellationToken = default)
 	{
-		using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true);
+		using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: false);
+		using var multiTenantFilter = _dataFilter.Disable<IMultiTenant>();
 
+		var dbContext = await _dbContextProvider.GetDbContextAsync();
+		var tenantId = await ResolveTenantIdForVendorAsync(foodicsAccountId, vendorCode, cancellationToken);
+
+		TalabatCatalogSyncLog? existingLog = null;
 		if (!string.IsNullOrWhiteSpace(importId))
 		{
-			using (_dataFilter.Disable<IMultiTenant>())
+			existingLog = await dbContext.Set<TalabatCatalogSyncLog>()
+				.FirstOrDefaultAsync(x => x.ImportId == importId, cancellationToken);
+		}
+
+		if (existingLog != null)
+		{
+			existingLog.FoodicsAccountId = foodicsAccountId;
+			existingLog.VendorCode = vendorCode;
+			existingLog.ChainCode = chainCode;
+			existingLog.CorrelationId = correlationId ?? existingLog.CorrelationId;
+			existingLog.ApiVersion = apiVersion;
+			existingLog.CategoriesCount = categoriesCount;
+			existingLog.ProductsCount = productsCount;
+			existingLog.CallbackUrl = callbackUrl;
+			existingLog.TenantId ??= tenantId;
+
+			if (existingLog.Status == TalabatSyncStatus.Submitted || existingLog.Status == TalabatSyncStatus.Processing)
 			{
-				var queryable = await _syncLogRepository.GetQueryableAsync();
-				var existingLog = await queryable
-					.FirstOrDefaultAsync(x => x.ImportId == importId, cancellationToken);
-
-				if (existingLog != null)
-				{
-					existingLog.FoodicsAccountId = foodicsAccountId;
-					existingLog.VendorCode = vendorCode;
-					existingLog.ChainCode = chainCode;
-					existingLog.CorrelationId = correlationId ?? existingLog.CorrelationId;
-					existingLog.ApiVersion = apiVersion;
-					existingLog.CategoriesCount = categoriesCount;
-					existingLog.ProductsCount = productsCount;
-					existingLog.CallbackUrl = callbackUrl;
-
-					if (existingLog.Status == TalabatSyncStatus.Submitted || existingLog.Status == TalabatSyncStatus.Processing)
-					{
-						existingLog.Status = TalabatSyncStatus.Submitted;
-					}
-
-					await _syncLogRepository.UpdateAsync(existingLog, autoSave: false, cancellationToken: cancellationToken);
-					await uow.CompleteAsync(cancellationToken);
-
-					_logger.LogInformation(
-						"Updated existing Talabat catalog submission record. SyncLogId={SyncLogId}, VendorCode={VendorCode}, ImportId={ImportId}, Status={Status}",
-						existingLog.Id,
-						vendorCode,
-						importId,
-						existingLog.Status);
-
-					return existingLog;
-				}
+				existingLog.Status = TalabatSyncStatus.Submitted;
 			}
+
+			await dbContext.SaveChangesAsync(cancellationToken);
+			await uow.CompleteAsync(cancellationToken);
+
+			_logger.LogInformation(
+				"Updated existing Talabat catalog submission record. SyncLogId={SyncLogId}, VendorCode={VendorCode}, ImportId={ImportId}, Status={Status}",
+				existingLog.Id,
+				vendorCode,
+				importId,
+				existingLog.Status);
+
+			return existingLog;
 		}
 
 		var syncLog = new TalabatCatalogSyncLog
@@ -120,10 +121,12 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 			CategoriesCount = categoriesCount,
 			ProductsCount = productsCount,
 			CallbackUrl = callbackUrl,
-			SubmittedAt = DateTime.UtcNow
+			SubmittedAt = DateTime.UtcNow,
+			TenantId = tenantId
 		};
 
-		await _syncLogRepository.InsertAsync(syncLog, autoSave: false, cancellationToken: cancellationToken);
+		dbContext.Set<TalabatCatalogSyncLog>().Add(syncLog);
+		await dbContext.SaveChangesAsync(cancellationToken);
 		await uow.CompleteAsync(cancellationToken);
 
 		_logger.LogInformation(
@@ -333,6 +336,28 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 	}
 
 	#region Private Methods
+
+	private async Task<Guid?> ResolveTenantIdForVendorAsync(
+		Guid foodicsAccountId,
+		string vendorCode,
+		CancellationToken cancellationToken)
+	{
+		var normalizedVendorCode = vendorCode.Trim();
+		if (string.IsNullOrWhiteSpace(normalizedVendorCode))
+		{
+			return null;
+		}
+
+		var dbContext = await _dbContextProvider.GetDbContextAsync();
+		var talabatAccount = await dbContext.Set<TalabatAccount>()
+			.FirstOrDefaultAsync(x =>
+				x.FoodicsAccountId == foodicsAccountId &&
+				x.VendorCode != null &&
+				x.VendorCode.ToLower() == normalizedVendorCode.ToLower(),
+				cancellationToken);
+
+		return talabatAccount?.TenantId;
+	}
 
 	private async Task<TalabatCatalogSyncLog?> FindSyncLogByImportIdAsync(
 		string? importId,

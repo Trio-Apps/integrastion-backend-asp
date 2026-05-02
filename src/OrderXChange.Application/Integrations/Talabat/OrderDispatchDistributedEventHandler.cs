@@ -125,6 +125,17 @@ public class OrderDispatchDistributedEventHandler
         await ProcessOrderAsync(eventData.Message, currentAttempt: eventData.Attempts + 1);
     }
 
+    [UnitOfWork]
+    public async Task ProcessWatchdogDispatchAsync(OrderDispatchEto eventData)
+    {
+        _logger.LogWarning(
+            "Watchdog is processing stuck Talabat order dispatch directly. CorrelationId={CorrelationId}, OrderLogId={OrderLogId}",
+            eventData.CorrelationId,
+            eventData.OrderLogId);
+
+        await ProcessOrderAsync(eventData, currentAttempt: 1);
+    }
+
     private async Task ProcessOrderAsync(OrderDispatchEto eventData, int currentAttempt)
     {
         const int maxAttempts = 3;
