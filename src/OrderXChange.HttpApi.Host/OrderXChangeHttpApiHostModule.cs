@@ -25,6 +25,7 @@ using OrderXChange.HealthChecks;
 using OrderXChange.BackgroundJobs;
 using OrderXChange.Hangfire;
 using OrderXChange.HttpApi.Host.Filters;
+using OrderXChange.Application.Integrations.Talabat;
 using Microsoft.OpenApi.Models;
 using Volo.Abp;
 using Volo.Abp.BackgroundJobs.Hangfire;
@@ -454,5 +455,12 @@ public class OrderXChangeHttpApiHostModule : AbpModule
         logger.LogInformation(
             "Recurring job MenuSyncScheduler scheduled with cron expression {CronExpression} using MenuSyncRecurringJob flow.",
             menuCronExpression);
+
+        recurringJobManager.AddOrUpdate<TalabatOrderEnqueueWatchdog>(
+            "TalabatOrderEnqueueWatchdogSweep",
+            job => job.SweepStuckEnqueuedAsync(90, 50),
+            Cron.Minutely);
+
+        logger.LogInformation("Recurring job TalabatOrderEnqueueWatchdogSweep scheduled every minute.");
     }
 }

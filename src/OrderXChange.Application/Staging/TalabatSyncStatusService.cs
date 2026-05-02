@@ -66,6 +66,64 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 		string apiVersion = "V1",
 		CancellationToken cancellationToken = default)
 	{
+		const int maxAttempts = 5;
+		for (var attempt = 1; attempt <= maxAttempts; attempt++)
+		{
+			try
+			{
+				return await RecordSubmissionOnceAsync(
+					foodicsAccountId,
+					vendorCode,
+					chainCode,
+					importId,
+					correlationId,
+					categoriesCount,
+					productsCount,
+					callbackUrl,
+					apiVersion,
+					cancellationToken);
+			}
+			catch (Exception ex) when (attempt < maxAttempts && IsTransientDatabaseError(ex))
+			{
+				var delay = TimeSpan.FromMilliseconds(500 * attempt);
+				_logger.LogWarning(
+					ex,
+					"Retrying Talabat catalog submission log persistence after transient database error. Attempt={Attempt}/{MaxAttempts}, DelayMs={DelayMs}, VendorCode={VendorCode}, ImportId={ImportId}",
+					attempt,
+					maxAttempts,
+					delay.TotalMilliseconds,
+					vendorCode,
+					importId);
+
+				await Task.Delay(delay, cancellationToken);
+			}
+		}
+
+		return await RecordSubmissionOnceAsync(
+			foodicsAccountId,
+			vendorCode,
+			chainCode,
+			importId,
+			correlationId,
+			categoriesCount,
+			productsCount,
+			callbackUrl,
+			apiVersion,
+			cancellationToken);
+	}
+
+	private async Task<TalabatCatalogSyncLog> RecordSubmissionOnceAsync(
+		Guid foodicsAccountId,
+		string vendorCode,
+		string? chainCode,
+		string? importId,
+		string? correlationId,
+		int categoriesCount,
+		int productsCount,
+		string? callbackUrl,
+		string apiVersion,
+		CancellationToken cancellationToken)
+	{
 		using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: false);
 		using var multiTenantFilter = _dataFilter.Disable<IMultiTenant>();
 
@@ -336,6 +394,16 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 	}
 
 	#region Private Methods
+
+	private static bool IsTransientDatabaseError(Exception ex)
+	{
+		var message = ex.ToString();
+		return message.Contains("timeout", StringComparison.OrdinalIgnoreCase)
+		       || message.Contains("lock wait timeout", StringComparison.OrdinalIgnoreCase)
+		       || message.Contains("deadlock", StringComparison.OrdinalIgnoreCase)
+		       || message.Contains("Query execution was interrupted", StringComparison.OrdinalIgnoreCase)
+		       || message.Contains("transient failure", StringComparison.OrdinalIgnoreCase);
+	}
 
 	private async Task<Guid?> ResolveTenantIdForVendorAsync(
 		Guid foodicsAccountId,

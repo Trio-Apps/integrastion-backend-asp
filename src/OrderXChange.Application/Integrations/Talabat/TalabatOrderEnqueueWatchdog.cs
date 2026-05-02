@@ -1,6 +1,8 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using OrderXChange.Domain.Staging;
 using OrderXChange.Integrations.Talabat;
 using Volo.Abp.Data;
@@ -78,6 +80,53 @@ public class TalabatOrderEnqueueWatchdog : ITransientDependency
                 orderLog.VendorCode,
                 orderLog.OrderCode,
                 orderLog.ShortCode);
+        }
+    }
+
+    [UnitOfWork]
+    public async Task SweepStuckEnqueuedAsync(int olderThanSeconds = 90, int take = 25)
+    {
+        var cutoff = DateTime.UtcNow.AddSeconds(-Math.Max(30, olderThanSeconds));
+        var maxRows = Math.Clamp(take, 1, 100);
+
+        TalabatOrderSyncLog[] stuckOrders;
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var queryable = await _orderSyncLogRepository.GetQueryableAsync();
+            stuckOrders = await queryable
+                .Where(x => x.Status == "Enqueued"
+                            && x.Attempts == 0
+                            && x.ReceivedAt <= cutoff)
+                .OrderBy(x => x.ReceivedAt)
+                .Take(maxRows)
+                .ToArrayAsync();
+        }
+
+        if (stuckOrders.Length == 0)
+        {
+            return;
+        }
+
+        _logger.LogWarning(
+            "Talabat enqueue watchdog sweep found {Count} stuck orders older than {OlderThanSeconds}s.",
+            stuckOrders.Length,
+            olderThanSeconds);
+
+        foreach (var orderLog in stuckOrders)
+        {
+            try
+            {
+                await RequeueIfStuckAsync(orderLog.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Talabat enqueue watchdog sweep failed for order log. OrderLogId={OrderLogId}, VendorCode={VendorCode}, OrderCode={OrderCode}",
+                    orderLog.Id,
+                    orderLog.VendorCode,
+                    orderLog.OrderCode);
+            }
         }
     }
 }
