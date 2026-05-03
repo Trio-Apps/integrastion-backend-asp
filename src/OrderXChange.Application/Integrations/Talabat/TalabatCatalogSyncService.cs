@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,6 +23,9 @@ namespace OrderXChange.Application.Integrations.Talabat;
 /// </summary>
 public class TalabatCatalogSyncService : ITransientDependency
 {
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> FoodicsMenuDisplayLocks =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private readonly TalabatCatalogClient _talabatCatalogClient;
     private readonly FoodicsToTalabatMapper _mapper;
     private readonly FoodicsMenuClient _foodicsMenuClient;
@@ -629,11 +635,11 @@ public class TalabatCatalogSyncService : ITransientDependency
                 foodicsAccountId,
                 cancellationToken);
 
-            var menuDisplay = await _foodicsMenuClient.GetMenuAsync(
+            var menuDisplay = await GetFoodicsMenuDisplayWithRetryAsync(
                 branchId,
-                accessToken: accessToken,
-                foodicsAccountId: foodicsAccountId,
-                cancellationToken: cancellationToken);
+                accessToken,
+                foodicsAccountId,
+                cancellationToken);
 
             if (menuDisplay?.Data?.Categories == null || menuDisplay.Data.Categories.Count == 0)
             {
@@ -768,6 +774,19 @@ public class TalabatCatalogSyncService : ITransientDependency
         }
         catch (Exception ex)
         {
+            if (!_configuration.GetValue<bool>("Talabat:AllowMenuDisplayOrderingFallback"))
+            {
+                _logger.LogError(
+                    ex,
+                    "Failed to apply Foodics menu_display ordering. Skipping Talabat submission to avoid sending incorrect product order. FoodicsAccountId={FoodicsAccountId}, BranchId={BranchId}",
+                    foodicsAccountId,
+                    branchId ?? "<all>");
+
+                throw new InvalidOperationException(
+                    "Failed to apply Foodics menu_display ordering; Talabat submission was skipped to avoid sending an incorrect product order.",
+                    ex);
+            }
+
             _logger.LogWarning(
                 ex,
                 "Failed to apply Foodics menu_display ordering. Falling back to current product order. FoodicsAccountId={FoodicsAccountId}, BranchId={BranchId}",
@@ -779,6 +798,62 @@ public class TalabatCatalogSyncService : ITransientDependency
                 new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
                 new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
         }
+    }
+
+    private async Task<FoodicsMenuDisplayResponseDto?> GetFoodicsMenuDisplayWithRetryAsync(
+        string? branchId,
+        string accessToken,
+        Guid foodicsAccountId,
+        CancellationToken cancellationToken)
+    {
+        var lockKey = $"{foodicsAccountId:N}:{branchId ?? "<all>"}";
+        var menuDisplayLock = FoodicsMenuDisplayLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
+
+        await menuDisplayLock.WaitAsync(cancellationToken);
+        try
+        {
+            var maxAttempts = Math.Max(1, _configuration.GetValue<int?>("Foodics:MenuDisplayRetryAttempts") ?? 4);
+            var baseDelayMs = Math.Max(250, _configuration.GetValue<int?>("Foodics:MenuDisplayRetryBaseDelayMs") ?? 1500);
+
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
+                {
+                    return await _foodicsMenuClient.GetMenuAsync(
+                        branchId,
+                        accessToken: accessToken,
+                        foodicsAccountId: foodicsAccountId,
+                        cancellationToken: cancellationToken);
+                }
+                catch (HttpRequestException ex) when (IsFoodicsRateLimit(ex) && attempt < maxAttempts)
+                {
+                    var delay = TimeSpan.FromMilliseconds(baseDelayMs * attempt);
+                    _logger.LogWarning(
+                        ex,
+                        "Foodics menu_display rate limited. Retrying after delay. FoodicsAccountId={FoodicsAccountId}, BranchId={BranchId}, Attempt={Attempt}/{MaxAttempts}, DelayMs={DelayMs}",
+                        foodicsAccountId,
+                        branchId ?? "<all>",
+                        attempt,
+                        maxAttempts,
+                        delay.TotalMilliseconds);
+
+                    await Task.Delay(delay, cancellationToken);
+                }
+            }
+        }
+        finally
+        {
+            menuDisplayLock.Release();
+        }
+
+        return null;
+    }
+
+    private static bool IsFoodicsRateLimit(HttpRequestException ex)
+    {
+        return ex.StatusCode == HttpStatusCode.TooManyRequests ||
+               ex.Message.Contains("429", StringComparison.OrdinalIgnoreCase) ||
+               ex.Message.Contains("Too Many", StringComparison.OrdinalIgnoreCase);
     }
 
     private static int ResolveCategoryOrder(
