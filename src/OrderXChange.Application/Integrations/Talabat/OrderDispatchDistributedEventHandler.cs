@@ -444,6 +444,12 @@ public class OrderDispatchDistributedEventHandler
                 handler => handler.ProcessRetryHangfireDispatchAsync(retryEvent),
                 TimeSpan.FromSeconds(delaySeconds));
 
+            await TryMarkOrderLogEnqueuedForRetryAsync(
+                eventData.OrderLogId,
+                eventData.TenantId,
+                ex,
+                currentAttempt);
+
             _logger.LogInformation(
                 "Scheduled OrderDispatch retry on Hangfire orders queue. CorrelationId={CorrelationId}, Attempt={Attempt}, DelaySeconds={DelaySeconds}",
                 eventData.CorrelationId,
@@ -475,6 +481,33 @@ public class OrderDispatchDistributedEventHandler
         catch (Exception logEx)
         {
             _logger.LogWarning(logEx, "Failed to update order log failure status. OrderLogId={OrderLogId}", orderLogId);
+        }
+    }
+
+    private async Task TryMarkOrderLogEnqueuedForRetryAsync(Guid orderLogId, Guid? tenantId, Exception ex, int attempts)
+    {
+        try
+        {
+            using (_currentTenant.Change(tenantId))
+            {
+                var log = await _orderSyncLogRepository.GetAsync(orderLogId);
+                log.Status = "Enqueued";
+                log.ErrorMessage = BuildDetailedErrorMessage(ex);
+                log.ErrorCode = BuildErrorCode(ex);
+                if (ex is FoodicsApiException foodicsEx && !string.IsNullOrWhiteSpace(foodicsEx.ResponseBody))
+                {
+                    log.FoodicsResponseJson = foodicsEx.ResponseBody;
+                }
+
+                log.Attempts = attempts;
+                log.LastAttemptUtc = DateTime.UtcNow;
+                log.CompletedAt = null;
+                await _orderSyncLogRepository.UpdateAsync(log, autoSave: true);
+            }
+        }
+        catch (Exception logEx)
+        {
+            _logger.LogWarning(logEx, "Failed to mark order log as enqueued for retry. OrderLogId={OrderLogId}", orderLogId);
         }
     }
 

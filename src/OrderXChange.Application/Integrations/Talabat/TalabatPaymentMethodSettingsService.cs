@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using OrderXChange.Application.Contracts.Integrations.Talabat;
 using OrderXChange.Application.Integrations.Foodics;
 using OrderXChange.Settings;
@@ -15,24 +18,36 @@ namespace OrderXChange.Application.Integrations.Talabat;
 
 public class TalabatPaymentMethodSettingsService : ITransientDependency
 {
+    private static readonly TimeSpan PaymentMethodsFreshCacheDuration = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan PaymentMethodsStaleCacheDuration = TimeSpan.FromHours(2);
+    private static readonly TimeSpan OrderPaymentMethodCacheDuration = TimeSpan.FromMinutes(10);
+    private static readonly Dictionary<string, SemaphoreSlim> PaymentMethodLocks = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object PaymentMethodLocksGuard = new();
+
     private readonly FoodicsPaymentMethodClient _foodicsPaymentMethodClient;
     private readonly FoodicsAccountTokenService _foodicsAccountTokenService;
     private readonly ISettingProvider _settingProvider;
     private readonly ISettingManager _settingManager;
     private readonly IConfiguration _configuration;
+    private readonly IMemoryCache _cache;
+    private readonly ILogger<TalabatPaymentMethodSettingsService> _logger;
 
     public TalabatPaymentMethodSettingsService(
         FoodicsPaymentMethodClient foodicsPaymentMethodClient,
         FoodicsAccountTokenService foodicsAccountTokenService,
         ISettingProvider settingProvider,
         ISettingManager settingManager,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IMemoryCache cache,
+        ILogger<TalabatPaymentMethodSettingsService> logger)
     {
         _foodicsPaymentMethodClient = foodicsPaymentMethodClient;
         _foodicsAccountTokenService = foodicsAccountTokenService;
         _settingProvider = settingProvider;
         _settingManager = settingManager;
         _configuration = configuration;
+        _cache = cache;
+        _logger = logger;
     }
 
     public async Task<TalabatPaymentMethodSettingsDto> GetSettingsAsync(
@@ -40,7 +55,7 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
         CancellationToken cancellationToken = default)
     {
         var (accessToken, source) = await ResolveAccessTokenAsync(foodicsAccountId, cancellationToken);
-        var paymentMethods = await _foodicsPaymentMethodClient.GetPaymentMethodsAsync(accessToken, foodicsAccountId, cancellationToken);
+        var paymentMethods = await GetPaymentMethodsWithCacheAsync(accessToken, foodicsAccountId, cancellationToken);
         var activePaymentMethodId = await GetActivePaymentMethodIdAsync();
         var activePaymentMethod = paymentMethods.FirstOrDefault(x => x.Id == activePaymentMethodId);
 
@@ -101,8 +116,15 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
             return null;
         }
 
+        var resolvedCacheKey = BuildResolvedOrderPaymentMethodCacheKey(foodicsAccountId, activePaymentMethodId);
+        if (_cache.TryGetValue<string>(resolvedCacheKey, out var cachedResolvedPaymentMethodId)
+            && !string.IsNullOrWhiteSpace(cachedResolvedPaymentMethodId))
+        {
+            return cachedResolvedPaymentMethodId;
+        }
+
         var (accessToken, _) = await ResolveAccessTokenAsync(foodicsAccountId, cancellationToken);
-        var paymentMethods = await _foodicsPaymentMethodClient.GetPaymentMethodsAsync(accessToken, foodicsAccountId, cancellationToken);
+        var paymentMethods = await GetPaymentMethodsWithCacheAsync(accessToken, foodicsAccountId, cancellationToken);
         var activePaymentMethod = paymentMethods.FirstOrDefault(x => x.Id == activePaymentMethodId);
 
         if (activePaymentMethod == null)
@@ -112,6 +134,7 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
 
         if (activePaymentMethod.Type == 7)
         {
+            _cache.Set(resolvedCacheKey, activePaymentMethod.Id, OrderPaymentMethodCacheDuration);
             return activePaymentMethod.Id;
         }
 
@@ -122,6 +145,7 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
 
         if (existingApiPaymentMethod != null)
         {
+            _cache.Set(resolvedCacheKey, existingApiPaymentMethod.Id, OrderPaymentMethodCacheDuration);
             return existingApiPaymentMethod.Id;
         }
 
@@ -133,7 +157,61 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
             foodicsAccountId,
             cancellationToken);
 
+        SetPaymentMethodsCaches(foodicsAccountId, paymentMethods.Concat([createdPaymentMethod]).ToList());
+        _cache.Set(resolvedCacheKey, createdPaymentMethod.Id, OrderPaymentMethodCacheDuration);
         return createdPaymentMethod.Id;
+    }
+
+    private async Task<List<TalabatPaymentMethodDto>> GetPaymentMethodsWithCacheAsync(
+        string accessToken,
+        Guid? foodicsAccountId,
+        CancellationToken cancellationToken)
+    {
+        var freshCacheKey = BuildPaymentMethodsFreshCacheKey(foodicsAccountId);
+        if (_cache.TryGetValue<List<TalabatPaymentMethodDto>>(freshCacheKey, out var cachedFresh)
+            && cachedFresh is { Count: > 0 })
+        {
+            return cachedFresh;
+        }
+
+        var paymentMethodLock = GetPaymentMethodLock(freshCacheKey);
+        await paymentMethodLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_cache.TryGetValue<List<TalabatPaymentMethodDto>>(freshCacheKey, out cachedFresh)
+                && cachedFresh is { Count: > 0 })
+            {
+                return cachedFresh;
+            }
+
+            try
+            {
+                var paymentMethods = await _foodicsPaymentMethodClient.GetPaymentMethodsAsync(accessToken, foodicsAccountId, cancellationToken);
+                SetPaymentMethodsCaches(foodicsAccountId, paymentMethods);
+                return paymentMethods;
+            }
+            catch (FoodicsApiException ex) when ((int)ex.StatusCode == 429)
+            {
+                var staleCacheKey = BuildPaymentMethodsStaleCacheKey(foodicsAccountId);
+                if (_cache.TryGetValue<List<TalabatPaymentMethodDto>>(staleCacheKey, out var cachedStale)
+                    && cachedStale is { Count: > 0 })
+                {
+                    _logger.LogWarning(
+                        "Foodics payment methods rate-limited for account {FoodicsAccountId}. Using stale cached payment methods count={Count}.",
+                        foodicsAccountId,
+                        cachedStale.Count);
+
+                    _cache.Set(freshCacheKey, cachedStale, PaymentMethodsFreshCacheDuration);
+                    return cachedStale;
+                }
+
+                throw;
+            }
+        }
+        finally
+        {
+            paymentMethodLock.Release();
+        }
     }
 
     private async Task<(string AccessToken, string Source)> ResolveAccessTokenAsync(
@@ -188,6 +266,35 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
         }
 
         return value.Trim();
+    }
+
+    private void SetPaymentMethodsCaches(Guid? foodicsAccountId, List<TalabatPaymentMethodDto> paymentMethods)
+    {
+        _cache.Set(BuildPaymentMethodsFreshCacheKey(foodicsAccountId), paymentMethods, PaymentMethodsFreshCacheDuration);
+        _cache.Set(BuildPaymentMethodsStaleCacheKey(foodicsAccountId), paymentMethods, PaymentMethodsStaleCacheDuration);
+    }
+
+    private static string BuildPaymentMethodsFreshCacheKey(Guid? foodicsAccountId)
+        => $"foodics:payment-methods:fresh:{foodicsAccountId?.ToString() ?? "tenant"}";
+
+    private static string BuildPaymentMethodsStaleCacheKey(Guid? foodicsAccountId)
+        => $"foodics:payment-methods:stale:{foodicsAccountId?.ToString() ?? "tenant"}";
+
+    private static string BuildResolvedOrderPaymentMethodCacheKey(Guid? foodicsAccountId, string activePaymentMethodId)
+        => $"foodics:payment-methods:resolved:{foodicsAccountId?.ToString() ?? "tenant"}:{activePaymentMethodId}";
+
+    private static SemaphoreSlim GetPaymentMethodLock(string cacheKey)
+    {
+        lock (PaymentMethodLocksGuard)
+        {
+            if (!PaymentMethodLocks.TryGetValue(cacheKey, out var semaphore))
+            {
+                semaphore = new SemaphoreSlim(1, 1);
+                PaymentMethodLocks[cacheKey] = semaphore;
+            }
+
+            return semaphore;
+        }
     }
 }
 
