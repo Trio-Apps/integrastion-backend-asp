@@ -117,6 +117,8 @@ public class OrderDispatchDistributedEventHandler
     [UnitOfWork]
     public async Task HandleEventAsync(OrderDispatchRetryEto eventData)
     {
+        NormalizeRetryDispatchMessage(eventData);
+
         _logger.LogInformation(
             "Kafka Consumer (retry): Received OrderDispatch retry event. CorrelationId={CorrelationId}, Attempts={Attempts}",
             eventData.Message.CorrelationId,
@@ -141,6 +143,8 @@ public class OrderDispatchDistributedEventHandler
     [UnitOfWork]
     public async Task ProcessRetryHangfireDispatchAsync(OrderDispatchRetryEto eventData)
     {
+        NormalizeRetryDispatchMessage(eventData);
+
         _logger.LogInformation(
             "Hangfire orders queue: Received OrderDispatch retry job. CorrelationId={CorrelationId}, Attempts={Attempts}",
             eventData.Message.CorrelationId,
@@ -431,7 +435,7 @@ public class OrderDispatchDistributedEventHandler
             var delaySeconds = GetRetryDelaySeconds(currentAttempt);
             var retryEvent = new OrderDispatchRetryEto
             {
-                Message = eventData,
+                Message = CreateRetryDispatchMessage(eventData, currentAttempt + 1),
                 Attempts = currentAttempt,
                 ErrorCode = ex.GetType().Name,
                 ErrorMessage = BuildDetailedErrorMessage(ex),
@@ -444,18 +448,39 @@ public class OrderDispatchDistributedEventHandler
                 handler => handler.ProcessRetryHangfireDispatchAsync(retryEvent),
                 TimeSpan.FromSeconds(delaySeconds));
 
-            await TryMarkOrderLogEnqueuedForRetryAsync(
-                eventData.OrderLogId,
-                eventData.TenantId,
-                ex,
-                currentAttempt);
-
             _logger.LogInformation(
                 "Scheduled OrderDispatch retry on Hangfire orders queue. CorrelationId={CorrelationId}, Attempt={Attempt}, DelaySeconds={DelaySeconds}",
                 eventData.CorrelationId,
                 currentAttempt + 1,
                 delaySeconds);
         }
+    }
+
+    private static OrderDispatchEto CreateRetryDispatchMessage(OrderDispatchEto source, int retryAttempt)
+    {
+        return new OrderDispatchEto
+        {
+            Schema = source.Schema,
+            CorrelationId = source.CorrelationId,
+            AccountId = source.AccountId,
+            FoodicsAccountId = source.FoodicsAccountId,
+            VendorCode = source.VendorCode,
+            TenantId = source.TenantId,
+            OrderLogId = source.OrderLogId,
+            IdempotencyKey = BuildRetryIdempotencyKey(source, retryAttempt),
+            OccurredAt = source.OccurredAt
+        };
+    }
+
+    private static void NormalizeRetryDispatchMessage(OrderDispatchRetryEto retryEvent)
+    {
+        var retryAttempt = Math.Max(1, retryEvent.Attempts + 1);
+        retryEvent.Message.IdempotencyKey = BuildRetryIdempotencyKey(retryEvent.Message, retryAttempt);
+    }
+
+    private static string BuildRetryIdempotencyKey(OrderDispatchEto eventData, int retryAttempt)
+    {
+        return $"order-auto-retry:{eventData.VendorCode}:{eventData.OrderLogId}:attempt-{retryAttempt}";
     }
 
     private async Task TryUpdateOrderLogFailedAsync(Guid orderLogId, Guid? tenantId, Exception ex, int attempts)
@@ -481,33 +506,6 @@ public class OrderDispatchDistributedEventHandler
         catch (Exception logEx)
         {
             _logger.LogWarning(logEx, "Failed to update order log failure status. OrderLogId={OrderLogId}", orderLogId);
-        }
-    }
-
-    private async Task TryMarkOrderLogEnqueuedForRetryAsync(Guid orderLogId, Guid? tenantId, Exception ex, int attempts)
-    {
-        try
-        {
-            using (_currentTenant.Change(tenantId))
-            {
-                var log = await _orderSyncLogRepository.GetAsync(orderLogId);
-                log.Status = "Enqueued";
-                log.ErrorMessage = BuildDetailedErrorMessage(ex);
-                log.ErrorCode = BuildErrorCode(ex);
-                if (ex is FoodicsApiException foodicsEx && !string.IsNullOrWhiteSpace(foodicsEx.ResponseBody))
-                {
-                    log.FoodicsResponseJson = foodicsEx.ResponseBody;
-                }
-
-                log.Attempts = attempts;
-                log.LastAttemptUtc = DateTime.UtcNow;
-                log.CompletedAt = null;
-                await _orderSyncLogRepository.UpdateAsync(log, autoSave: true);
-            }
-        }
-        catch (Exception logEx)
-        {
-            _logger.LogWarning(logEx, "Failed to mark order log as enqueued for retry. OrderLogId={OrderLogId}", orderLogId);
         }
     }
 
