@@ -126,6 +126,19 @@ public class TalabatCatalogSyncLog : FullAuditedAggregateRoot<Guid>, IMultiTenan
 	public string? CallbackUrl { get; set; }
 
 	/// <summary>
+	/// SHA-256 hash of the final Talabat catalog payload submitted for this vendor.
+	/// Used to avoid resubmitting unchanged menus.
+	/// </summary>
+	[MaxLength(100)]
+	public string? CatalogPayloadHash { get; set; }
+
+	/// <summary>
+	/// Version of the canonical hashing algorithm used for CatalogPayloadHash.
+	/// </summary>
+	[MaxLength(50)]
+	public string? CatalogPayloadHashVersion { get; set; }
+
+	/// <summary>
 	/// Raw webhook payload received (for debugging)
 	/// </summary>
 	[Column(TypeName = "LONGTEXT")]

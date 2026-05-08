@@ -507,6 +507,14 @@ namespace OrderXChange.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
 
+                    b.Property<string>("CatalogPayloadHash")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("CatalogPayloadHashVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("datetime(6)");
 
@@ -617,6 +625,9 @@ namespace OrderXChange.Migrations
 
                     b.HasIndex("ImportId")
                         .HasDatabaseName("IX_TalabatCatalogSyncLogs_ImportId");
+
+                    b.HasIndex("FoodicsAccountId", "VendorCode", "ChainCode", "CatalogPayloadHash")
+                        .HasDatabaseName("IX_TalabatCatalogSyncLogs_PayloadHash");
 
                     b.HasIndex("Status")
                         .HasDatabaseName("IX_TalabatCatalogSyncLogs_Status");

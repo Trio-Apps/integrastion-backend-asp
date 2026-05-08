@@ -65,6 +65,8 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 		int productsCount,
 		string? callbackUrl,
 		string apiVersion = "V1",
+		string? catalogPayloadHash = null,
+		string? catalogPayloadHashVersion = null,
 		CancellationToken cancellationToken = default)
 	{
 		const int maxAttempts = 5;
@@ -82,6 +84,8 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 					productsCount,
 					callbackUrl,
 					apiVersion,
+					catalogPayloadHash,
+					catalogPayloadHashVersion,
 					cancellationToken);
 			}
 			catch (Exception ex) when (attempt < maxAttempts && IsTransientDatabaseError(ex))
@@ -110,6 +114,8 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 			productsCount,
 			callbackUrl,
 			apiVersion,
+			catalogPayloadHash,
+			catalogPayloadHashVersion,
 			cancellationToken);
 	}
 
@@ -123,6 +129,8 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 		int productsCount,
 		string? callbackUrl,
 		string apiVersion,
+		string? catalogPayloadHash,
+		string? catalogPayloadHashVersion,
 		CancellationToken cancellationToken)
 	{
 		using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: false);
@@ -148,6 +156,8 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 			existingLog.CategoriesCount = categoriesCount;
 			existingLog.ProductsCount = productsCount;
 			existingLog.CallbackUrl = callbackUrl;
+			existingLog.CatalogPayloadHash = catalogPayloadHash ?? existingLog.CatalogPayloadHash;
+			existingLog.CatalogPayloadHashVersion = catalogPayloadHashVersion ?? existingLog.CatalogPayloadHashVersion;
 			existingLog.TenantId ??= tenantId;
 
 			if (existingLog.Status == TalabatSyncStatus.Submitted || existingLog.Status == TalabatSyncStatus.Processing)
@@ -180,6 +190,8 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 			CategoriesCount = categoriesCount,
 			ProductsCount = productsCount,
 			CallbackUrl = callbackUrl,
+			CatalogPayloadHash = catalogPayloadHash,
+			CatalogPayloadHashVersion = catalogPayloadHashVersion,
 			SubmittedAt = DateTime.UtcNow,
 			TenantId = tenantId
 		};
@@ -212,7 +224,9 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 		int categoriesCount,
 		int productsCount,
 		string? callbackUrl,
-		string apiVersion)
+		string apiVersion,
+		string? catalogPayloadHash = null,
+		string? catalogPayloadHashVersion = null)
 	{
 		return RecordSubmissionAsync(
 			foodicsAccountId,
@@ -224,7 +238,42 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 			productsCount,
 			callbackUrl,
 			apiVersion,
+			catalogPayloadHash,
+			catalogPayloadHashVersion,
 			CancellationToken.None);
+	}
+
+	public virtual async Task<TalabatCatalogSyncLog?> FindLatestMatchingCatalogPayloadAsync(
+		Guid foodicsAccountId,
+		string vendorCode,
+		string? chainCode,
+		string catalogPayloadHash,
+		CancellationToken cancellationToken = default)
+	{
+		if (string.IsNullOrWhiteSpace(vendorCode) || string.IsNullOrWhiteSpace(catalogPayloadHash))
+		{
+			return null;
+		}
+
+		using var multiTenantFilter = _dataFilter.Disable<IMultiTenant>();
+		var dbContext = await _dbContextProvider.GetDbContextAsync();
+		var successfulStatuses = new[]
+		{
+			TalabatSyncStatus.Submitted,
+			TalabatSyncStatus.Processing,
+			TalabatSyncStatus.Done,
+			TalabatSyncStatus.Success
+		};
+
+		return await dbContext.Set<TalabatCatalogSyncLog>()
+			.AsNoTracking()
+			.Where(x => x.FoodicsAccountId == foodicsAccountId)
+			.Where(x => x.VendorCode == vendorCode)
+			.Where(x => x.ChainCode == chainCode)
+			.Where(x => x.CatalogPayloadHash == catalogPayloadHash)
+			.Where(x => successfulStatuses.Contains(x.Status))
+			.OrderByDescending(x => x.SubmittedAt)
+			.FirstOrDefaultAsync(cancellationToken);
 	}
 
 	/// <summary>

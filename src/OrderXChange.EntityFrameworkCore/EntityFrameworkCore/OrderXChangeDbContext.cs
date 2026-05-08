@@ -293,6 +293,9 @@ public class OrderXChangeDbContext :
             b.HasIndex(x => x.TenantId)
                 .HasDatabaseName("IX_TalabatCatalogSyncLogs_TenantId");
 
+            b.HasIndex(x => new { x.FoodicsAccountId, x.VendorCode, x.ChainCode, x.CatalogPayloadHash })
+                .HasDatabaseName("IX_TalabatCatalogSyncLogs_PayloadHash");
+
             // Foreign key relationship to FoodicsAccount
             b.HasOne(x => x.FoodicsAccount)
                 .WithMany()
@@ -302,6 +305,8 @@ public class OrderXChangeDbContext :
             // Property configurations
             b.Property(x => x.VendorCode).IsRequired().HasMaxLength(100);
             b.Property(x => x.Status).IsRequired().HasMaxLength(50);
+            b.Property(x => x.CatalogPayloadHash).HasMaxLength(100);
+            b.Property(x => x.CatalogPayloadHashVersion).HasMaxLength(50);
         });
 
         // Configure TalabatOrderSyncLog entity

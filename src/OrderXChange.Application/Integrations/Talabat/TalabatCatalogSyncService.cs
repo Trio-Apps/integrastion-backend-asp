@@ -2,8 +2,10 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,6 +25,8 @@ namespace OrderXChange.Application.Integrations.Talabat;
 /// </summary>
 public class TalabatCatalogSyncService : ITransientDependency
 {
+    private const string CatalogPayloadHashVersion = "talabat-v2-catalog-final-payload-v1";
+
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> FoodicsMenuDisplayLocks =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -414,16 +418,65 @@ public class TalabatCatalogSyncService : ITransientDependency
             result.CategoriesCount = categoriesCount;
             result.ProductsCount = productsList.Count;
 
+            var vendorCodes = catalogRequest.Vendors ?? new List<string>();
+            var vendorCodeStr = !string.IsNullOrWhiteSpace(vendorCode)
+                ? vendorCode
+                : (vendorCodes.Count > 0 ? vendorCodes[0] : chainCode);
+
+            var catalogPayloadHash = ComputeCatalogPayloadHash(catalogRequest);
+            result.CatalogPayloadHash = catalogPayloadHash;
+
             _logger.LogInformation(
-                "Mapped catalog to Talabat V2 format. CorrelationId={CorrelationId}, Categories={Categories}, Products={Products}",
+                "Mapped catalog to Talabat V2 format. CorrelationId={CorrelationId}, Categories={Categories}, Products={Products}, PayloadHash={PayloadHash}",
                 correlationId,
                 result.CategoriesCount,
-                result.ProductsCount);
+                result.ProductsCount,
+                catalogPayloadHash);
 
-                var response = await _talabatCatalogClient.SubmitV2CatalogAsync(
+            if (_configuration.GetValue<bool?>("Talabat:SkipUnchangedCatalogSubmissions") ?? true)
+            {
+                try
+                {
+                    var previousSubmission = await _syncStatusService.FindLatestMatchingCatalogPayloadAsync(
+                        foodicsAccountId,
+                        vendorCodeStr,
+                        chainCode,
+                        catalogPayloadHash,
+                        cancellationToken);
+
+                    if (previousSubmission != null)
+                    {
+                        result.Success = true;
+                        result.Skipped = true;
+                        result.ImportId = previousSubmission.ImportId;
+                        result.PreviousImportId = previousSubmission.ImportId;
+                        result.Message = "Skipped unchanged Talabat catalog payload.";
+                        result.CompletedAt = DateTime.UtcNow;
+
+                        _logger.LogInformation(
+                            "Skipped Talabat V2 catalog submission because final payload is unchanged. CorrelationId={CorrelationId}, VendorCode={VendorCode}, PreviousImportId={PreviousImportId}, PayloadHash={PayloadHash}",
+                            correlationId,
+                            vendorCodeStr,
+                            previousSubmission.ImportId,
+                            catalogPayloadHash);
+
+                        return result;
+                    }
+                }
+                catch (Exception hashLookupEx)
+                {
+                    _logger.LogWarning(
+                        hashLookupEx,
+                        "Failed to check previous Talabat catalog payload hash. Continuing with normal submission. CorrelationId={CorrelationId}, VendorCode={VendorCode}",
+                        correlationId,
+                        vendorCodeStr);
+                }
+            }
+
+            var response = await _talabatCatalogClient.SubmitV2CatalogAsync(
                 chainCode,
                 catalogRequest,
-                vendorCode,  // ✅ NEW: Pass vendorCode to avoid DbContext disposal during HTTP request
+                vendorCode,
                 cancellationToken);
 
             result.Success = response.Success;
@@ -439,9 +492,6 @@ public class TalabatCatalogSyncService : ITransientDependency
                     response.ImportId,
                     result.Duration?.TotalMilliseconds ?? 0);
 
-                var vendorCodes = catalogRequest.Vendors ?? new List<string>();
-                var vendorCodeStr = vendorCodes.Count > 0 ? vendorCodes[0] : chainCode;
-
                 // Record submission in database
                 try
                 {
@@ -455,6 +505,8 @@ public class TalabatCatalogSyncService : ITransientDependency
                         result.ProductsCount,
                         callbackUrl,
                         "V2",
+                        catalogPayloadHash,
+                        CatalogPayloadHashVersion,
                         cancellationToken);
 
                     _logger.LogInformation(
@@ -479,7 +531,9 @@ public class TalabatCatalogSyncService : ITransientDependency
                             result.CategoriesCount,
                             result.ProductsCount,
                             callbackUrl,
-                            "V2"),
+                            "V2",
+                            catalogPayloadHash,
+                            CatalogPayloadHashVersion),
                         TimeSpan.FromSeconds(30));
 
                     _logger.LogWarning(
@@ -515,6 +569,45 @@ public class TalabatCatalogSyncService : ITransientDependency
         }
 
         return result;
+    }
+
+    private static string ComputeCatalogPayloadHash(TalabatV2CatalogSubmitRequest catalogRequest)
+    {
+        var jsonElement = JsonSerializer.SerializeToElement(catalogRequest);
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            WriteCanonicalJson(writer, jsonElement);
+        }
+
+        return Convert.ToHexString(SHA256.HashData(stream.ToArray())).ToLowerInvariant();
+    }
+
+    private static void WriteCanonicalJson(Utf8JsonWriter writer, JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                writer.WriteStartObject();
+                foreach (var property in element.EnumerateObject().OrderBy(p => p.Name, StringComparer.Ordinal))
+                {
+                    writer.WritePropertyName(property.Name);
+                    WriteCanonicalJson(writer, property.Value);
+                }
+                writer.WriteEndObject();
+                break;
+            case JsonValueKind.Array:
+                writer.WriteStartArray();
+                foreach (var item in element.EnumerateArray())
+                {
+                    WriteCanonicalJson(writer, item);
+                }
+                writer.WriteEndArray();
+                break;
+            default:
+                element.WriteTo(writer);
+                break;
+        }
     }
 
     private void LogTalabatV2OrderingPreview(
@@ -1063,6 +1156,9 @@ public class TalabatSyncResult
     public bool Success { get; set; }
     public string? ImportId { get; set; }
     public string? Message { get; set; }
+    public bool Skipped { get; set; }
+    public string? CatalogPayloadHash { get; set; }
+    public string? PreviousImportId { get; set; }
     public int CategoriesCount { get; set; }
     public int ProductsCount { get; set; }
     public DateTime StartedAt { get; set; }

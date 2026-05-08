@@ -791,8 +791,9 @@ public class MenuSyncRecurringJob : ITransientDependency
                         if (talabatResult.Success)
                         {
                             _logger.LogInformation(
-                                "Talabat catalog sync submitted successfully. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}, " +
-                                "ImportId={ImportId}, Categories={Categories}, Products={Products}, Duration={Duration}ms",
+                                talabatResult.Skipped
+                                    ? "Talabat catalog sync skipped because final payload is unchanged. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}, PreviousImportId={ImportId}, Categories={Categories}, Products={Products}, Duration={Duration}ms"
+                                    : "Talabat catalog sync submitted successfully. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}, ImportId={ImportId}, Categories={Categories}, Products={Products}, Duration={Duration}ms",
                                 foodicsAccountId,
                                 talabatChainCode,
                                 talabatVendorCode,
@@ -808,12 +809,12 @@ public class MenuSyncRecurringJob : ITransientDependency
                                     syncRun.Id,
                                     talabatVendorCode,
                                     talabatResult.ImportId,
-                                    "Submitted",
+                                    talabatResult.Skipped ? "Skipped - Unchanged" : "Submitted",
                                     cancellationToken);
                             }
 
                             // ✨ NEW: Create menu snapshot after first successful Talabat sync
-                            if (newSnapshot == null && versioningEnabled && changeDetectionResult != null)
+                            if (!talabatResult.Skipped && !string.IsNullOrWhiteSpace(talabatResult.ImportId) && newSnapshot == null && versioningEnabled && changeDetectionResult != null)
                             {
                                 try
                                 {
@@ -927,7 +928,7 @@ public class MenuSyncRecurringJob : ITransientDependency
                     cancellationToken);
 
                 var firstSuccessfulResult = talabatResults
-                    .FirstOrDefault(result => result.Success && !string.IsNullOrWhiteSpace(result.ImportId));
+                    .FirstOrDefault(result => result.Success && !result.Skipped && !string.IsNullOrWhiteSpace(result.ImportId));
 
                 if (firstSuccessfulResult != null && newSnapshot == null && versioningEnabled && changeDetectionResult != null)
                 {
@@ -1211,7 +1212,9 @@ public class MenuSyncRecurringJob : ITransientDependency
             if (talabatResult.Success)
             {
                 _logger.LogInformation(
-                    "Talabat catalog sync submitted successfully. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}, ImportId={ImportId}, Categories={Categories}, Products={Products}, Duration={Duration}ms",
+                    talabatResult.Skipped
+                        ? "Talabat catalog sync skipped because final payload is unchanged. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}, PreviousImportId={ImportId}, Categories={Categories}, Products={Products}, Duration={Duration}ms"
+                        : "Talabat catalog sync submitted successfully. FoodicsAccount={AccountId}, ChainCode={ChainCode}, VendorCode={VendorCode}, ImportId={ImportId}, Categories={Categories}, Products={Products}, Duration={Duration}ms",
                     foodicsAccountId,
                     workItem.ChainCode,
                     workItem.VendorCode,
@@ -1226,7 +1229,7 @@ public class MenuSyncRecurringJob : ITransientDependency
                         syncRunId.Value,
                         workItem.VendorCode,
                         talabatResult.ImportId,
-                        "Submitted",
+                        talabatResult.Skipped ? "Skipped - Unchanged" : "Submitted",
                         cancellationToken);
                 }
             }
@@ -1259,7 +1262,8 @@ public class MenuSyncRecurringJob : ITransientDependency
             return new TalabatSubmissionResult(
                 workItem.VendorCode,
                 talabatResult.ImportId,
-                talabatResult.Success);
+                talabatResult.Success,
+                talabatResult.Skipped);
         }
         catch (Exception talabatEx)
         {
@@ -1300,7 +1304,8 @@ public class MenuSyncRecurringJob : ITransientDependency
     private sealed record TalabatSubmissionResult(
         string VendorCode,
         string? ImportId,
-        bool Success);
+        bool Success,
+        bool Skipped = false);
 
     private async Task<TalabatGroupScope> ResolveTalabatGroupScopeAsync(
         (string ChainCode, string VendorCode, string? FoodicsBranchId, bool SyncAllBranches, string? FoodicsGroupId, string? FoodicsGroupName) talabatTarget,
