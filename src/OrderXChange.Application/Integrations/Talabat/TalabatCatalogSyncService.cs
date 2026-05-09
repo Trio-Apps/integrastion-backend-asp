@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Hangfire;
@@ -29,6 +30,12 @@ public class TalabatCatalogSyncService : ITransientDependency
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> FoodicsMenuDisplayLocks =
         new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly JsonSerializerOptions CatalogPayloadJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
 
     private readonly TalabatCatalogClient _talabatCatalogClient;
     private readonly FoodicsToTalabatMapper _mapper;
@@ -460,6 +467,31 @@ public class TalabatCatalogSyncService : ITransientDependency
                             previousSubmission.ImportId,
                             catalogPayloadHash);
 
+                        try
+                        {
+                            await _syncStatusService.RecordSkippedSubmissionAsync(
+                                foodicsAccountId,
+                                vendorCodeStr,
+                                chainCode,
+                                previousSubmission.ImportId,
+                                correlationId,
+                                result.CategoriesCount,
+                                result.ProductsCount,
+                                callbackUrl,
+                                "V2",
+                                catalogPayloadHash,
+                                CatalogPayloadHashVersion,
+                                cancellationToken);
+                        }
+                        catch (Exception skippedLogEx)
+                        {
+                            _logger.LogWarning(
+                                skippedLogEx,
+                                "Failed to record skipped Talabat catalog submission. Continuing because the payload was already unchanged. CorrelationId={CorrelationId}, VendorCode={VendorCode}",
+                                correlationId,
+                                vendorCodeStr);
+                        }
+
                         return result;
                     }
                 }
@@ -484,12 +516,12 @@ public class TalabatCatalogSyncService : ITransientDependency
             result.Message = response.Message;
             result.CompletedAt = DateTime.UtcNow;
 
-            if (response.Success && !string.IsNullOrWhiteSpace(response.ImportId))
+            if (response.Success)
             {
                 _logger.LogInformation(
                     "Talabat V2 catalog submitted successfully. CorrelationId={CorrelationId}, ImportId={ImportId}, Duration={Duration}ms",
                     correlationId,
-                    response.ImportId,
+                    response.ImportId ?? "<not provided>",
                     result.Duration?.TotalMilliseconds ?? 0);
 
                 // Record submission in database
@@ -573,7 +605,7 @@ public class TalabatCatalogSyncService : ITransientDependency
 
     private static string ComputeCatalogPayloadHash(TalabatV2CatalogSubmitRequest catalogRequest)
     {
-        var jsonElement = JsonSerializer.SerializeToElement(catalogRequest);
+        var jsonElement = JsonSerializer.SerializeToElement(catalogRequest, CatalogPayloadJsonOptions);
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
         {

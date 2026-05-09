@@ -262,7 +262,8 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 			TalabatSyncStatus.Submitted,
 			TalabatSyncStatus.Processing,
 			TalabatSyncStatus.Done,
-			TalabatSyncStatus.Success
+			TalabatSyncStatus.Success,
+			TalabatSyncStatus.Skipped
 		};
 
 		return await dbContext.Set<TalabatCatalogSyncLog>()
@@ -274,6 +275,61 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 			.Where(x => successfulStatuses.Contains(x.Status))
 			.OrderByDescending(x => x.SubmittedAt)
 			.FirstOrDefaultAsync(cancellationToken);
+	}
+
+	public virtual async Task<TalabatCatalogSyncLog> RecordSkippedSubmissionAsync(
+		Guid foodicsAccountId,
+		string vendorCode,
+		string? chainCode,
+		string? previousImportId,
+		string? correlationId,
+		int categoriesCount,
+		int productsCount,
+		string? callbackUrl,
+		string apiVersion,
+		string catalogPayloadHash,
+		string catalogPayloadHashVersion,
+		CancellationToken cancellationToken = default)
+	{
+		using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: false);
+		using var multiTenantFilter = _dataFilter.Disable<IMultiTenant>();
+
+		var dbContext = await _dbContextProvider.GetDbContextAsync();
+		var tenantId = await ResolveTenantIdForVendorAsync(foodicsAccountId, vendorCode, cancellationToken);
+		var now = DateTime.UtcNow;
+
+		var syncLog = new TalabatCatalogSyncLog
+		{
+			FoodicsAccountId = foodicsAccountId,
+			VendorCode = vendorCode,
+			ChainCode = chainCode,
+			ImportId = previousImportId,
+			CorrelationId = correlationId,
+			Status = TalabatSyncStatus.Skipped,
+			ApiVersion = apiVersion,
+			CategoriesCount = categoriesCount,
+			ProductsCount = productsCount,
+			CallbackUrl = callbackUrl,
+			CatalogPayloadHash = catalogPayloadHash,
+			CatalogPayloadHashVersion = catalogPayloadHashVersion,
+			ResponseMessage = "Skipped unchanged Talabat catalog payload.",
+			SubmittedAt = now,
+			CompletedAt = now,
+			TenantId = tenantId
+		};
+
+		dbContext.Set<TalabatCatalogSyncLog>().Add(syncLog);
+		await dbContext.SaveChangesAsync(cancellationToken);
+		await uow.CompleteAsync(cancellationToken);
+
+		_logger.LogInformation(
+			"Recorded skipped Talabat catalog submission. SyncLogId={SyncLogId}, VendorCode={VendorCode}, PreviousImportId={PreviousImportId}, PayloadHash={PayloadHash}",
+			syncLog.Id,
+			vendorCode,
+			previousImportId,
+			catalogPayloadHash);
+
+		return syncLog;
 	}
 
 	/// <summary>
@@ -783,5 +839,6 @@ public static class TalabatSyncStatus
 	public const string Success = "Success";
 	public const string Failed = "Failed";
 	public const string Partial = "Partial";
+	public const string Skipped = "Skipped";
 }
 
