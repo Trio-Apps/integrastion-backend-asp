@@ -237,14 +237,10 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
             .OrderBy(x => x.VendorCode)
             .ToListAsync();
 
-        var logStart = run.StartedAt.AddMinutes(-5);
-        var logEnd = (run.CompletedAt ?? DateTime.UtcNow).AddMinutes(30);
         var logsQueryable = await _catalogLogRepository.GetQueryableAsync();
         var logs = await logsQueryable
             .Where(x => x.FoodicsAccountId == run.FoodicsAccountId)
-            .Where(x =>
-                x.CorrelationId == run.CorrelationId
-                || (x.SubmittedAt >= logStart && x.SubmittedAt <= logEnd))
+            .Where(x => x.CorrelationId == run.CorrelationId)
             .OrderByDescending(x => x.SubmittedAt)
             .ToListAsync();
 
@@ -302,7 +298,7 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
 
                 if (log == null)
                 {
-                    ApplyMissingLogFallback(dto, stagedProducts, logStart, logEnd);
+                    ApplyMissingLogFallback(dto, stagedProducts, run);
                 }
             }
 
@@ -399,14 +395,25 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
     private static void ApplyMissingLogFallback(
         MenuSyncVendorSubmissionDto dto,
         List<FoodicsProductStaging> products,
-        DateTime logStart,
-        DateTime logEnd)
+        MenuSyncRun run)
     {
         if (products.Count == 0)
         {
             return;
         }
 
+        if (IsSkippedStatus(run.TalabatSyncStatus))
+        {
+            dto.Status = "Skipped";
+            dto.ImportId = run.TalabatImportId;
+            dto.SubmittedAt = run.TalabatSubmittedAt;
+            dto.ProductsCount = dto.StagedProducts;
+            dto.Diagnostic = "The sync run was marked as skipped because the final Talabat payload was unchanged. No vendor-specific submission log was recorded.";
+            return;
+        }
+
+        var logStart = run.StartedAt.AddMinutes(-2);
+        var logEnd = (run.CompletedAt ?? DateTime.UtcNow).AddMinutes(2);
         var submittedProduct = products
             .Where(x => x.TalabatSubmittedAt.HasValue
                         && x.TalabatSubmittedAt.Value >= logStart
