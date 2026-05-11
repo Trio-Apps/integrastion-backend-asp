@@ -44,6 +44,7 @@ public class MenuSyncRunSummaryDto
     public int CategoriesProcessed { get; set; }
     public int ModifiersProcessed { get; set; }
     public int VendorSubmissionCount { get; set; }
+    public int VendorSkippedCount { get; set; }
     public int FailedVendorCount { get; set; }
     public int MissingVendorLogCount { get; set; }
 }

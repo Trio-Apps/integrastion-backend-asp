@@ -31,6 +31,7 @@ export interface MenuSyncRunSummaryDto {
   categoriesProcessed: number;
   modifiersProcessed: number;
   vendorSubmissionCount: number;
+  vendorSkippedCount: number;
   failedVendorCount: number;
   missingVendorLogCount: number;
 }

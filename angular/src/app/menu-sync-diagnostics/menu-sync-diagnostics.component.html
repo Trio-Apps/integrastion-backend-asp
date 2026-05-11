@@ -79,7 +79,8 @@
         </td>
         <td>{{ row.productsSucceeded || 0 }}/{{ row.totalProductsProcessed || 0 }}</td>
         <td>
-          <span>{{ row.vendorSubmissionCount || 0 }} submitted</span>
+          <span *ngIf="row.vendorSubmissionCount || !row.vendorSkippedCount">{{ row.vendorSubmissionCount || 0 }} submitted</span>
+          <span *ngIf="row.vendorSkippedCount">{{ row.vendorSkippedCount }} skipped</span>
           <span class="muted" *ngIf="row.failedVendorCount"> · {{ row.failedVendorCount }} failed</span>
           <span class="muted" *ngIf="row.missingVendorLogCount"> · {{ row.missingVendorLogCount }} missing logs</span>
         </td>

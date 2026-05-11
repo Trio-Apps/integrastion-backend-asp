@@ -233,6 +233,9 @@ export class MenuSyncDiagnosticsComponent implements OnInit {
       case 'processing':
       case 'in_progress':
         return 'info';
+      case 'skipped':
+      case 'skipped - unchanged':
+        return 'warn';
       case 'pending':
       case 'notrecorded':
       case 'missinglog':

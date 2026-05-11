@@ -156,7 +156,8 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
             ProductsSkipped = summary.ProductsSkipped,
             CategoriesProcessed = summary.CategoriesProcessed,
             ModifiersProcessed = summary.ModifiersProcessed,
-            VendorSubmissionCount = vendors.Count(x => !IsMissingLogStatus(x.Status)),
+            VendorSubmissionCount = vendors.Count(x => IsSubmittedStatus(x.Status)),
+            VendorSkippedCount = vendors.Count(x => IsSkippedStatus(x.Status)),
             FailedVendorCount = vendors.Count(x => IsFailedStatus(x.Status)),
             MissingVendorLogCount = vendors.Count(x => IsMissingLogStatus(x.Status)),
             TalabatVendorCode = run.TalabatVendorCode,
@@ -219,7 +220,8 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
             ProductsSkipped = run.ProductsSkipped,
             CategoriesProcessed = run.CategoriesProcessed,
             ModifiersProcessed = run.ModifiersProcessed,
-            VendorSubmissionCount = vendors.Count(x => !IsMissingLogStatus(x.Status)),
+            VendorSubmissionCount = vendors.Count(x => IsSubmittedStatus(x.Status)),
+            VendorSkippedCount = vendors.Count(x => IsSkippedStatus(x.Status)),
             FailedVendorCount = vendors.Count(x => IsFailedStatus(x.Status)),
             MissingVendorLogCount = vendors.Count(x => IsMissingLogStatus(x.Status))
         };
@@ -249,7 +251,11 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
         var results = new List<MenuSyncVendorSubmissionDto>();
         foreach (var account in accounts)
         {
-            var log = logs.FirstOrDefault(x => string.Equals(x.VendorCode, account.VendorCode, StringComparison.OrdinalIgnoreCase));
+            var log = logs
+                .Where(x => string.Equals(x.VendorCode, account.VendorCode, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(x => string.Equals(x.CorrelationId, run.CorrelationId, StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(x => x.SubmittedAt)
+                .FirstOrDefault();
             var dto = new MenuSyncVendorSubmissionDto
             {
                 VendorCode = account.VendorCode,
@@ -577,6 +583,21 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
         return string.Equals(status, "Failed", StringComparison.OrdinalIgnoreCase)
                || string.Equals(status, "Error", StringComparison.OrdinalIgnoreCase)
                || string.Equals(status, "Partial", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSubmittedStatus(string? status)
+    {
+        return string.Equals(status, "Submitted", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(status, "Processing", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(status, "Done", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(status, "Success", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(status, "Succeeded", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSkippedStatus(string? status)
+    {
+        return string.Equals(status, "Skipped", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(status, "Skipped - Unchanged", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsMissingLogStatus(string? status)
