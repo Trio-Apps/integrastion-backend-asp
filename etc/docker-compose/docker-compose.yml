@@ -118,6 +118,7 @@ services:
       - Talabat__StaticToken=eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjU3MjMyNTIsImV4cCI6MTc2NTczMDQ1MiwiaXNzIjoibWlkZGxld2FyZSIsInN1YiI6Im1lLXBsdWdpbi1iZW9uLWl0LTAwMSJ9.tNAyUgk1qnLWb5mYBE_K2r3OJBE7cths58PlaUYxLwDoGAdz749gOOqXGEgog59E
       - Talabat__IntegrationCode=me-plugin-beon-it-001
       - Talabat__Enabled=true
+      - Talabat__ForceModifierRemoteCodeVersion=false
       - Talabat__ChainCode=tlbt-pick
       - Talabat__DefaultVendorCode=PH-SIDDIQ-002
       - Talabat__PlatformVendorId=PH-SIDDIQ-002

@@ -959,7 +959,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
         var toppingMap = new Dictionary<string, TalabatV2CatalogItem>(); // modifierId -> topping item
         var imageMap = new Dictionary<string, TalabatV2CatalogItem>(); // imageId -> image item
         var hiddenOptionProductIds = new HashSet<string>(); // option products must be listed under hidden category
-        var forceModifierRemoteCodeVersion = _configuration.GetValue<bool>("Talabat:ForceModifierRemoteCodeVersion", true);
+        var forceModifierRemoteCodeVersion = _configuration.GetValue<bool>("Talabat:ForceModifierRemoteCodeVersion", false);
         var modifierRemoteCodeVersionSuffix = forceModifierRemoteCodeVersion
             ? $"_{Guid.NewGuid():N}"[..9].ToUpperInvariant()
             : string.Empty;
