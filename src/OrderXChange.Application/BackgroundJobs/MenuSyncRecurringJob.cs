@@ -1389,7 +1389,11 @@ public class MenuSyncRecurringJob : ITransientDependency
             .Where(x => x.FoodicsAccountId == foodicsAccountId)
             .Where(x => x.VendorCode == vendorCode)
             .Where(x => x.ProductsCount >= minPreviousCount)
-            .Where(x => x.Status == "Submitted" || x.Status == "Processing" || x.Status == "Done" || x.Status == "Success")
+            .Where(x => x.Status == TalabatSyncStatus.Submitted
+                        || x.Status == TalabatSyncStatus.Processing
+                        || x.Status == TalabatSyncStatus.Done
+                        || x.Status == TalabatSyncStatus.Success
+                        || x.Status == TalabatSyncStatus.Skipped)
             .OrderByDescending(x => x.ProductsCount)
             .Select(x => (int?)x.ProductsCount)
             .FirstOrDefaultAsync(cancellationToken);
