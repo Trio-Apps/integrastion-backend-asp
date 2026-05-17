@@ -31,6 +31,7 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
     public async Task<PagedResultDto<TalabatOrderLogDto>> GetListAsync(GetTalabatOrderLogsInput input)
     {
         var queryable = await _orderLogRepository.GetQueryableAsync();
+        queryable = queryable.AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(input.VendorCode))
         {
@@ -80,15 +81,37 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
             ? "ReceivedAt desc"
             : input.Sorting;
 
+        var maxResultCount = input.MaxResultCount <= 0
+            ? 10
+            : Math.Min(input.MaxResultCount, 100);
+
         var items = await queryable
             .OrderBy(sorting)
             .Skip(input.SkipCount)
-            .Take(input.MaxResultCount)
+            .Take(maxResultCount)
+            .Select(x => new TalabatOrderLogDto
+            {
+                Id = x.Id,
+                FoodicsAccountId = x.FoodicsAccountId,
+                VendorCode = x.VendorCode,
+                PlatformRestaurantId = x.PlatformRestaurantId,
+                OrderToken = x.OrderToken,
+                OrderCode = x.OrderCode,
+                ShortCode = x.ShortCode,
+                Status = x.Status,
+                IsTestOrder = x.IsTestOrder,
+                ProductsCount = x.ProductsCount,
+                CategoriesCount = x.CategoriesCount,
+                OrderCreatedAt = x.OrderCreatedAt,
+                ReceivedAt = x.ReceivedAt,
+                LastAttemptAt = x.LastAttemptUtc,
+                Attempts = x.Attempts,
+                LastError = x.ErrorMessage,
+                CreationTime = x.CreationTime
+            })
             .ToListAsync();
 
-        var dtoItems = items.Select(ObjectMapper.Map<TalabatOrderSyncLog, TalabatOrderLogDto>).ToList();
-
-        return new PagedResultDto<TalabatOrderLogDto>(totalCount, dtoItems);
+        return new PagedResultDto<TalabatOrderLogDto>(totalCount, items);
     }
 
     public async Task RetryAsync(Guid id)

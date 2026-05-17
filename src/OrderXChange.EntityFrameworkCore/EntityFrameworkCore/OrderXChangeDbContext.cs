@@ -339,6 +339,12 @@ public class OrderXChangeDbContext :
             b.HasIndex(x => x.TenantId)
                 .HasDatabaseName("IX_TalabatOrderSyncLogs_TenantId");
 
+            b.HasIndex(x => new { x.TenantId, x.IsDeleted, x.ReceivedAt })
+                .HasDatabaseName("IX_TalabatOrderSyncLogs_Tenant_Deleted_ReceivedAt");
+
+            b.HasIndex(x => new { x.TenantId, x.IsDeleted, x.VendorCode, x.Status, x.ReceivedAt })
+                .HasDatabaseName("IX_TalabatOrderSyncLogs_Tenant_Vendor_Status_ReceivedAt");
+
             b.HasOne(x => x.FoodicsAccount)
                 .WithMany()
                 .HasForeignKey(x => x.FoodicsAccountId)
