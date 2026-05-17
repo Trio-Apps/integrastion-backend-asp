@@ -340,9 +340,7 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
             .Where(product => MatchesGroup(product, account))
             .ToList();
 
-        // The sync flow can target a root Foodics menu group while products are attached to child groups.
-        // If diagnostics filters only by the root id it shows a false "0 items" even though branch staging exists.
-        return groupProducts.Count > 0 ? groupProducts : branchProducts;
+        return groupProducts;
     }
 
     private static bool MatchesBranch(FoodicsProductStaging product, TalabatAccount account)
