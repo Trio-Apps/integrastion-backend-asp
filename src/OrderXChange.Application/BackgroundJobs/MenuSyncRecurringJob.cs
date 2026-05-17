@@ -42,6 +42,7 @@ public class MenuSyncRecurringJob : ITransientDependency
     private readonly TalabatAccountService _talabatAccountService;
     private readonly IRepository<FoodicsAccount, Guid> _foodicsAccountRepository;
     private readonly IRepository<FoodicsProductStaging, Guid> _stagingRepository;
+    private readonly IRepository<TalabatCatalogSyncLog, Guid> _catalogSyncLogRepository;
     private readonly ICurrentTenant _currentTenant;
     private readonly IDataFilter _dataFilter;
     private readonly IdempotencyService _idempotencyService;
@@ -64,6 +65,7 @@ public class MenuSyncRecurringJob : ITransientDependency
         TalabatAccountService talabatAccountService,
         IRepository<FoodicsAccount, Guid> foodicsAccountRepository,
         IRepository<FoodicsProductStaging, Guid> stagingRepository,
+        IRepository<TalabatCatalogSyncLog, Guid> catalogSyncLogRepository,
         ICurrentTenant currentTenant,
         IDataFilter dataFilter,
         IdempotencyService idempotencyService,
@@ -83,6 +85,7 @@ public class MenuSyncRecurringJob : ITransientDependency
         _talabatAccountService = talabatAccountService;
         _foodicsAccountRepository = foodicsAccountRepository;
         _stagingRepository = stagingRepository;
+        _catalogSyncLogRepository = catalogSyncLogRepository;
         _currentTenant = currentTenant;
         _dataFilter = dataFilter;
         _idempotencyService = idempotencyService;
@@ -742,6 +745,16 @@ public class MenuSyncRecurringJob : ITransientDependency
                         continue;
                     }
 
+                    if (await ShouldBlockSuspiciousCatalogShrinkAsync(
+                            foodicsAccountId,
+                            talabatVendorCode,
+                            branchFilterResult.FilteredCount,
+                            correlationId,
+                            cancellationToken))
+                    {
+                        continue;
+                    }
+
                     if (_configuration.GetValue<bool>("Talabat:ParallelSubmissionEnabled", true))
                     {
                         talabatWorkItems.Add(new TalabatSubmissionWorkItem(
@@ -1313,18 +1326,13 @@ public class MenuSyncRecurringJob : ITransientDependency
         string accessToken,
         CancellationToken cancellationToken)
     {
-        const string fallbackRootGroupName = "Talabat";
+        if (string.IsNullOrWhiteSpace(talabatTarget.FoodicsGroupId))
+        {
+            return TalabatGroupScope.None;
+        }
 
-        var rootGroup = !string.IsNullOrWhiteSpace(talabatTarget.FoodicsGroupId)
-            ? await _foodicsCatalogClient.GetGroupByIdAsync(
-                talabatTarget.FoodicsGroupId,
-                accessToken: accessToken,
-                foodicsAccountId: foodicsAccountId,
-                cancellationToken: cancellationToken)
-            : null;
-
-        rootGroup ??= await _foodicsCatalogClient.GetGroupByNameAsync(
-            fallbackRootGroupName,
+        var rootGroup = await _foodicsCatalogClient.GetGroupByIdAsync(
+            talabatTarget.FoodicsGroupId,
             accessToken: accessToken,
             foodicsAccountId: foodicsAccountId,
             cancellationToken: cancellationToken);
@@ -1332,12 +1340,11 @@ public class MenuSyncRecurringJob : ITransientDependency
         if (rootGroup == null || string.IsNullOrWhiteSpace(rootGroup.Id))
         {
             _logger.LogWarning(
-                "Unable to resolve Talabat root group from Foodics. FoodicsAccount={AccountId}, ExpectedGroupId={ExpectedGroupId}, ExpectedRootGroup={ExpectedRootGroup}, VendorCode={VendorCode}",
+                "Unable to resolve configured Talabat Foodics group. Skipping target to avoid publishing a partial catalog. FoodicsAccount={AccountId}, ExpectedGroupId={ExpectedGroupId}, VendorCode={VendorCode}",
                 foodicsAccountId,
                 talabatTarget.FoodicsGroupId ?? "<none>",
-                fallbackRootGroupName,
                 talabatTarget.VendorCode);
-            return new TalabatGroupScope(Array.Empty<string>(), talabatTarget.FoodicsGroupName ?? fallbackRootGroupName);
+            return new TalabatGroupScope(Array.Empty<string>(), talabatTarget.FoodicsGroupName ?? talabatTarget.FoodicsGroupId ?? "<configured-group>");
         }
 
         var groupIds = FlattenGroupIds(rootGroup)
@@ -1353,7 +1360,62 @@ public class MenuSyncRecurringJob : ITransientDependency
 
         return new TalabatGroupScope(
             groupIds,
-            rootGroup.Name ?? rootGroup.NameLocalized ?? fallbackRootGroupName);
+            rootGroup.Name ?? rootGroup.NameLocalized ?? talabatTarget.FoodicsGroupName ?? talabatTarget.FoodicsGroupId);
+    }
+
+    private async Task<bool> ShouldBlockSuspiciousCatalogShrinkAsync(
+        Guid foodicsAccountId,
+        string vendorCode,
+        int currentProductCount,
+        string correlationId,
+        CancellationToken cancellationToken)
+    {
+        var enabled = _configuration.GetValue<bool?>("Talabat:BlockSuspiciousCatalogShrink") ?? true;
+        if (!enabled || currentProductCount <= 0)
+        {
+            return false;
+        }
+
+        var minPreviousCount = Math.Max(1, _configuration.GetValue<int?>("Talabat:CatalogShrinkGuardMinPreviousCount") ?? 100);
+        var minDrop = Math.Max(1, _configuration.GetValue<int?>("Talabat:CatalogShrinkGuardMinDrop") ?? 25);
+        var minRatio = Math.Clamp(
+            _configuration.GetValue<double?>("Talabat:CatalogShrinkGuardMinRatio") ?? 0.8d,
+            0.1d,
+            1.0d);
+
+        using var tenantFilter = _dataFilter.Disable<IMultiTenant>();
+        var queryable = await _catalogSyncLogRepository.GetQueryableAsync();
+        var baselineCount = await queryable
+            .Where(x => x.FoodicsAccountId == foodicsAccountId)
+            .Where(x => x.VendorCode == vendorCode)
+            .Where(x => x.ProductsCount >= minPreviousCount)
+            .Where(x => x.Status == "Submitted" || x.Status == "Processing" || x.Status == "Done" || x.Status == "Success")
+            .OrderByDescending(x => x.ProductsCount)
+            .Select(x => (int?)x.ProductsCount)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (!baselineCount.HasValue)
+        {
+            return false;
+        }
+
+        var drop = baselineCount.Value - currentProductCount;
+        var ratio = (double)currentProductCount / baselineCount.Value;
+        if (drop < minDrop || ratio >= minRatio)
+        {
+            return false;
+        }
+
+        _logger.LogError(
+            "Blocked Talabat catalog submission because product count dropped suspiciously. FoodicsAccount={AccountId}, VendorCode={VendorCode}, CurrentProducts={CurrentProducts}, BaselineProducts={BaselineProducts}, Ratio={Ratio:P1}, CorrelationId={CorrelationId}",
+            foodicsAccountId,
+            vendorCode,
+            currentProductCount,
+            baselineCount.Value,
+            ratio,
+            correlationId);
+
+        return true;
     }
 
     private static IEnumerable<string> FlattenGroupIds(FoodicsGroupInfoDto rootGroup)

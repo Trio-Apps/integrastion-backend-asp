@@ -119,6 +119,10 @@ services:
       - Talabat__IntegrationCode=me-plugin-beon-it-001
       - Talabat__Enabled=true
       - Talabat__ForceModifierRemoteCodeVersion=false
+      - Talabat__BlockSuspiciousCatalogShrink=true
+      - Talabat__CatalogShrinkGuardMinRatio=0.8
+      - Talabat__CatalogShrinkGuardMinDrop=25
+      - Talabat__CatalogShrinkGuardMinPreviousCount=100
       - Talabat__ChainCode=tlbt-pick
       - Talabat__DefaultVendorCode=PH-SIDDIQ-002
       - Talabat__PlatformVendorId=PH-SIDDIQ-002
