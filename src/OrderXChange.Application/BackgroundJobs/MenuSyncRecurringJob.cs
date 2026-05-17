@@ -709,7 +709,8 @@ public class MenuSyncRecurringJob : ITransientDependency
                         allProducts,
                         groupScope.GroupIds,
                         correlationId,
-                        groupScope.Label);
+                        groupScope.Label,
+                        groupScope.ProductIds);
 
                     if (groupFilterResult.FilteredCount == 0)
                     {
@@ -1344,22 +1345,27 @@ public class MenuSyncRecurringJob : ITransientDependency
                 foodicsAccountId,
                 talabatTarget.FoodicsGroupId ?? "<none>",
                 talabatTarget.VendorCode);
-            return new TalabatGroupScope(Array.Empty<string>(), talabatTarget.FoodicsGroupName ?? talabatTarget.FoodicsGroupId ?? "<configured-group>");
+            return new TalabatGroupScope(Array.Empty<string>(), Array.Empty<string>(), talabatTarget.FoodicsGroupName ?? talabatTarget.FoodicsGroupId ?? "<configured-group>");
         }
 
         var groupIds = FlattenGroupIds(rootGroup)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        var productIds = FlattenGroupProductIds(rootGroup)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         _logger.LogInformation(
-            "Resolved Talabat group scope. FoodicsAccount={AccountId}, RootGroupId={RootGroupId}, RootGroupName={RootGroupName}, GroupCount={GroupCount}",
+            "Resolved Talabat group scope. FoodicsAccount={AccountId}, RootGroupId={RootGroupId}, RootGroupName={RootGroupName}, GroupCount={GroupCount}, ProductCount={ProductCount}",
             foodicsAccountId,
             rootGroup.Id,
             rootGroup.Name ?? rootGroup.NameLocalized ?? "<unnamed>",
-            groupIds.Count);
+            groupIds.Count,
+            productIds.Count);
 
         return new TalabatGroupScope(
             groupIds,
+            productIds,
             rootGroup.Name ?? rootGroup.NameLocalized ?? talabatTarget.FoodicsGroupName ?? talabatTarget.FoodicsGroupId);
     }
 
@@ -1443,9 +1449,47 @@ public class MenuSyncRecurringJob : ITransientDependency
         }
     }
 
-    private sealed record TalabatGroupScope(IReadOnlyCollection<string>? GroupIds, string Label)
+    private static IEnumerable<string> FlattenGroupProductIds(FoodicsGroupInfoDto rootGroup)
     {
-        public static TalabatGroupScope None { get; } = new(null, "<all>");
+        if (rootGroup.Products != null)
+        {
+            foreach (var product in rootGroup.Products)
+            {
+                if (!string.IsNullOrWhiteSpace(product.Id) && product.Pivot?.IsActive != false)
+                {
+                    yield return product.Id;
+                }
+            }
+        }
+
+        if (rootGroup.ItemsIndex != null)
+        {
+            foreach (var productId in rootGroup.ItemsIndex)
+            {
+                if (!string.IsNullOrWhiteSpace(productId))
+                {
+                    yield return productId;
+                }
+            }
+        }
+
+        if (rootGroup.Subgroups == null)
+        {
+            yield break;
+        }
+
+        foreach (var subgroup in rootGroup.Subgroups.Where(sg => sg.Pivot?.IsActive != false))
+        {
+            foreach (var productId in FlattenGroupProductIds(subgroup))
+            {
+                yield return productId;
+            }
+        }
+    }
+
+    private sealed record TalabatGroupScope(IReadOnlyCollection<string>? GroupIds, IReadOnlyCollection<string>? ProductIds, string Label)
+    {
+        public static TalabatGroupScope None { get; } = new(null, null, "<all>");
     }
 
     /// <summary>

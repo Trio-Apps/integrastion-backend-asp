@@ -35,18 +35,47 @@ public class GroupProductFilterService : ITransientDependency
         Dictionary<string, FoodicsProductDetailDto> allProducts,
         IReadOnlyCollection<string>? targetGroupIds,
         string correlationId,
-        string? targetGroupLabel = null)
+        string? targetGroupLabel = null,
+        IReadOnlyCollection<string>? targetProductIds = null)
     {
         var result = new GroupFilteredProductsResult();
         var groupIdSet = targetGroupIds?
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var productIdSet = targetProductIds?
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         _logger.LogInformation(
-            "[Group Filter] Starting product filtering. TotalProducts={TotalProducts}, TargetGroup={TargetGroup}, CorrelationId={CorrelationId}",
+            "[Group Filter] Starting product filtering. TotalProducts={TotalProducts}, TargetGroup={TargetGroup}, TargetProducts={TargetProducts}, CorrelationId={CorrelationId}",
             allProducts.Count,
             targetGroupLabel ?? "<none>",
+            productIdSet?.Count ?? 0,
             correlationId);
+
+        if (productIdSet is { Count: > 0 })
+        {
+            var filteredByProductIds = allProducts.Values
+                .Where(product => !string.IsNullOrWhiteSpace(product.Id) && productIdSet.Contains(product.Id))
+                .ToList();
+
+            result.FilteredProducts = filteredByProductIds;
+            result.TotalProducts = allProducts.Count;
+            result.FilteredCount = filteredByProductIds.Count;
+            result.ProductsWithoutGroups = allProducts.Count(p => p.Value.Groups == null || p.Value.Groups.Count == 0);
+            result.ProductsNotInTargetGroup = allProducts.Count - filteredByProductIds.Count;
+            result.FilterReason = $"Filtered by group product list: {targetGroupLabel}";
+
+            _logger.LogInformation(
+                "[Group Filter] Filtering completed by explicit group product list. TotalProducts={TotalProducts}, ProductsInTargetGroup={ProductsInTargetGroup}, TargetProducts={TargetProducts}, TargetGroup={TargetGroup}, CorrelationId={CorrelationId}",
+                result.TotalProducts,
+                result.FilteredCount,
+                productIdSet.Count,
+                targetGroupLabel ?? "<none>",
+                correlationId);
+
+            return result;
+        }
 
         if (groupIdSet == null)
         {
