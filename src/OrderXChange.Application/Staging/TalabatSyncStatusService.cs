@@ -266,15 +266,18 @@ public class TalabatSyncStatusService : ITalabatSyncStatusService, ITransientDep
 			TalabatSyncStatus.Skipped
 		};
 
-		return await dbContext.Set<TalabatCatalogSyncLog>()
+		var latestSubmission = await dbContext.Set<TalabatCatalogSyncLog>()
 			.AsNoTracking()
 			.Where(x => x.FoodicsAccountId == foodicsAccountId)
 			.Where(x => x.VendorCode == vendorCode)
 			.Where(x => x.ChainCode == chainCode)
-			.Where(x => x.CatalogPayloadHash == catalogPayloadHash)
 			.Where(x => successfulStatuses.Contains(x.Status))
 			.OrderByDescending(x => x.SubmittedAt)
 			.FirstOrDefaultAsync(cancellationToken);
+
+		return latestSubmission != null && latestSubmission.CatalogPayloadHash == catalogPayloadHash
+			? latestSubmission
+			: null;
 	}
 
 	public virtual async Task<TalabatCatalogSyncLog> RecordSkippedSubmissionAsync(
