@@ -1389,11 +1389,20 @@ public class MenuSyncRecurringJob : ITransientDependency
             0.1d,
             1.0d);
 
+        // Only consider recent submissions as the shrink baseline. A stale baseline from before a
+        // legitimate, sustained catalog change (e.g. a new group filter) would otherwise block every
+        // future run forever, because the all-time-high product count never expires.
+        var baselineWindowHours = Math.Max(
+            1,
+            _configuration.GetValue<int?>("Talabat:CatalogShrinkGuardBaselineWindowHours") ?? 48);
+        var baselineCutoff = DateTime.UtcNow.AddHours(-baselineWindowHours);
+
         using var tenantFilter = _dataFilter.Disable<IMultiTenant>();
         var queryable = await _catalogSyncLogRepository.GetQueryableAsync();
         var baselineCount = await queryable
             .Where(x => x.FoodicsAccountId == foodicsAccountId)
             .Where(x => x.VendorCode == vendorCode)
+            .Where(x => x.SubmittedAt >= baselineCutoff)
             .Where(x => x.ProductsCount >= minPreviousCount)
             .Where(x => x.Status == TalabatSyncStatus.Submitted
                         || x.Status == TalabatSyncStatus.Processing
