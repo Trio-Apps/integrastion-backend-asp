@@ -23,7 +23,7 @@ RUN dotnet publish ./src/OrderXChange.HttpApi.Host/OrderXChange.HttpApi.Host.csp
 RUN mkdir -p /app/publish/wwwroot/libs \
     && cp -a /src/src/OrderXChange.HttpApi.Host/wwwroot/libs/. /app/publish/wwwroot/libs/
 
-ARG OPENIDDICT_PFX_PASSPHRASE=0ae7c713-43f1-4428-9273-ac71bd31a284
+ARG OPENIDDICT_PFX_PASSPHRASE
 RUN openssl req -x509 -newkey rsa:2048 -sha256 -nodes \
     -keyout /tmp/openiddict.key -out /tmp/openiddict.crt -days 3650 \
     -subj "/CN=localhost" \

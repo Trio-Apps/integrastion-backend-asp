@@ -7,6 +7,6 @@ global:
     default: "Server=[RELEASE_NAME]-sqlserver,1433; Database=OrderXChange; User Id=sa; Password=myPassw@rd; TrustServerCertificate=True"
   dotnetEnvironment: "Staging"
   disablePII: "false"
-  stringEncryptionDefaultPassPhrase: "ctmYJ0doWrvUXYIQ"
+  stringEncryptionDefaultPassPhrase: "CHANGE_ME_AT_DEPLOY"
   abpStudioClient:
     isLinkEnabled: "true"

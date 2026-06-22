@@ -27,7 +27,7 @@ services:
       context: ../..
       dockerfile: src/OrderXChange.HttpApi.Host/Dockerfile
       args:
-        OPENIDDICT_PFX_PASSPHRASE: "0ae7c713-43f1-4428-9273-ac71bd31a284"
+        OPENIDDICT_PFX_PASSPHRASE: "${AUTHSERVER_CERT_PASSPHRASE}"
     user: root
     image: orderxchangehttpapihost
     container_name: web_api
@@ -46,8 +46,8 @@ services:
       - App__DisablePII=false
       - Foodics__OAuthGrantType=authorization_code
       - Foodics__OAuthRedirectUri=https://tfapi.beon-it.com/api/foodics/oauth/callback
-      - ConnectionStrings__Hangfire=Server=mariadb;Port=3306;Database=OrderXChange;User=orderxchange_user;Password=OrderXChange@2024;AllowUserVariables=True;UseAffectedRows=False
-      - ConnectionStrings__Default=Server=mariadb;Port=3306;Database=OrderXChange;User=orderxchange_user;Password=OrderXChange@2024;AllowUserVariables=True;UseAffectedRows=False
+      - ConnectionStrings__Hangfire=Server=mariadb;Port=3306;Database=OrderXChange;User=orderxchange_user;Password=${DB_PASSWORD};AllowUserVariables=True;UseAffectedRows=False
+      - ConnectionStrings__Default=Server=mariadb;Port=3306;Database=OrderXChange;User=orderxchange_user;Password=${DB_PASSWORD};AllowUserVariables=True;UseAffectedRows=False
       - App__CorsOrigins=https://tfconsole.beon-it.com,https://tfapi.beon-it.com
       - AuthServer__Authority=https://tfapi.beon-it.com
       - AuthServer__RequireHttpsMetadata=true
@@ -57,7 +57,7 @@ services:
       - OpenIddict__Applications__OrderXChange_Swagger__RedirectUris__0=https://tfapi.beon-it.com/swagger/oauth2-redirect.html
       - App__RedirectAllowedUrls=https://tfconsole.beon-it.com,https://tfapi.beon-it.com
       - AbpMvcLibsOptions__CheckLibs=false
-      - AuthServer__CertificatePassPhrase=0ae7c713-43f1-4428-9273-ac71bd31a284
+      - AuthServer__CertificatePassPhrase=${AUTHSERVER_CERT_PASSPHRASE}
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
       - ASPNETCORE_URLS=http://+:8080
@@ -108,14 +108,14 @@ services:
       # Talabat Configuration
       - Talabat__BaseUrl=https://integration-middleware.me.restaurant-partners.com
       - Talabat__Username=me-plugin-beon-it-001
-      - Talabat__Password=Lw5afsmkEY
-      - Talabat__Secret=SnyteunCeerhicJofI
+      - Talabat__Password=${TALABAT_PASSWORD}
+      - Talabat__Secret=${TALABAT_SECRET}
       - Talabat__WebhookSecurity__Enabled=false
       - Talabat__WebhookSecurity__Mode=secret
       - Talabat__WebhookSecurity__SecretHeader=X-Secret-Key
       - Talabat__WebhookSecurity__RequireTimestamp=false
       - Talabat__WebhookSecurity__MaxSkewSeconds=300
-      - Talabat__StaticToken=eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjU3MjMyNTIsImV4cCI6MTc2NTczMDQ1MiwiaXNzIjoibWlkZGxld2FyZSIsInN1YiI6Im1lLXBsdWdpbi1iZW9uLWl0LTAwMSJ9.tNAyUgk1qnLWb5mYBE_K2r3OJBE7cths58PlaUYxLwDoGAdz749gOOqXGEgog59E
+      - Talabat__StaticToken=${TALABAT_STATIC_TOKEN}
       - Talabat__IntegrationCode=me-plugin-beon-it-001
       - Talabat__Enabled=true
       - Talabat__ForceModifierRemoteCodeVersion=false
@@ -161,7 +161,7 @@ services:
       mariadb:
         condition: service_healthy
     environment:
-      - ConnectionStrings__Default=Server=mariadb;Port=3306;Database=OrderXChange;User=orderxchange_user;Password=OrderXChange@2024;CharSet=utf8mb4;
+      - ConnectionStrings__Default=Server=mariadb;Port=3306;Database=OrderXChange;User=orderxchange_user;Password=${DB_PASSWORD};CharSet=utf8mb4;
       - RUN_DB_MIGRATOR=${RUN_DB_MIGRATOR:-true}
     restart: "no"
     networks:
@@ -183,10 +183,10 @@ services:
     ports:
       - "3306:3306"
     environment:
-      MARIADB_ROOT_PASSWORD: "P@ssw0rd"
+      MARIADB_ROOT_PASSWORD: "${DB_ROOT_PASSWORD}"
       MYSQL_DATABASE: "OrderXChange"
       MYSQL_USER: "orderxchange_user"
-      MYSQL_PASSWORD: "OrderXChange@2024"
+      MYSQL_PASSWORD: "${DB_PASSWORD}"
     volumes:
       - mariadb-data1:/var/lib/mysql
     networks:

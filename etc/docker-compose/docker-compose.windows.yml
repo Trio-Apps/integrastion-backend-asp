@@ -4,7 +4,7 @@ services:
       context: ../..
       dockerfile: src/OrderXChange.HttpApi.Host/Dockerfile
       args:
-        OPENIDDICT_PFX_PASSPHRASE: "0ae7c713-43f1-4428-9273-ac71bd31a284"
+        OPENIDDICT_PFX_PASSPHRASE: "${AUTHSERVER_CERT_PASSPHRASE}"
     user: root
     image: orderxchangehttpapihost
     container_name: web_api
@@ -31,7 +31,7 @@ services:
       - OpenIddict__Applications__OrderXChange_App__RootUrl=http://localhost:4201
       - OpenIddict__Applications__OrderXChange_Swagger__RedirectUris__0=http://localhost:8081/swagger/oauth2-redirect.html
       - App__RedirectAllowedUrls=http://localhost:8081
-      - AuthServer__CertificatePassPhrase=0ae7c713-43f1-4428-9273-ac71bd31a284
+      - AuthServer__CertificatePassPhrase=${AUTHSERVER_CERT_PASSPHRASE}
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
       # Hangfire Configuration

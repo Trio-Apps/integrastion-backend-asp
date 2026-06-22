@@ -273,3 +273,17 @@ src/OrderXChange.Blazor.Server.Tiered/Logs/*
 # IdentityServer temp files
 tempkey.rsa
 tempkey.jwk
+
+# --- Secrets & local env (Phase 2 hardening) ---
+**/appsettings.secrets.json
+.env
+etc/docker-compose/.env
+
+# --- Sensitive data dumps / generated runtime artifacts ---
+/log.txt
+/Logs/
+/data on foodics account .txt
+/data on staging table.txt
+/working-api-config.json
+/Foodics Sandbox.postman_collection (1).json
+/curl -- PUT.txt
