@@ -1,9 +1,8 @@
-﻿using System;
-using System.Net.Http;
+﻿using System.Collections.Generic;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OrderXChange.Application.Integrations.Foodics;
-using Polly;
-using Polly.Extensions.Http;
+using OrderXChange.Application.Resilience;
 using Volo.Abp.Account;
 using Volo.Abp.AuditLogging;
 using Volo.Abp.AutoMapper;
@@ -37,33 +36,57 @@ public class OrderXChangeApplicationModule : AbpModule
             options.AddMaps<OrderXChangeApplicationModule>();
         });
 
-        context.Services.AddHttpClient<FoodicsMenuClient>()
-            .AddPolicyHandler(GetRetryPolicy());
+        // Centralized outbound rate-limit / 429 handling for Foodics and Talabat.
+        var configuration = context.Services.GetConfiguration();
+        context.Services.Configure<OutboundRateLimitOptions>(
+            configuration.GetSection(OutboundRateLimitOptions.SectionName));
+        context.Services.PostConfigure<OutboundRateLimitOptions>(SeedDefaultProviders);
+        context.Services.AddTransient<RateLimitingHandler>();
 
-        context.Services.AddHttpClient<FoodicsCatalogClient>()
-            .AddPolicyHandler(GetRetryPolicy());
+        // Foodics typed clients run through the rate-limit handler.
+        context.Services.AddHttpClient<FoodicsMenuClient>().AddHttpMessageHandler<RateLimitingHandler>();
+        context.Services.AddHttpClient<FoodicsCatalogClient>().AddHttpMessageHandler<RateLimitingHandler>();
+        context.Services.AddHttpClient<FoodicsOrderClient>().AddHttpMessageHandler<RateLimitingHandler>();
+        context.Services.AddHttpClient<FoodicsCustomerClient>().AddHttpMessageHandler<RateLimitingHandler>();
+        context.Services.AddHttpClient<FoodicsChargeClient>().AddHttpMessageHandler<RateLimitingHandler>();
+        context.Services.AddHttpClient<FoodicsPaymentMethodClient>().AddHttpMessageHandler<RateLimitingHandler>();
+        context.Services.AddHttpClient<FoodicsAuthClient>().AddHttpMessageHandler<RateLimitingHandler>();
 
-        context.Services.AddHttpClient<FoodicsOrderClient>()
-            .AddPolicyHandler(GetRetryPolicy());
-
-        context.Services.AddHttpClient<FoodicsCustomerClient>()
-            .AddPolicyHandler(GetRetryPolicy());
-
-        context.Services.AddHttpClient<FoodicsChargeClient>()
-            .AddPolicyHandler(GetRetryPolicy());
-
-        context.Services.AddHttpClient<FoodicsPaymentMethodClient>()
-            .AddPolicyHandler(GetRetryPolicy());
-
-        context.Services.AddHttpClient<FoodicsAuthClient>()
-            .AddPolicyHandler(GetRetryPolicy());
+        // Talabat clients receive the default (unnamed) HttpClient; route it through the
+        // same handler. Unknown hosts are passed through untouched by the handler.
+        context.Services.AddHttpClient(string.Empty).AddHttpMessageHandler<RateLimitingHandler>();
     }
 
-    private static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy()
+    /// <summary>
+    /// Provider defaults applied when the OutboundRateLimit section defines no providers,
+    /// so throttling works out of the box. Foodics enforces 90 req/min per token — we stay
+    /// under it. Talabat's published limit is unconfirmed; the conservative default is tunable
+    /// via appsettings.
+    /// </summary>
+    private static void SeedDefaultProviders(OutboundRateLimitOptions options)
     {
-        return HttpPolicyExtensions
-            .HandleTransientHttpError()
-            .OrResult(response => (int)response.StatusCode == 429)
-            .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
+        if (options.Providers.Count > 0)
+        {
+            return;
+        }
+
+        options.Providers.Add(new ProviderRateLimit
+        {
+            Name = "Foodics",
+            Hosts = new List<string> { "foodics.com" },
+            PermitLimit = 80,
+            WindowSeconds = 60,
+            SegmentsPerWindow = 6,
+            QueueLimit = 2000
+        });
+        options.Providers.Add(new ProviderRateLimit
+        {
+            Name = "Talabat",
+            Hosts = new List<string> { "restaurant-partners.com" },
+            PermitLimit = 100,
+            WindowSeconds = 60,
+            SegmentsPerWindow = 6,
+            QueueLimit = 2000
+        });
     }
 }
