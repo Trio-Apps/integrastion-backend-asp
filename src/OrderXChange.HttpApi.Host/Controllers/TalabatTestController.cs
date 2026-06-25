@@ -974,7 +974,8 @@ public class TalabatTestController : AbpController
 
         try
         {
-            var status = await _catalogClient.GetCatalogImportLogAsync(chainCode);
+            var vendorCode = _configuration["Talabat:DefaultVendorCode"] ?? "PH-SIDDIQ-002";
+            var status = await _catalogClient.GetCatalogImportLogAsync(chainCode, vendorCode);
 
             if (status == null)
             {

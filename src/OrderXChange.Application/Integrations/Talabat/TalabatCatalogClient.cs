@@ -401,11 +401,14 @@ public class TalabatCatalogClient : ITransientDependency
     }
 
     /// <summary>
-    /// Get catalog import status/log - V2 API
-    /// GET /v2/chains/{chainCode}/catalog/import-log
+    /// Get menu import logs - current Talabat POS Middleware contract.
+    /// GET /v2/chains/{chainCode}/vendors/{posVendorId}/menu-import-logs
+    /// (migrated from the retired GET /v2/chains/{chainCode}/catalog/import-log).
+    /// The result is adapted to <see cref="TalabatCatalogImportLogResponse"/> for callers.
     /// </summary>
     public async Task<TalabatCatalogImportLogResponse?> GetCatalogImportLogAsync(
         string chainCode,
+        string vendorCode,
         string? importId = null,
         CancellationToken cancellationToken = default)
     {
@@ -414,18 +417,19 @@ public class TalabatCatalogClient : ITransientDependency
             throw new ArgumentException("Chain code is required", nameof(chainCode));
         }
 
-        await _authClient.PreFetchCredentialsAsync(null, cancellationToken);
-        var accessToken = await _authClient.GetAccessTokenAsync(null, cancellationToken);
-        var url = $"v2/chains/{Uri.EscapeDataString(chainCode)}/catalog/import-log";
-        
-        if (!string.IsNullOrWhiteSpace(importId))
+        if (string.IsNullOrWhiteSpace(vendorCode))
         {
-            url += $"?importId={Uri.EscapeDataString(importId)}";
+            throw new ArgumentException("Vendor code is required", nameof(vendorCode));
         }
 
+        await _authClient.PreFetchCredentialsAsync(vendorCode, cancellationToken);
+        var accessToken = await _authClient.GetAccessTokenAsync(vendorCode, cancellationToken);
+        var url = $"v2/chains/{Uri.EscapeDataString(chainCode)}/vendors/{Uri.EscapeDataString(vendorCode)}/menu-import-logs";
+
         _logger.LogInformation(
-            "Getting catalog import log from Talabat V2. ChainCode={ChainCode}, ImportId={ImportId}",
+            "Getting menu import logs from Talabat. ChainCode={ChainCode}, VendorCode={VendorCode}, ImportId={ImportId}",
             chainCode,
+            vendorCode,
             importId ?? "<latest>");
 
         try
@@ -445,19 +449,75 @@ public class TalabatCatalogClient : ITransientDependency
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning(
-                    "Failed to get catalog import log. ChainCode={ChainCode}, StatusCode={StatusCode}",
+                    "Failed to get menu import logs. ChainCode={ChainCode}, VendorCode={VendorCode}, StatusCode={StatusCode}",
                     chainCode,
+                    vendorCode,
                     (int)response.StatusCode);
                 return null;
             }
 
-            return TryParseResponse<TalabatCatalogImportLogResponse>(responseBody);
+            var logs = ParseMenuImportLogs(responseBody);
+            return MapMenuImportLog(logs, vendorCode, importId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting catalog import log. ChainCode={ChainCode}", chainCode);
+            _logger.LogError(ex, "Error getting menu import logs. ChainCode={ChainCode}, VendorCode={VendorCode}", chainCode, vendorCode);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Adapts the menu-import-logs response (logs keyed by vendor) to the flat
+    /// <see cref="TalabatCatalogImportLogResponse"/> shape callers expect, selecting the
+    /// requested import id or the most recent entry.
+    /// </summary>
+    /// <summary>
+    /// Parses the menu-import-logs body, tolerating both shapes: the published spec wraps the
+    /// per-vendor logs under "menuImportLogs", while the live API returns them keyed by vendor
+    /// code at the top level (e.g. {"PH-SIDDIQ-002":[...]}).
+    /// </summary>
+    private Dictionary<string, List<TalabatMenuImportLogEntry>>? ParseMenuImportLogs(string responseBody)
+    {
+        var wrapped = TryParseResponse<TalabatMenuImportLogsResponse>(responseBody);
+        if (wrapped?.MenuImportLogs is { Count: > 0 })
+        {
+            return wrapped.MenuImportLogs;
+        }
+
+        return TryParseResponse<Dictionary<string, List<TalabatMenuImportLogEntry>>>(responseBody);
+    }
+
+    private static TalabatCatalogImportLogResponse? MapMenuImportLog(
+        Dictionary<string, List<TalabatMenuImportLogEntry>>? logs,
+        string vendorCode,
+        string? importId)
+    {
+        if (logs is null || logs.Count == 0)
+        {
+            return null;
+        }
+
+        var entries = (logs.TryGetValue(vendorCode, out var vendorEntries) ? vendorEntries : null)
+                      ?? logs.Values.FirstOrDefault();
+        if (entries is null || entries.Count == 0)
+        {
+            return null;
+        }
+
+        var entry = (!string.IsNullOrWhiteSpace(importId)
+                        ? entries.FirstOrDefault(e => e.MenuImportId == importId)
+                        : entries.OrderByDescending(e => e.CreatedAt ?? DateTime.MinValue).FirstOrDefault())
+                    ?? entries[0];
+
+        return new TalabatCatalogImportLogResponse
+        {
+            ImportId = entry.MenuImportId,
+            Status = entry.Status,
+            CreatedAt = entry.CreatedAt,
+            Errors = string.IsNullOrWhiteSpace(entry.Message)
+                ? null
+                : new List<TalabatImportError> { new() { Message = entry.Message } }
+        };
     }
 
     /// <summary>

@@ -328,7 +328,9 @@ public class TalabatCatalogSyncService : ITransientDependency
         string? importId = null,
         CancellationToken cancellationToken = default)
     {
+        var chainCode = _configuration["Talabat:ChainCode"] ?? "tlbt-pick";
         return await _talabatCatalogClient.GetCatalogImportLogAsync(
+            chainCode,
             vendorCode,
             importId,
             cancellationToken);

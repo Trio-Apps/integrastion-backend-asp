@@ -564,6 +564,40 @@ public class TalabatCatalogImportLogResponse
 }
 
 /// <summary>
+/// Response from GET /v2/chains/{chainCode}/vendors/{posVendorId}/menu-import-logs
+/// (current Talabat POS Middleware contract). Keyed by vendor code, each holding its logs.
+/// </summary>
+public class TalabatMenuImportLogsResponse
+{
+    [JsonPropertyName("menuImportLogs")]
+    public Dictionary<string, List<TalabatMenuImportLogEntry>>? MenuImportLogs { get; set; }
+}
+
+/// <summary>
+/// A single menu import log entry from the menu-import-logs endpoint.
+/// </summary>
+public class TalabatMenuImportLogEntry
+{
+    [JsonPropertyName("createdAt")]
+    public DateTime? CreatedAt { get; set; }
+
+    [JsonPropertyName("menuImportId")]
+    public string? MenuImportId { get; set; }
+
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+
+    [JsonPropertyName("status")]
+    public string? Status { get; set; }
+
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
+
+    [JsonPropertyName("version")]
+    public int? Version { get; set; }
+}
+
+/// <summary>
 /// Import error detail
 /// </summary>
 public class TalabatImportError
