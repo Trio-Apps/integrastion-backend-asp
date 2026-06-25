@@ -89,8 +89,8 @@ export class FoodicsListComponent implements OnInit {
   private initializeForm(): void {
     this.accountForm = this.fb.group({
       brandName: ['', [Validators.required]],
-      oAuthClientId: ['', [Validators.required]],
-      oAuthClientSecret: ['', [Validators.required]],
+      oAuthClientId: [''],
+      oAuthClientSecret: [''],
       accessToken: [''],
       apiEnvironment: ['Sandbox', [Validators.required]]
     });

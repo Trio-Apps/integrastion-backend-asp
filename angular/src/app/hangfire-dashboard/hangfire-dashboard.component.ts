@@ -7,6 +7,7 @@ import { HangfireMonitoringService, HangfireDashboardDto, MenuSyncService } from
 import { HangfireJobTableComponent } from './hangfire-job-table.component';
 import { LocalizationService } from '@abp/ng.core';
 import { LocalizationModule } from '@abp/ng.core';
+import { environment } from '../../environments/environment';
 
 @Component({
   selector: 'app-hangfire-dashboard',
@@ -29,7 +30,7 @@ export class HangfireDashboardComponent implements OnInit {
   readonly loading = signal<boolean>(false);
   readonly syncing = signal<boolean>(false);
   readonly syncQueued = signal<boolean>(false);
-  readonly hangfireUrl = 'https://localhost:44325/hangfire';
+  readonly hangfireUrl = environment.apis.default.url.replace(/\/+$/, '') + '/hangfire';
   readonly metrics = computed(() => {
     const dashboard = this.dashboardSignal();
     if (!dashboard) {

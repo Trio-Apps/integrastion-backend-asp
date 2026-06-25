@@ -239,7 +239,6 @@
       <div class="foodics-form-field">
         <label for="oAuthClientId" class="font-semibold mb-2">
           {{ '::Foodics.Dialog.ClientIdLabel' | abpLocalization }}
-          <span class="text-red-500">*</span>
         </label>
         <input 
           id="oAuthClientId"
@@ -248,8 +247,7 @@
           formControlName="oAuthClientId"
           [placeholder]="'::Foodics.Dialog.ClientIdPlaceholder' | abpLocalization"
           autocomplete="off"
-          class="w-full"
-          required />
+          class="w-full" />
         @if (isFieldInvalid('oAuthClientId')) {
           <p-message severity="error" size="small" variant="simple" class="mt-2">
             {{ getFieldError('oAuthClientId') }}
@@ -261,7 +259,6 @@
       <div class="foodics-form-field">
         <label for="oAuthClientSecret" class="font-semibold mb-2">
           {{ '::Foodics.Dialog.ClientSecretLabel' | abpLocalization }}
-          <span class="text-red-500">*</span>
         </label>
         <p-password 
           id="oAuthClientSecret"
@@ -270,8 +267,7 @@
           [toggleMask]="true"
           [feedback]="false"
           styleClass="w-full"
-          inputStyleClass="w-full"
-          required />
+          inputStyleClass="w-full" />
         @if (isFieldInvalid('oAuthClientSecret')) {
           <p-message severity="error" size="small" variant="simple" class="mt-2">
             {{ getFieldError('oAuthClientSecret') }}
