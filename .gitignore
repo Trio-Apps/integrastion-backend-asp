@@ -287,3 +287,6 @@ etc/docker-compose/.env
 /working-api-config.json
 /Foodics Sandbox.postman_collection (1).json
 /curl -- PUT.txt
+
+# Local scratch (tokens, ids) — never commit
+.tmp*
