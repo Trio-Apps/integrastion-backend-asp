@@ -279,6 +279,9 @@ tempkey.jwk
 .env
 etc/docker-compose/.env
 
+# TLS certs / keys — never commit (per-server, gitignored)
+etc/docker-compose/certs/
+
 # --- Sensitive data dumps / generated runtime artifacts ---
 /log.txt
 /Logs/
