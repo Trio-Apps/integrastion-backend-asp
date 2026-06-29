@@ -282,6 +282,10 @@ etc/docker-compose/.env
 # TLS certs / keys — never commit (per-server, gitignored)
 etc/docker-compose/certs/
 
+# Per-server runtime overrides (copy from the .example files)
+etc/docker-compose/docker-compose.override.yml
+etc/docker-compose/dynamic-env.json
+
 # --- Sensitive data dumps / generated runtime artifacts ---
 /log.txt
 /Logs/

@@ -1,0 +1,13 @@
+{
+  "application": { "baseUrl": "https://tfconsole-dev.beon-it.com" },
+  "oAuthConfig": {
+    "issuer": "https://tfapi-dev.beon-it.com/",
+    "redirectUri": "https://tfconsole-dev.beon-it.com"
+  },
+  "apis": {
+    "default": { "url": "https://tfapi-dev.beon-it.com" },
+    "Default": { "url": "https://tfapi-dev.beon-it.com" },
+    "AbpTenantManagement": { "url": "https://tfapi-dev.beon-it.com" },
+    "AbpAccountPublic": { "url": "https://tfapi-dev.beon-it.com/" }
+  }
+}

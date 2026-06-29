@@ -39,8 +39,11 @@ export const environment = {
       rootNamespace: 'AbpAccountPublic',
     },
   },
-  // remoteEnv: {
-  //   url: '/getEnvConfig',
-  //   mergeStrategy: 'deepmerge'
-  // }
+  // URLs above are LIVE defaults. Each server can override them at runtime by
+  // serving its own /dynamic-env.json (deep-merged over these). The testing
+  // server mounts a dynamic-env.json with the -dev URLs (see docker-compose.override.yml.example).
+  remoteEnv: {
+    url: '/dynamic-env.json',
+    mergeStrategy: 'deepmerge'
+  }
 } as Environment;

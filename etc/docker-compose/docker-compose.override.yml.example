@@ -1,0 +1,17 @@
+# Per-server runtime override. Copy to `docker-compose.override.yml` on the
+# TESTING server only — docker compose auto-loads it and merges over docker-compose.yml.
+#
+# It points the Angular console at the staging API at RUNTIME (one image works
+# for every environment): the container serves the mounted dynamic-env.json,
+# whose URLs are deep-merged over the LIVE defaults baked into environment.prod.ts.
+#
+# LIVE needs NO override — the baked defaults already point at the live API.
+#
+# Setup on the testing server:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   cp dynamic-env.json.example dynamic-env.json   # already has the -dev URLs
+#   docker compose up -d
+services:
+  angular:
+    volumes:
+      - ./dynamic-env.json:/usr/share/nginx/html/dynamic-env.json:ro
