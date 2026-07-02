@@ -11,7 +11,34 @@ public static class OrderXChangePermissions
         public const string Tenant = DashboardGroup + ".Tenant";
     }
 
-    
-    //Add your own permission names. Example:
-    //public const string MyPermission1 = GroupName + ".MyPermission1";
+    // Phase 2 — Orders Console (view/monitor Talabat orders)
+    public static class Orders
+    {
+        public const string Default = GroupName + ".Orders";
+    }
+
+    // Phase 2 — Item & Modifier Availability
+    public static class Availability
+    {
+        public const string Default = GroupName + ".Availability";
+        public const string Manage = Default + ".Manage"; // toggle In/Out of Stock
+    }
+
+    // Foodics account management (tenant)
+    public static class FoodicsAccounts
+    {
+        public const string Default = GroupName + ".FoodicsAccounts";
+    }
+
+    // Talabat account management (tenant)
+    public static class TalabatAccounts
+    {
+        public const string Default = GroupName + ".TalabatAccounts";
+    }
+
+    // Phase 2 — assign accessible branches to roles (branch-scoped authorization)
+    public static class Branches
+    {
+        public const string Manage = GroupName + ".Branches.Manage";
+    }
 }
