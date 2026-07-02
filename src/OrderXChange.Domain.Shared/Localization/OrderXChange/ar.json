@@ -16,6 +16,7 @@
     "Permission:FoodicsAccounts": "حسابات Foodics",
     "Permission:TalabatAccounts": "حسابات طلبات",
     "Permission:Branches.Manage": "إدارة صلاحية الفروع للأدوار",
+    "Permission:Branches.All": "الوصول لكل الفروع",
     "Menu:Dashboard": "لوحة القيادة",
     "Menu:HomePage": "الصفحة الرئيسية",
     "Dashboard": "لوحة القيادة",

@@ -28,6 +28,7 @@ public class OrderXChangePermissionDefinitionProvider : PermissionDefinitionProv
 
         // Phase 2 — branch-scoped authorization management
         myGroup.AddPermission(OrderXChangePermissions.Branches.Manage, L("Permission:Branches.Manage"), MultiTenancySides.Tenant);
+        myGroup.AddPermission(OrderXChangePermissions.Branches.All, L("Permission:Branches.All"), MultiTenancySides.Tenant);
     }
 
     private static LocalizableString L(string name)

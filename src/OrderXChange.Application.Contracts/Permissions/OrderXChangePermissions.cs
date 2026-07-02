@@ -36,9 +36,13 @@ public static class OrderXChangePermissions
         public const string Default = GroupName + ".TalabatAccounts";
     }
 
-    // Phase 2 — assign accessible branches to roles (branch-scoped authorization)
+    // Phase 2 — branch-scoped authorization
     public static class Branches
     {
+        // Assign accessible branches to roles (manage the role -> branch grants).
         public const string Manage = GroupName + ".Branches.Manage";
+
+        // Bypass branch scoping entirely (see every branch). Grant to admin-type roles.
+        public const string All = GroupName + ".Branches.All";
     }
 }
