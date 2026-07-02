@@ -20,6 +20,7 @@ using Volo.Abp.TenantManagement.Talabat;
 using OrderXChange.Domain.Staging;
 using OrderXChange.Domain.Versioning;
 using OrderXChange.Idempotency;
+using OrderXChange.Authorization;
 
 namespace OrderXChange.EntityFrameworkCore;
 
@@ -96,6 +97,9 @@ public class OrderXChangeDbContext :
     public DbSet<ModifierGroupVersion> ModifierGroupVersions { get; set; }
     public DbSet<ModifierOptionVersion> ModifierOptionVersions { get; set; }
     public DbSet<ProductModifierAssignment> ProductModifierAssignments { get; set; }
+
+    // Phase 2 — branch-scoped authorization (role -> allowed Foodics branches)
+    public DbSet<RoleBranch> RoleBranches { get; set; }
     #endregion
 
     public OrderXChangeDbContext(DbContextOptions<OrderXChangeDbContext> options)
@@ -172,6 +176,23 @@ public class OrderXChangeDbContext :
                 .WithMany()
                 .HasForeignKey(x => x.FoodicsAccountId)
                 .OnDelete(DeleteBehavior.SetNull); // If FoodicsAccount deleted, set FK to null (don't cascade)
+        });
+
+        // Phase 2 — branch-scoped authorization: role -> allowed Foodics branches
+        builder.Entity<RoleBranch>(b =>
+        {
+            b.ToTable(OrderXChangeConsts.DbTablePrefix + "RoleBranches", OrderXChangeConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.FoodicsBranchId).IsRequired().HasMaxLength(64);
+            b.Property(x => x.FoodicsBranchName).HasMaxLength(256);
+
+            // One grant per (role, account, branch) within a tenant
+            b.HasIndex(x => new { x.TenantId, x.RoleId, x.FoodicsAccountId, x.FoodicsBranchId })
+                .IsUnique()
+                .HasDatabaseName("IX_RoleBranches_Tenant_Role_Account_Branch");
+
+            b.HasIndex(x => x.RoleId).HasDatabaseName("IX_RoleBranches_RoleId");
         });
 
         // Configure FoodicsProductStaging entity
