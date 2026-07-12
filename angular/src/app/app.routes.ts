@@ -54,7 +54,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./talabat-orders/talabat-orders.component').then(c => c.TalabatOrdersComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.Orders',
     },
   },
   {

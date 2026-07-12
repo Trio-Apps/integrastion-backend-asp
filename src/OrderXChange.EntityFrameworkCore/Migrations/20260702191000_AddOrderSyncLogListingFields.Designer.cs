@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OrderXChange.EntityFrameworkCore;
 using Volo.Abp.EntityFrameworkCore;
@@ -12,9 +13,11 @@ using Volo.Abp.EntityFrameworkCore;
 namespace OrderXChange.Migrations
 {
     [DbContext(typeof(OrderXChangeDbContext))]
-    partial class OrderXChangeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260702191000_AddOrderSyncLogListingFields")]
+    partial class AddOrderSyncLogListingFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -736,10 +739,6 @@ namespace OrderXChange.Migrations
                     b.Property<string>("CustomerName")
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
-
-                    b.Property<string>("CustomerPhone")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
 
                     b.Property<Guid?>("DeleterId")
                         .HasColumnType("char(36)")

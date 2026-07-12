@@ -1,42 +1,116 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
+using Hangfire;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using OrderXChange.Application.Contracts.Integrations.Talabat;
+using OrderXChange.Authorization;
+using OrderXChange.BackgroundJobs;
 using OrderXChange.Domain.Staging;
+using OrderXChange.Application.Integrations.Talabat;
 using OrderXChange.Integrations.Talabat;
+using OrderXChange.Permissions;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
 using System.Linq.Dynamic.Core;
 using Volo.Abp;
 using Volo.Abp.EventBus.Distributed;
+using Volo.Abp.TenantManagement.Talabat;
 
 namespace OrderXChange.Talabat;
 
+[Authorize(OrderXChangePermissions.Orders.Default)]
 public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogAppService
 {
+    private static readonly JsonSerializerOptions WebhookJsonOptions = CreateWebhookJsonOptions();
+
+    private static JsonSerializerOptions CreateWebhookJsonOptions()
+    {
+        var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        opts.Converters.Add(new TalabatFlexibleStringJsonConverter());
+        return opts;
+    }
+
     private readonly IRepository<TalabatOrderSyncLog, Guid> _orderLogRepository;
+    private readonly IRepository<TalabatAccount, Guid> _talabatAccountRepository;
+    private readonly ICurrentUserBranchProvider _branchProvider;
     private readonly IDistributedEventBus _eventBus;
+    private readonly IBackgroundJobClient _backgroundJobs;
 
     public TalabatOrderLogAppService(
         IRepository<TalabatOrderSyncLog, Guid> orderLogRepository,
-        IDistributedEventBus eventBus)
+        IRepository<TalabatAccount, Guid> talabatAccountRepository,
+        ICurrentUserBranchProvider branchProvider,
+        IDistributedEventBus eventBus,
+        IBackgroundJobClient backgroundJobs)
     {
         _orderLogRepository = orderLogRepository;
+        _talabatAccountRepository = talabatAccountRepository;
+        _branchProvider = branchProvider;
         _eventBus = eventBus;
+        _backgroundJobs = backgroundJobs;
     }
 
     public async Task<PagedResultDto<TalabatOrderLogDto>> GetListAsync(GetTalabatOrderLogsInput input)
     {
+        var scope = await _branchProvider.GetScopeAsync();
+
+        // Fail-closed: a restricted user with no branch grants sees nothing.
+        if (!scope.AllBranches && scope.BranchIds.Count == 0)
+            return new PagedResultDto<TalabatOrderLogDto>(0, []);
+
         var queryable = await _orderLogRepository.GetQueryableAsync();
         queryable = queryable.AsNoTracking();
+
+        // Branch-scope filter: resolve allowed VendorCodes via TalabatAccount.FoodicsBranchId.
+        if (!scope.AllBranches)
+        {
+            var branchIds = scope.BranchIds;
+            var accountQueryable = await _talabatAccountRepository.GetQueryableAsync();
+            var allowedVendorCodes = await accountQueryable
+                .Where(a => a.FoodicsBranchId != null && branchIds.Contains(a.FoodicsBranchId))
+                .Select(a => a.VendorCode)
+                .Distinct()
+                .ToListAsync();
+
+            queryable = queryable.Where(x => allowedVendorCodes.Contains(x.VendorCode));
+        }
+
+        // Explicit branch filter (narrows within the user's scope).
+        if (!string.IsNullOrWhiteSpace(input.BranchId))
+        {
+            var branchId = input.BranchId.Trim();
+            var accountQueryable = await _talabatAccountRepository.GetQueryableAsync();
+            var branchVendorCodes = await accountQueryable
+                .Where(a => a.FoodicsBranchId == branchId)
+                .Select(a => a.VendorCode)
+                .Distinct()
+                .ToListAsync();
+
+            queryable = queryable.Where(x => branchVendorCodes.Contains(x.VendorCode));
+        }
 
         if (!string.IsNullOrWhiteSpace(input.VendorCode))
         {
             var vendor = input.VendorCode.Trim();
             queryable = queryable.Where(x => x.VendorCode == vendor);
+        }
+
+        if (!string.IsNullOrWhiteSpace(input.CustomerName))
+        {
+            var pattern = $"%{input.CustomerName.Trim()}%";
+            queryable = queryable.Where(x => x.CustomerName != null && EF.Functions.Like(x.CustomerName, pattern));
+        }
+
+        if (!string.IsNullOrWhiteSpace(input.CustomerPhone))
+        {
+            var pattern = $"%{input.CustomerPhone.Trim()}%";
+            queryable = queryable.Where(x => x.CustomerPhone != null && EF.Functions.Like(x.CustomerPhone, pattern));
         }
 
         if (!string.IsNullOrWhiteSpace(input.SearchTerm))
@@ -107,11 +181,141 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
                 LastAttemptAt = x.LastAttemptUtc,
                 Attempts = x.Attempts,
                 LastError = x.ErrorMessage,
-                CreationTime = x.CreationTime
+                CreationTime = x.CreationTime,
+                CustomerId = x.CustomerId,
+                CustomerName = x.CustomerName,
+                CustomerPhone = x.CustomerPhone,
+                CustomerAddress = x.CustomerAddress,
+                PaymentMethod = x.PaymentMethod,
+                ExpeditionType = x.ExpeditionType,
+                Channel = x.Channel,
+                GrandTotal = x.GrandTotal,
+                DiscountTotal = x.DiscountTotal
             })
             .ToListAsync();
 
         return new PagedResultDto<TalabatOrderLogDto>(totalCount, items);
+    }
+
+    public async Task<TalabatOrderDetailsDto> GetDetailsAsync(Guid id)
+    {
+        var log = await _orderLogRepository.GetAsync(id);
+
+        var scope = await _branchProvider.GetScopeAsync();
+        if (!scope.AllBranches)
+        {
+            if (scope.BranchIds.Count == 0)
+                throw new BusinessException("ORDER_ACCESS_DENIED").WithData("OrderLogId", id);
+
+            var accountQueryable = await _talabatAccountRepository.GetQueryableAsync();
+            var branchIds = scope.BranchIds;
+            var allowed = await accountQueryable
+                .Where(a => a.FoodicsBranchId != null && branchIds.Contains(a.FoodicsBranchId))
+                .Select(a => a.VendorCode)
+                .Distinct()
+                .ToListAsync();
+
+            if (!allowed.Contains(log.VendorCode))
+                throw new BusinessException("ORDER_ACCESS_DENIED").WithData("OrderLogId", id);
+        }
+
+        TalabatOrderWebhook? webhook = null;
+        if (!string.IsNullOrWhiteSpace(log.WebhookPayloadJson))
+        {
+            try
+            {
+                webhook = JsonSerializer.Deserialize<TalabatOrderWebhook>(
+                    log.WebhookPayloadJson, WebhookJsonOptions);
+            }
+            catch (JsonException)
+            {
+                // payload unparseable — still return the log metadata, items will be empty
+            }
+        }
+
+        var dto = new TalabatOrderDetailsDto
+        {
+            Id = log.Id,
+            OrderCode = log.OrderCode,
+            OrderToken = log.OrderToken,
+            ShortCode = log.ShortCode,
+            VendorCode = log.VendorCode,
+            Status = log.Status,
+            OrderCreatedAt = log.OrderCreatedAt,
+            ReceivedAt = log.ReceivedAt,
+            CustomerId = log.CustomerId,
+            CustomerName = log.CustomerName,
+            CustomerPhone = log.CustomerPhone,
+            CustomerAddress = log.CustomerAddress,
+            PaymentMethod = log.PaymentMethod,
+            ExpeditionType = log.ExpeditionType,
+            Channel = log.Channel,
+            GrandTotal = log.GrandTotal,
+            DiscountTotal = log.DiscountTotal,
+            CustomerComment = webhook?.Comments?.CustomerComment,
+            Items = webhook?.Products?.Select(MapProduct).ToList() ?? []
+        };
+
+        return dto;
+    }
+
+    private static TalabatOrderItemDto MapProduct(TalabatOrderProduct p)
+    {
+        var discounts = p.Discounts?.Select(MapDiscount).ToList() ?? [];
+        return new TalabatOrderItemDto
+        {
+            Name = p.Name,
+            CategoryName = p.CategoryName,
+            RemoteCode = p.RemoteCode,
+            Quantity = ParseInt(p.Quantity),
+            UnitPrice = ParseDecimal(p.UnitPrice),
+            PaidPrice = ParseDecimal(p.PaidPrice),
+            DiscountAmount = discounts.Count > 0
+                ? discounts.Sum(d => d.Amount ?? 0m)
+                : ParseDecimal(p.DiscountAmount),
+            Discounts = discounts,
+            Modifiers = p.SelectedToppings?.Select(MapTopping).ToList() ?? []
+        };
+    }
+
+    private static TalabatOrderModifierDto MapTopping(TalabatOrderTopping t)
+    {
+        var discounts = t.Discounts?.Select(MapDiscount).ToList() ?? [];
+        return new TalabatOrderModifierDto
+        {
+            Name = t.Name,
+            RemoteCode = t.RemoteCode,
+            Quantity = t.Quantity ?? 1,
+            Price = ParseDecimal(t.Price),
+            DiscountAmount = discounts.Count > 0 ? discounts.Sum(d => d.Amount ?? 0m) : null,
+            Discounts = discounts
+        };
+    }
+
+    private static TalabatOrderItemDiscountDto MapDiscount(TalabatOrderDiscount d) =>
+        new()
+        {
+            Name = d.Name,
+            Amount = ParseDecimal(d.Amount),
+            Sponsorships = d.Sponsorships?.Select(s => new TalabatOrderDiscountSponsorshipDto
+            {
+                Sponsor = s.Sponsor,
+                Amount = ParseDecimal(s.Amount)
+            }).ToList() ?? []
+        };
+
+    private static decimal? ParseDecimal(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return decimal.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var result)
+            ? result
+            : null;
+    }
+
+    private static int ParseInt(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return 0;
+        return int.TryParse(value, out var result) ? result : 0;
     }
 
     public async Task RetryAsync(Guid id)
@@ -204,5 +408,41 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
         };
 
         await _eventBus.PublishAsync(retryEvent);
+    }
+
+    public async Task<List<BranchLookupDto>> GetAccessibleBranchesAsync()
+    {
+        var scope = await _branchProvider.GetScopeAsync();
+
+        if (!scope.AllBranches && scope.BranchIds.Count == 0)
+            return [];
+
+        var accountQueryable = await _talabatAccountRepository.GetQueryableAsync();
+        accountQueryable = accountQueryable.AsNoTracking();
+
+        if (!scope.AllBranches)
+        {
+            var branchIds = scope.BranchIds;
+            accountQueryable = accountQueryable
+                .Where(a => a.FoodicsBranchId != null && branchIds.Contains(a.FoodicsBranchId));
+        }
+
+        return await accountQueryable
+            .Where(a => a.FoodicsBranchId != null)
+            .GroupBy(a => a.FoodicsBranchId)
+            .Select(g => new BranchLookupDto
+            {
+                BranchId = g.Key!,
+                BranchName = g.Max(a => a.FoodicsBranchName) ?? g.Key!
+            })
+            .OrderBy(b => b.BranchName)
+            .ToListAsync();
+    }
+
+    public Task<string> EnqueueBackfillListingFieldsAsync()
+    {
+        var jobId = _backgroundJobs.Enqueue<BackfillOrderSyncLogListingFieldsJob>(
+            job => job.ExecuteAsync(100, default));
+        return Task.FromResult(jobId);
     }
 }

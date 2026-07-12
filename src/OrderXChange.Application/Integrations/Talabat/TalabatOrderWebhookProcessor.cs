@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -168,7 +169,16 @@ public class TalabatOrderWebhookProcessor : ITransientDependency
                         OrderCreatedAt = webhook.CreatedAt,
                         ReceivedAt = DateTime.UtcNow,
                         WebhookPayloadJson = ShouldLogOrderPayload() ? rawBody : null,
-                        Attempts = 0
+                        Attempts = 0,
+                        CustomerId = webhook.Customer?.Id,
+                        CustomerName = BuildCustomerName(webhook.Customer),
+                        CustomerPhone = BuildCustomerPhone(webhook.Customer),
+                        CustomerAddress = BuildCustomerAddress(webhook.Delivery),
+                        PaymentMethod = webhook.Payment?.Type,
+                        ExpeditionType = webhook.ExpeditionType,
+                        Channel = webhook.LocalInfo?.PlatformKey ?? webhook.LocalInfo?.Platform,
+                        GrandTotal = ParseDecimal(webhook.Price?.GrandTotal),
+                        DiscountTotal = ParseDecimal(webhook.Price?.DiscountAmountTotal)
                     };
 
                     await _orderSyncLogRepository.InsertAsync(orderLog, autoSave: true);
@@ -293,7 +303,16 @@ public class TalabatOrderWebhookProcessor : ITransientDependency
                 ErrorMessage = message,
                 ErrorCode = exception.GetType().Name,
                 WebhookPayloadJson = ShouldLogOrderPayload() ? rawBody : null,
-                Attempts = 1
+                Attempts = 1,
+                CustomerId = webhook?.Customer?.Id,
+                CustomerName = BuildCustomerName(webhook?.Customer),
+                CustomerPhone = BuildCustomerPhone(webhook?.Customer),
+                CustomerAddress = BuildCustomerAddress(webhook?.Delivery),
+                PaymentMethod = webhook?.Payment?.Type,
+                ExpeditionType = webhook?.ExpeditionType,
+                Channel = webhook?.LocalInfo?.PlatformKey ?? webhook?.LocalInfo?.Platform,
+                GrandTotal = ParseDecimal(webhook?.Price?.GrandTotal),
+                DiscountTotal = ParseDecimal(webhook?.Price?.DiscountAmountTotal)
             };
 
             await _orderSyncLogRepository.InsertAsync(orderLog, autoSave: true);
@@ -392,5 +411,43 @@ public class TalabatOrderWebhookProcessor : ITransientDependency
                || string.Equals(status, "Processing", StringComparison.OrdinalIgnoreCase)
                || string.Equals(status, "Succeeded", StringComparison.OrdinalIgnoreCase)
                || string.Equals(status, "Completed", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? BuildCustomerName(TalabatOrderCustomer? customer)
+    {
+        if (customer == null) return null;
+        var name = string.Join(" ", new[] { customer.FirstName, customer.LastName }
+            .Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        return name.Length > 200 ? name[..200] : name;
+    }
+
+    private static string? BuildCustomerPhone(TalabatOrderCustomer? customer)
+    {
+        if (customer == null) return null;
+        var parts = new[] { customer.MobilePhoneCountryCode, customer.MobilePhone }
+            .Where(x => !string.IsNullOrWhiteSpace(x));
+        var phone = string.Join("", parts).Trim();
+        if (string.IsNullOrWhiteSpace(phone)) return null;
+        return phone.Length > 50 ? phone[..50] : phone;
+    }
+
+    private static string? BuildCustomerAddress(TalabatOrderDelivery? delivery)
+    {
+        var address = delivery?.Address;
+        if (address == null) return null;
+        var combined = string.Join(", ", new[] { address.Line1, address.Line2, address.Line3, address.Street, address.District, address.City }
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)).Trim();
+        if (string.IsNullOrWhiteSpace(combined)) return null;
+        return combined.Length > 500 ? combined[..500] : combined;
+    }
+
+    private static decimal? ParseDecimal(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return decimal.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var result)
+            ? result
+            : null;
     }
 }

@@ -157,7 +157,12 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             var quantity = ParseInt(product.Quantity, 1);
             var paidPrice = ParseDecimal(product.PaidPrice);
             var baseUnitPrice = ParseDecimal(product.UnitPrice) ?? 0m;
-            var totalPrice = paidPrice ?? (baseUnitPrice * quantity);
+            var grossTotalPrice = paidPrice ?? (baseUnitPrice * quantity);
+            // doc-04: paidPrice is now the original (pre-discount) price; deduct line-level discounts to get the effective price.
+            var productDiscountTotal = SumDiscountAmounts(product.Discounts);
+            var totalPrice = productDiscountTotal.HasValue
+                ? Math.Max(0m, grossTotalPrice - productDiscountTotal.Value)
+                : grossTotalPrice;
             var unitPrice = quantity > 0
                 ? Math.Round(totalPrice / quantity, 3, MidpointRounding.AwayFromZero)
                 : baseUnitPrice;
@@ -233,8 +238,16 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
                 }
 
                 var quantity = topping.Quantity.GetValueOrDefault(1);
-                var unitPrice = ParseDecimal(topping.Price) ?? 0m;
-                var totalPrice = unitPrice * quantity;
+                // doc-04: topping.Price is the original price for the total quantity; deduct topping discounts first.
+                var rawTotalPrice = ParseDecimal(topping.Price) ?? 0m;
+                var toppingDiscountTotal = SumDiscountAmounts(topping.Discounts);
+                var effectiveTotalPrice = toppingDiscountTotal.HasValue
+                    ? Math.Max(0m, rawTotalPrice - toppingDiscountTotal.Value)
+                    : rawTotalPrice;
+                var unitPrice = quantity > 0
+                    ? Math.Round(effectiveTotalPrice / quantity, 3, MidpointRounding.AwayFromZero)
+                    : effectiveTotalPrice;
+                var totalPrice = effectiveTotalPrice;
 
                 optionsById[optionId] = new FoodicsOrderProductOptionRequest
                 {

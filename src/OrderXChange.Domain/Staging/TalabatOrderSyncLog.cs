@@ -68,6 +68,34 @@ public class TalabatOrderSyncLog : FullAuditedAggregateRoot<Guid>, IMultiTenant
 	[Column(TypeName = "LONGTEXT")]
 	public string? WebhookPayloadJson { get; set; }
 
+	// Listing fields parsed from the webhook at receipt (§2 Orders Console)
+	[MaxLength(100)]
+	public string? CustomerId { get; set; }
+
+	[MaxLength(200)]
+	public string? CustomerName { get; set; }
+
+	[MaxLength(50)]
+	public string? CustomerPhone { get; set; }
+
+	[MaxLength(500)]
+	public string? CustomerAddress { get; set; }
+
+	[MaxLength(100)]
+	public string? PaymentMethod { get; set; }
+
+	/// <summary>ExpeditionType from Talabat (e.g. "TMP" = platform delivery, "TGO" = vendor delivery).</summary>
+	[MaxLength(100)]
+	public string? ExpeditionType { get; set; }
+
+	/// <summary>Talabat platform/market channel (e.g. "q8", "ae") from localInfo.platformKey.</summary>
+	[MaxLength(100)]
+	public string? Channel { get; set; }
+
+	public decimal? GrandTotal { get; set; }
+
+	public decimal? DiscountTotal { get; set; }
+
 	public Guid? TenantId { get; set; }
 
 	public virtual FoodicsAccount FoodicsAccount { get; set; } = null!;

@@ -17,6 +17,18 @@
         (click)="retryFailedAndEnqueued()"
       ></button>
       <button pButton type="button" icon="pi pi-refresh" label="Refresh" class="p-button-outlined" (click)="refresh()"></button>
+      <button
+        pButton
+        type="button"
+        [icon]="autoRefreshEnabled() ? 'pi pi-pause' : 'pi pi-play'"
+        [label]="autoRefreshEnabled() ? 'Auto-refresh: ON' : 'Auto-refresh: OFF'"
+        [class]="autoRefreshEnabled() ? 'p-button-success p-button-outlined' : 'p-button-secondary p-button-outlined'"
+        [title]="'Polls every 30 s (page 1 only)'"
+        (click)="toggleAutoRefresh()"
+      ></button>
+      <span *ngIf="lastRefreshedAt()" class="auto-refresh-hint">
+        Last at {{ formatLastRefreshed() }}
+      </span>
     </div>
   </div>
 
@@ -46,6 +58,18 @@
       />
     </span>
     <span class="filter-item">
+      <label for="branchFilter">Branch</label>
+      <select
+        id="branchFilter"
+        class="status-select"
+        [ngModel]="branchId()"
+        (ngModelChange)="branchId.set($event || '')"
+      >
+        <option value="">All Branches</option>
+        <option *ngFor="let b of branches()" [value]="b.value">{{ b.label }}</option>
+      </select>
+    </span>
+    <span class="filter-item">
       <label for="status">Status</label>
       <select
         id="status"
@@ -57,6 +81,50 @@
           {{ option.label }}
         </option>
       </select>
+    </span>
+    <span class="filter-item">
+      <label for="customerName">Customer Name</label>
+      <input
+        id="customerName"
+        type="text"
+        pInputText
+        [ngModel]="customerName()"
+        (ngModelChange)="customerName.set($event)"
+        (keyup.enter)="refresh()"
+        placeholder="Name..."
+      />
+    </span>
+    <span class="filter-item">
+      <label for="customerPhone">Customer Phone</label>
+      <input
+        id="customerPhone"
+        type="text"
+        pInputText
+        [ngModel]="customerPhone()"
+        (ngModelChange)="customerPhone.set($event)"
+        (keyup.enter)="refresh()"
+        placeholder="Phone..."
+      />
+    </span>
+    <span class="filter-item date-filter">
+      <label for="fromDate">From Date</label>
+      <input
+        id="fromDate"
+        type="date"
+        class="date-input"
+        [ngModel]="fromDate()"
+        (ngModelChange)="fromDate.set($event || '')"
+      />
+    </span>
+    <span class="filter-item date-filter">
+      <label for="toDate">To Date</label>
+      <input
+        id="toDate"
+        type="date"
+        class="date-input"
+        [ngModel]="toDate()"
+        (ngModelChange)="toDate.set($event || '')"
+      />
     </span>
     <span class="filter-actions">
       <button
@@ -91,12 +159,22 @@
     sortField="receivedAt"
     [sortOrder]="-1"
     dataKey="id"
+    [expandedRowKeys]="expandedRows"
+    (onRowExpand)="onRowExpand($event)"
+    styleClass="p-datatable-sm"
   >
     <ng-template pTemplate="header">
       <tr>
+        <th style="width: 3rem"></th>
         <th pSortableColumn="orderCode">Order ID <p-sortIcon field="orderCode"></p-sortIcon></th>
         <th pSortableColumn="receivedAt">Received <p-sortIcon field="receivedAt"></p-sortIcon></th>
         <th pSortableColumn="vendorCode">Vendor <p-sortIcon field="vendorCode"></p-sortIcon></th>
+        <th>Customer ID</th>
+        <th>Customer Name</th>
+        <th>Address</th>
+        <th>Channel</th>
+        <th>TMP/TGO</th>
+        <th>Payment</th>
         <th>Order</th>
         <th>Status</th>
         <th pSortableColumn="attempts">Attempts <p-sortIcon field="attempts"></p-sortIcon></th>
@@ -105,13 +183,35 @@
       </tr>
     </ng-template>
 
-    <ng-template pTemplate="body" let-row>
+    <ng-template pTemplate="body" let-row let-expanded="expanded">
       <tr>
+        <td>
+          <button
+            type="button"
+            pButton
+            [pRowToggler]="row"
+            class="p-button-text p-button-rounded p-button-sm"
+            [icon]="expanded ? 'pi pi-chevron-down' : 'pi pi-chevron-right'"
+          ></button>
+        </td>
         <td class="token-cell" [title]="row.orderCode || ''">{{ row.orderCode || '-' }}</td>
         <td>
           <div class="date-cell">{{ formatReceivedAt(row) }}</div>
         </td>
         <td>{{ row.vendorCode || '-' }}</td>
+        <td class="customer-cell">{{ row.customerId || '-' }}</td>
+        <td class="customer-cell">{{ row.customerName || '-' }}</td>
+        <td class="address-cell" [title]="row.customerAddress || ''">{{ row.customerAddress || '-' }}</td>
+        <td>{{ row.channel || '-' }}</td>
+        <td>
+          <p-tag
+            *ngIf="row.expeditionType"
+            [value]="formatExpeditionType(row.expeditionType)"
+            [severity]="row.expeditionType?.toUpperCase() === 'TMP' ? 'info' : 'secondary'"
+          ></p-tag>
+          <span *ngIf="!row.expeditionType">-</span>
+        </td>
+        <td>{{ row.paymentMethod || '-' }}</td>
         <td>
           <div class="order-cell">
             <div class="order-code">{{ getOrderCode(row) }}</div>
@@ -149,9 +249,78 @@
       </tr>
     </ng-template>
 
+    <ng-template pTemplate="rowexpansion" let-row>
+      <tr>
+        <td colspan="15">
+          <div class="order-detail-panel">
+            <ng-container *ngIf="isDetailsLoading(row.id)">
+              <div class="detail-loading">
+                <i class="pi pi-spin pi-spinner"></i> Loading order details...
+              </div>
+            </ng-container>
+
+            <ng-container *ngIf="!isDetailsLoading(row.id) && getOrderDetails(row.id) as details">
+              <div class="detail-meta">
+                <span *ngIf="details.customerComment" class="detail-comment">
+                  <strong>Customer note:</strong> {{ details.customerComment }}
+                </span>
+                <span class="detail-totals">
+                  <strong>Grand total:</strong> {{ formatCurrency(details.grandTotal) }}
+                  <span *ngIf="details.discountTotal"> &mdash; <strong>Discount:</strong> {{ formatCurrency(details.discountTotal) }}</span>
+                </span>
+              </div>
+
+              <table class="items-table" *ngIf="details.items?.length">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Category</th>
+                    <th>Code</th>
+                    <th>Qty</th>
+                    <th>Unit Price</th>
+                    <th>Paid Price</th>
+                    <th>Discount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <ng-container *ngFor="let item of details.items">
+                    <tr class="item-row">
+                      <td>{{ item.name || '-' }}</td>
+                      <td>{{ item.categoryName || '-' }}</td>
+                      <td class="code-cell">{{ item.remoteCode || '-' }}</td>
+                      <td>{{ item.quantity }}</td>
+                      <td>{{ formatCurrency(item.unitPrice) }}</td>
+                      <td>{{ formatCurrency(item.paidPrice) }}</td>
+                      <td>{{ item.discountAmount ? formatCurrency(item.discountAmount) : '-' }}</td>
+                    </tr>
+                    <tr *ngFor="let mod of item.modifiers" class="modifier-row">
+                      <td colspan="2" class="modifier-name">
+                        <i class="pi pi-angle-right"></i> {{ mod.name || '-' }}
+                      </td>
+                      <td class="code-cell">{{ mod.remoteCode || '-' }}</td>
+                      <td>{{ mod.quantity }}</td>
+                      <td>{{ formatCurrency(mod.price) }}</td>
+                      <td>-</td>
+                      <td>{{ mod.discountAmount ? formatCurrency(mod.discountAmount) : '-' }}</td>
+                    </tr>
+                  </ng-container>
+                </tbody>
+              </table>
+
+              <div *ngIf="!details.items?.length" class="no-items">No item details available.</div>
+            </ng-container>
+
+            <ng-container *ngIf="!isDetailsLoading(row.id) && !getOrderDetails(row.id)">
+              <div class="detail-loading">Expand to load details.</div>
+            </ng-container>
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+
     <ng-template pTemplate="emptymessage">
       <tr>
-        <td colspan="8">No orders recorded yet.</td>
+        <td colspan="15">No orders recorded yet.</td>
       </tr>
     </ng-template>
   </p-table>

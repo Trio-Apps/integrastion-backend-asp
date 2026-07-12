@@ -74,10 +74,18 @@ export interface TalabatSyncLogItemDto {
 export interface GetTalabatOrderLogsInput extends PagedAndSortedResultRequestDto {
   searchTerm?: string;
   vendorCode?: string;
+  branchId?: string;
+  customerName?: string;
+  customerPhone?: string;
   status?: string;
   isTestOrder?: boolean;
   fromDate?: string;
   toDate?: string;
+}
+
+export interface BranchLookupDto {
+  branchId: string;
+  branchName: string;
 }
 
 export interface TalabatOrderLogDto {
@@ -98,6 +106,67 @@ export interface TalabatOrderLogDto {
   attempts?: number;
   lastError?: string;
   creationTime?: string;
+  customerId?: string;
+  customerName?: string;
+  customerAddress?: string;
+  paymentMethod?: string;
+  expeditionType?: string;
+  channel?: string;
+  grandTotal?: number;
+  discountTotal?: number;
+}
+
+export interface TalabatOrderDetailsDto {
+  id?: string;
+  orderCode?: string;
+  orderToken?: string;
+  shortCode?: string;
+  vendorCode?: string;
+  status?: string;
+  orderCreatedAt?: string;
+  receivedAt?: string;
+  customerId?: string;
+  customerName?: string;
+  customerAddress?: string;
+  paymentMethod?: string;
+  expeditionType?: string;
+  channel?: string;
+  grandTotal?: number;
+  discountTotal?: number;
+  customerComment?: string;
+  items: TalabatOrderItemDto[];
+}
+
+export interface TalabatOrderItemDto {
+  name?: string;
+  categoryName?: string;
+  remoteCode?: string;
+  quantity: number;
+  unitPrice?: number;
+  paidPrice?: number;
+  discountAmount?: number;
+  discounts: TalabatOrderItemDiscountDto[];
+  modifiers: TalabatOrderModifierDto[];
+}
+
+export interface TalabatOrderModifierDto {
+  name?: string;
+  remoteCode?: string;
+  quantity: number;
+  price?: number;
+  discountAmount?: number;
+  discounts: TalabatOrderItemDiscountDto[];
+}
+
+export interface TalabatOrderItemDiscountDto {
+  name?: string;
+  amount?: number;
+  sponsorships: TalabatOrderDiscountSponsorshipDto[];
+}
+
+export interface TalabatOrderDiscountSponsorshipDto {
+  sponsor?: string;
+  amount?: number;
 }
 
 export interface RetryTalabatOrderLogsInput {

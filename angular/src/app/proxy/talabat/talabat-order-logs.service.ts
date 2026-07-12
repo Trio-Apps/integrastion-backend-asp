@@ -1,7 +1,7 @@
 import { RestService, Rest } from '@abp/ng.core';
 import { Injectable } from '@angular/core';
 import type { PagedResultDto } from '@abp/ng.core';
-import type { GetTalabatOrderLogsInput, RetryTalabatOrderLogsInput, RetryTalabatOrderLogsResultDto, TalabatOrderLogDto } from './models';
+import type { BranchLookupDto, GetTalabatOrderLogsInput, RetryTalabatOrderLogsInput, RetryTalabatOrderLogsResultDto, TalabatOrderDetailsDto, TalabatOrderLogDto } from './models';
 
 @Injectable({
   providedIn: 'root',
@@ -15,6 +15,15 @@ export class TalabatOrderLogsService {
         method: 'GET',
         url: '/api/app/talabat-order-log',
         params: { ...input },
+      },
+      { apiName: this.apiName, ...config }
+    );
+
+  getDetails = (id: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, TalabatOrderDetailsDto>(
+      {
+        method: 'GET',
+        url: `/api/app/talabat-order-log/${id}/details`,
       },
       { apiName: this.apiName, ...config }
     );
@@ -34,6 +43,15 @@ export class TalabatOrderLogsService {
         method: 'POST',
         url: '/api/app/talabat-order-log/retry-failed-and-enqueued',
         body: input,
+      },
+      { apiName: this.apiName, ...config }
+    );
+
+  getAccessibleBranches = (config?: Partial<Rest.Config>) =>
+    this.restService.request<any, BranchLookupDto[]>(
+      {
+        method: 'GET',
+        url: '/api/app/talabat-order-log/accessible-branches',
       },
       { apiName: this.apiName, ...config }
     );
