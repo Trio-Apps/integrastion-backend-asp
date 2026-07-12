@@ -29,8 +29,10 @@ import { providePrimeNG } from 'primeng/config';
 import { AppConfigurator } from './layout/component/app.configurator';
 import Aura from '@primeuix/themes/aura';
 import { MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
 import { MyCustomErrorHandlerService } from './MyCustomErrorHandlerService.service';
 import { TenantTokenInterceptor } from './interceptors/tenant-token.interceptor';
+import { ROLE_BRANCH_ACTION_PROVIDER } from './providers/role-branch-action.provider';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -67,6 +69,8 @@ export const appConfig: ApplicationConfig = {
     ),
     providePrimeNG({ theme: { preset: Aura, options: { darkModeSelector: '.app-dark' } } }),
     MessageService, // PrimeNG MessageService for toast notifications
+    DialogService,  // PrimeNG DialogService for programmatic dynamic dialogs
+    ROLE_BRANCH_ACTION_PROVIDER,
     provideLanguageManagementConfig(),
     provideAuditLoggingConfig(),
     provideOpeniddictproConfig(),

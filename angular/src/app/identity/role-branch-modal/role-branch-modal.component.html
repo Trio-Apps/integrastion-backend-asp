@@ -1,0 +1,60 @@
+<p-toast></p-toast>
+
+<div class="role-branch-modal">
+  @if (loading) {
+    <div class="flex justify-center align-center p-4">
+      <p-progressSpinner styleClass="w-8 h-8" strokeWidth="4"></p-progressSpinner>
+    </div>
+  }
+
+  @if (!loading && accountGroups.length === 0) {
+    <div class="p-4 text-center text-color-secondary">
+      <i class="pi pi-info-circle mb-2" style="font-size: 1.5rem;"></i>
+      <p>No Foodics branches are available. Connect a Foodics account first.</p>
+    </div>
+  }
+
+  @for (group of accountGroups; track group.accountId) {
+    <div class="mb-4">
+      <div class="font-semibold text-sm text-color-secondary mb-2 flex align-items-center gap-2">
+        <i class="pi pi-building"></i>
+        {{ group.accountName }}
+      </div>
+      <div class="flex flex-column gap-2 pl-3">
+        @for (branch of group.branches; track branch.id) {
+          <div class="flex align-items-center gap-2">
+            <p-checkbox
+              [binary]="true"
+              [ngModel]="isSelected(group.accountId, branch.id!)"
+              (ngModelChange)="toggle(group.accountId, branch.id!, branch.name, $event)"
+              [inputId]="'branch-' + group.accountId + '-' + branch.id">
+            </p-checkbox>
+            <label [for]="'branch-' + group.accountId + '-' + branch.id" class="cursor-pointer">
+              {{ branch.name || branch.id }}
+              @if (branch.name_localized && branch.name_localized !== branch.name) {
+                <span class="text-color-secondary text-sm ml-1">({{ branch.name_localized }})</span>
+              }
+            </label>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <div class="flex justify-content-end gap-2 pt-3 border-top-1 surface-border mt-3">
+    <p-button
+      label="Cancel"
+      severity="secondary"
+      [outlined]="true"
+      (onClick)="cancel()"
+      [disabled]="saving">
+    </p-button>
+    <p-button
+      label="Save"
+      icon="pi pi-check"
+      (onClick)="save()"
+      [loading]="saving"
+      [disabled]="loading">
+    </p-button>
+  </div>
+</div>
