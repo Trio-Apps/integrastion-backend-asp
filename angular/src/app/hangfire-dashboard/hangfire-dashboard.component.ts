@@ -38,9 +38,9 @@ export class HangfireDashboardComponent implements OnInit {
       return [];
     }
     return [
-      { label: 'Successful (recent)', value: this.succeededJobs().length, tone: 'success' },
-      { label: 'Failed', value: this.failedJobs().length, tone: 'danger' },
-      { label: 'Waiting in queue', value: this.enqueuedJobs().length, tone: 'primary' },
+      { label: 'Successful (recent)', value: this.succeededJobs().length, icon: 'pi pi-check-circle', color: '#059669' },
+      { label: 'Failed', value: this.failedJobs().length, icon: 'pi pi-exclamation-triangle', color: '#dc2626' },
+      { label: 'Waiting in queue', value: this.enqueuedJobs().length, icon: 'pi pi-clock', color: '#2563eb' },
     ];
   });
 

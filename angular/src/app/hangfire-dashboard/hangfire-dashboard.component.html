@@ -32,10 +32,13 @@
 
   <ng-container *ngIf="dashboard() as data; else loadingState">
     <div class="row g-3 mb-4">
-      <div class="col-12 col-md-6 col-xl-3" *ngFor="let metric of metrics()">
-        <div class="card metric-card border-{{ metric.tone }}-subtle">
+      <div class="col-12 col-md-4" *ngFor="let metric of metrics()">
+        <div class="card metric-card" [style.--c]="metric.color">
           <div class="card-body">
-            <span class="metric-label text-{{ metric.tone }}-emphasis">{{ metric.label }}</span>
+            <div class="m-top">
+              <span class="metric-label">{{ metric.label }}</span>
+              <span class="m-ic"><i [class]="metric.icon"></i></span>
+            </div>
             <div class="metric-value">{{ metric.value | number }}</div>
           </div>
         </div>
