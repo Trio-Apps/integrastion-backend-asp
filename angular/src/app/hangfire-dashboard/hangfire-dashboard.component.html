@@ -47,21 +47,21 @@
       <div class="col-12 col-xl-6">
         <app-hangfire-job-table
           [title]="'::MenuSync.FailedJobs' | abpLocalization"
-          [jobs]="data.failedJobs"
+          [jobs]="failedJobs()"
           [emptyState]="'::MenuSync.EmptyFailed' | abpLocalization"
         ></app-hangfire-job-table>
       </div>
       <div class="col-12 col-xl-6">
         <app-hangfire-job-table
           [title]="'::MenuSync.EnqueuedJobs' | abpLocalization"
-          [jobs]="data.enqueuedJobs"
+          [jobs]="enqueuedJobs()"
           [emptyState]="'::MenuSync.EmptyEnqueued' | abpLocalization"
         ></app-hangfire-job-table>
       </div>
       <div class="col-12">
         <app-hangfire-job-table
           [title]="'::MenuSync.SucceededJobs' | abpLocalization"
-          [jobs]="data.succeededJobs"
+          [jobs]="succeededJobs()"
           [emptyState]="'::MenuSync.EmptySucceeded' | abpLocalization"
         ></app-hangfire-job-table>
       </div>

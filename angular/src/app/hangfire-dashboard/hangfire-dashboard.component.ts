@@ -46,6 +46,17 @@ export class HangfireDashboardComponent implements OnInit {
     ];
   });
 
+  // Hide internal maintenance jobs (watchdog sweeps, order-enqueue, recurring order sync)
+  // so the lists show only real menu-sync activity that non-technical users care about.
+  private readonly noiseJobs = ['watchdog', 'sweep', 'stuckenqueued', 'ordersyncrecurring', 'orderenqueue'];
+  private isNoise(job: unknown): boolean {
+    const s = JSON.stringify(job ?? '').toLowerCase();
+    return this.noiseJobs.some(n => s.includes(n));
+  }
+  readonly failedJobs = computed(() => ((this.dashboardSignal()?.failedJobs ?? []) as any[]).filter(j => !this.isNoise(j)));
+  readonly enqueuedJobs = computed(() => ((this.dashboardSignal()?.enqueuedJobs ?? []) as any[]).filter(j => !this.isNoise(j)));
+  readonly succeededJobs = computed(() => ((this.dashboardSignal()?.succeededJobs ?? []) as any[]).filter(j => !this.isNoise(j)));
+
   ngOnInit(): void {
     this.refresh();
     this.destroyRef.onDestroy(() => this.clearSyncTimers());
