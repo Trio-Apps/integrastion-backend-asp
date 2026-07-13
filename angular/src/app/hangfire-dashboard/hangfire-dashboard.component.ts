@@ -31,18 +31,16 @@ export class HangfireDashboardComponent implements OnInit {
   readonly syncing = signal<boolean>(false);
   readonly syncQueued = signal<boolean>(false);
   readonly hangfireUrl = environment.apis.default.url.replace(/\/+$/, '') + '/hangfire';
+  // Count only real menu-sync jobs (the filtered lists), so the tiles match what's shown
+  // below instead of the Hangfire-wide totals that were dominated by internal jobs.
   readonly metrics = computed(() => {
-    const dashboard = this.dashboardSignal();
-    if (!dashboard) {
+    if (!this.dashboardSignal()) {
       return [];
     }
-
-    const counts = dashboard.counts;
     return [
-      { label: this.l('::MenuSync.Metrics.Succeeded'), value: counts.succeeded ?? 0, tone: 'success' },
-      { label: this.l('::MenuSync.Metrics.Failed'), value: counts.failed ?? 0, tone: 'danger' },
-      { label: this.l('::MenuSync.Metrics.Enqueued'), value: counts.enqueued ?? 0, tone: 'primary' },
-      { label: this.l('::MenuSync.Metrics.Deleted'), value: counts.deleted ?? 0, tone: 'dark' },
+      { label: 'Successful (recent)', value: this.succeededJobs().length, tone: 'success' },
+      { label: 'Failed', value: this.failedJobs().length, tone: 'danger' },
+      { label: 'Waiting in queue', value: this.enqueuedJobs().length, tone: 'primary' },
     ];
   });
 
