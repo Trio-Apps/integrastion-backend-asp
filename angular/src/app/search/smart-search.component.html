@@ -1,0 +1,72 @@
+<div class="search-page">
+  <div class="search-head">
+    <h1>Search</h1>
+    <p>Find orders, menu items, and branches across the integration.</p>
+  </div>
+
+  <div class="search-box">
+    <i class="pi pi-search"></i>
+    <input
+      type="text"
+      [ngModel]="keyword()"
+      (ngModelChange)="onInput($event)"
+      placeholder="Search by order code, customer, item name, SKU, or branch…"
+    />
+    <i class="pi pi-spinner spin" *ngIf="loading()"></i>
+  </div>
+
+  @if (result(); as r) {
+    @if (r.totalCount === 0) {
+      <div class="empty">
+        <i class="pi pi-search"></i>
+        <p>No matches for "{{ r.keyword }}"</p>
+        <span>Try a different order code, item name, or branch.</span>
+      </div>
+    } @else {
+      @if (r.orders.length) {
+        <div class="group">
+          <div class="group-h"><i class="pi pi-inbox"></i> Orders <span class="count">{{ r.orders.length }}</span></div>
+          @for (o of r.orders; track o.id) {
+            <a class="row" routerLink="/talabat-orders">
+              <span class="mono strong">{{ o.orderCode || o.shortCode || '—' }}</span>
+              <span>{{ o.customerName || '—' }}</span>
+              <span class="muted">{{ o.vendorCode || '' }}</span>
+              <span class="badge" [class]="statusClass(o.status)">{{ o.status || '—' }}</span>
+            </a>
+          }
+        </div>
+      }
+
+      @if (r.items.length) {
+        <div class="group">
+          <div class="group-h"><i class="pi pi-list"></i> Menu items <span class="count">{{ r.items.length }}</span></div>
+          @for (it of r.items; track it.id) {
+            <div class="row">
+              <span class="strong">{{ it.name }}</span>
+              <span class="muted">{{ it.categoryName || '—' }}</span>
+              <span class="muted mono">{{ it.sku || '' }}</span>
+              <span class="badge" [class.off]="!it.isActive">{{ it.isActive ? 'Active' : 'Inactive' }}</span>
+            </div>
+          }
+        </div>
+      }
+
+      @if (r.branches.length) {
+        <div class="group">
+          <div class="group-h"><i class="pi pi-sitemap"></i> Branches <span class="count">{{ r.branches.length }}</span></div>
+          @for (b of r.branches; track b.branchId) {
+            <div class="row">
+              <span class="strong">{{ b.branchName }}</span>
+              <span class="muted mono">{{ b.branchId }}</span>
+            </div>
+          }
+        </div>
+      }
+    }
+  } @else {
+    <div class="hint">
+      <i class="pi pi-search"></i>
+      <span>Type at least 2 characters to search.</span>
+    </div>
+  }
+</div>

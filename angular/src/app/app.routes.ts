@@ -58,6 +58,14 @@ export const APP_ROUTES: Routes = [
     },
   },
   {
+    path: 'search',
+    loadComponent: () => import('./search/smart-search.component').then(c => c.SmartSearchComponent),
+    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    data: {
+      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+    },
+  },
+  {
     path: 'talabat-payment-methods',
     loadComponent: () => import('./talabat-payment-methods/talabat-payment-methods.component').then(c => c.TalabatPaymentMethodsComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
