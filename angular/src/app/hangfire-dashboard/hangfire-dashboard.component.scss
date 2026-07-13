@@ -105,5 +105,28 @@
       transform: translateX(100%);
     }
   }
+
+  // Brand-align the Bootstrap buttons with the teal theme
+  .btn-success {
+    background-color: var(--brand-teal, #276d64);
+    border-color: var(--brand-teal, #276d64);
+    &:hover,
+    &:focus,
+    &:active {
+      background-color: #1f5b53;
+      border-color: #1f5b53;
+    }
+  }
+  .btn-outline-primary {
+    color: var(--brand-teal, #276d64);
+    border-color: var(--brand-teal, #276d64);
+    &:hover,
+    &:focus,
+    &:active {
+      background-color: var(--brand-teal, #276d64);
+      border-color: var(--brand-teal, #276d64);
+      color: #fff;
+    }
+  }
 }
 
