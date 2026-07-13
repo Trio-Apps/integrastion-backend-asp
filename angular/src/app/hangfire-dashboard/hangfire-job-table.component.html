@@ -12,7 +12,6 @@
           <tr>
             <th scope="col">{{ '::MenuSync.Columns.Job' | abpLocalization }}</th>
             <th scope="col">{{ '::MenuSync.Columns.State' | abpLocalization }}</th>
-            <th scope="col">{{ '::MenuSync.Columns.Queue' | abpLocalization }}</th>
             <th scope="col">{{ '::MenuSync.Columns.Created' | abpLocalization }}</th>
             <th scope="col">{{ '::MenuSync.Columns.Details' | abpLocalization }}</th>
           </tr>
@@ -24,10 +23,6 @@
             </td>
             <td>
               <span [ngClass]="getBadgeClass(job.state)">{{ job.state || ('::MenuSync.Table.Unknown' | abpLocalization) }}</span>
-            </td>
-            <td>
-              <span class="badge text-bg-light border" *ngIf="job.queue; else noQueue">{{ job.queue }}</span>
-              <ng-template #noQueue>{{ '::MenuSync.Table.NoValue' | abpLocalization }}</ng-template>
             </td>
             <td class="text-nowrap">
               <div>{{ job.createdAt | date: 'short' }}</div>
