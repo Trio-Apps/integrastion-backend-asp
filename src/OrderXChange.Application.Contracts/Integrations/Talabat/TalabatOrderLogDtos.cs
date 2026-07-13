@@ -87,6 +87,11 @@ public class TalabatOrderDetailsDto
     public decimal? DiscountTotal { get; set; }
     public string? CustomerComment { get; set; }
     public List<TalabatOrderItemDto> Items { get; set; } = [];
+    public string? LastError { get; set; }
+    public int Attempts { get; set; }
+    public string? FoodicsOrderId { get; set; }
+    /// <summary>The raw Talabat webhook JSON as received (for the full-payload view).</summary>
+    public string? RawPayloadJson { get; set; }
 }
 
 public class TalabatOrderItemDto

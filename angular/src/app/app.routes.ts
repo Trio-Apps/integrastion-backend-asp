@@ -58,6 +58,14 @@ export const APP_ROUTES: Routes = [
     },
   },
   {
+    path: 'talabat-orders/:id',
+    loadComponent: () => import('./order-detail/order-detail.component').then(c => c.OrderDetailComponent),
+    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    data: {
+      requiredPolicy: 'OrderXChange.Orders',
+    },
+  },
+  {
     path: 'availability',
     loadComponent: () => import('./availability/availability.component').then(c => c.AvailabilityComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],

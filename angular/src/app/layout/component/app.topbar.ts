@@ -43,7 +43,7 @@ import { SmartSearchService, SmartSearchResultDto } from '../../search/smart-sea
           <div class="sp-empty" *ngIf="r.totalCount === 0">No matches for "{{ r.keyword }}"</div>
           <div class="sp-group" *ngIf="r.orders.length">
             <div class="sp-h">Orders</div>
-            <a class="sp-row" *ngFor="let o of r.orders" (mousedown)="go('/talabat-orders')">
+            <a class="sp-row" *ngFor="let o of r.orders" (mousedown)="go('/talabat-orders/' + o.id)">
               <i class="pi pi-inbox"></i>
               <span class="sp-main">{{ o.orderCode || o.shortCode || '—' }}</span>
               <span class="sp-sub">{{ o.customerName || o.vendorCode }}</span>

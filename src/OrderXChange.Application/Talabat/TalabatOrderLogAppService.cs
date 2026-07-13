@@ -253,7 +253,11 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
             GrandTotal = log.GrandTotal,
             DiscountTotal = log.DiscountTotal,
             CustomerComment = webhook?.Comments?.CustomerComment,
-            Items = webhook?.Products?.Select(MapProduct).ToList() ?? []
+            Items = webhook?.Products?.Select(MapProduct).ToList() ?? [],
+            LastError = log.ErrorMessage,
+            Attempts = log.Attempts,
+            FoodicsOrderId = log.FoodicsOrderId,
+            RawPayloadJson = log.WebhookPayloadJson,
         };
 
         return dto;
