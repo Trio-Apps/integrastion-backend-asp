@@ -1,357 +1,77 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
-import { MessageService } from 'primeng/api';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { TalabatDashboardService, TalabatDashboardDto, TalabatSyncLogItemDto, GetSyncLogsInput, TalabatVendorLookupDto } from '@proxy/talabat';
-import { LocalizationModule, LocalizationService } from '@abp/ng.core';
-import { FormsModule } from '@angular/forms';
-
-import { TableModule, TableLazyLoadEvent } from 'primeng/table';
-import { TagModule } from 'primeng/tag';
-import { TooltipModule } from 'primeng/tooltip';
-import { ButtonModule } from 'primeng/button';
-import { SkeletonModule } from 'primeng/skeleton';
+import { DashboardService, DashboardOverviewDto } from '../dashboard/dashboard.service';
 
 @Component({
   selector: 'app-talabat-dashboard',
   standalone: true,
-  imports: [
-    CommonModule, 
-    LocalizationModule, 
-    FormsModule,
-    TableModule,
-    TagModule,
-    TooltipModule,
-    ButtonModule,
-    SkeletonModule
-  ],
+  imports: [CommonModule, RouterModule],
   templateUrl: './talabat-dashboard.component.html',
   styleUrls: ['./talabat-dashboard.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TalabatDashboardComponent implements OnInit {
-  private readonly talabatDashboardService = inject(TalabatDashboardService);
-  private readonly messageService = inject(MessageService);
+  private readonly svc = inject(DashboardService);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly localization = inject(LocalizationService);
 
-  private readonly dashboardSignal = signal<TalabatDashboardDto | null>(null);
-  readonly dashboard = computed(() => this.dashboardSignal());
-
+  readonly data = signal<DashboardOverviewDto | null>(null);
   readonly loading = signal<boolean>(false);
-  readonly branchLoading = signal<boolean>(false);
-  readonly tableLoading = signal<boolean>(false);
-  
-  readonly vendorCode = signal<string>(''); // empty = Host mode (all vendors)
-  readonly vendors = signal<TalabatVendorLookupDto[]>([]);
-  readonly vendorsLoading = signal<boolean>(false);
-  readonly statusDialogVisible = signal<boolean>(false);
-  readonly selectedStatus = signal<string>('CLOSED_UNTIL');
-  readonly statusOptions = [
-    { label: 'OPEN', value: 'OPEN' },
-    { label: 'CLOSED', value: 'CLOSED' },
-    { label: 'CLOSED_UNTIL', value: 'CLOSED_UNTIL' },
-    { label: 'CLOSED_TODAY', value: 'CLOSED_TODAY' },
-    { label: 'INACTIVE', value: 'INACTIVE' },
-    { label: 'UNKNOWN', value: 'UNKNOWN' },
-  ];
-  // Pagination for sync logs table
-  readonly syncLogs = signal<TalabatSyncLogItemDto[]>([]);
-  readonly totalRecords = signal<number>(0);
-  readonly rows = signal<number>(10);
-  readonly first = signal<number>(0);
-  
-  readonly syncMetrics = computed(() => {
-    const dashboard = this.dashboardSignal();
-    if (!dashboard) {
-      return [];
-    }
+  readonly error = signal<boolean>(false);
 
-    const counts = dashboard.counts;
+  readonly maxTrend = computed(() => {
+    const trend = this.data()?.ordersTrend ?? [];
+    return Math.max(1, ...trend.map(d => d.count));
+  });
+
+  readonly statusBreakdown = computed(() => {
+    const o = this.data()?.orders;
+    if (!o) return [];
+    const total = o.succeeded + o.processing + o.enqueued + o.failed;
+    const seg = (label: string, count: number, color: string) => ({
+      label,
+      count,
+      color,
+      pct: total > 0 ? (count / total) * 100 : 0,
+    });
     return [
-      { label: '::TalabatDashboard.TotalSubmissions', value: counts.totalSubmissions, tone: 'primary', icon: 'pi-send' },
-      { label: '::TalabatDashboard.Successful', value: counts.successfulSubmissions, tone: 'success', icon: 'pi-check-circle' },
-      { label: '::TalabatDashboard.Failed', value: counts.failedSubmissions, tone: 'danger', icon: 'pi-times-circle' },
-      { label: '::TalabatDashboard.Pending', value: counts.pendingSubmissions, tone: 'warning', icon: 'pi-clock' },
+      seg('Succeeded', o.succeeded, '#10b981'),
+      seg('Processing', o.processing, '#1d9e75'),
+      seg('Enqueued', o.enqueued, '#f59e0b'),
+      seg('Failed', o.failed, '#ef4444'),
     ];
   });
 
-  readonly branchStatus = computed(() => this.dashboardSignal()?.branchStatus);
-
   ngOnInit(): void {
-    this.loadVendors();
+    this.load();
   }
 
-  private loadVendors(): void {
-    this.vendorsLoading.set(true);
-
-    this.talabatDashboardService
-      .getVendors()
-      .pipe(finalize(() => this.vendorsLoading.set(false)), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: vendors => {
-          this.vendors.set(vendors ?? []);
-
-          // If vendorCode is empty (host mode), keep it empty.
-          // If you want a default vendor for tenant users, uncomment the block below.
-          // if (!this.vendorCode() && vendors?.length) {
-          //   this.vendorCode.set(vendors[0].vendorCode);
-          // }
-
-          this.refresh();
-        },
-        error: error => {
-          console.error('Failed to load Talabat vendors', error);
-          this.vendors.set([]);
-          this.refresh(); // still load dashboard in host mode
-        },
-      });
-  }
-
-  onVendorChange(value: string): void {
-    this.vendorCode.set(value ?? '');
-    this.refresh();
-  }
-
-  refresh(): void {
+  load(): void {
     this.loading.set(true);
-
-    // Pass undefined if vendorCode is empty (Host mode shows all data)
-    const vendorCodeParam = this.vendorCode()?.trim() || undefined;
-
-    this.talabatDashboardService
-      .getDashboard(vendorCodeParam)
-      .pipe(finalize(() => this.loading.set(false)), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: dashboard => {
-          this.dashboardSignal.set(dashboard);
-          // Load sync logs with pagination
-          this.loadSyncLogs({ first: 0, rows: this.rows() });
-        },
-        error: error => {
-          console.error('Failed to load Talabat dashboard data', error);
-          this.messageService.add({
-            severity: 'error',
-            summary: this.l('::TalabatDashboard.Toast.Error'),
-            detail: this.l('::TalabatDashboard.Toast.LoadError'),
-          });
-        },
-      });
-  }
-
-  loadSyncLogs(event?: TableLazyLoadEvent): void {
-    this.tableLoading.set(true);
-
-    const skipCount = event?.first ?? 0;
-    const maxResultCount = event?.rows ?? this.rows();
-
-    let sorting = '';
-    if (event?.sortField) {
-      sorting = `${event.sortField} ${event.sortOrder === 1 ? 'asc' : 'desc'}`;
-    }
-
-    // Pass undefined if vendorCode is empty (Host mode shows all data)
-    const vendorCodeParam = this.vendorCode()?.trim() || undefined;
-
-    const input: GetSyncLogsInput = {
-      vendorCode: vendorCodeParam,
-      skipCount,
-      maxResultCount,
-      sorting: sorting || undefined
-    };
-
-    this.talabatDashboardService
-      .getSyncLogs(input)
+    this.error.set(false);
+    this.svc
+      .getOverview()
       .pipe(
-        finalize(() => this.tableLoading.set(false)),
-        takeUntilDestroyed(this.destroyRef)
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.loading.set(false)),
       )
       .subscribe({
-        next: result => {
-          this.syncLogs.set(result.items || []);
-          this.totalRecords.set(result.totalCount || 0);
-          this.first.set(skipCount);
-        },
-        error: error => {
-          console.error('Failed to load sync logs', error);
-          this.messageService.add({
-            severity: 'error',
-            summary: this.l('::TalabatDashboard.Toast.Error'),
-            detail: this.l('::TalabatDashboard.Toast.LoadError'),
-          });
-        },
+        next: d => this.data.set(d),
+        error: () => this.error.set(true),
       });
   }
 
-  setBranchBusy(): void {
-    const vendor = this.vendorCode()?.trim();
-    
-    if (!vendor) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: 'Validation Error',
-        detail: 'Please enter a vendor code',
-      });
-      return;
-    }
-
-    this.branchLoading.set(true);
-    
-    this.talabatDashboardService
-      .setBranchBusy(vendor, 'Temporarily busy', 30)
-      .pipe(finalize(() => this.branchLoading.set(false)), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.messageService.add({
-            severity: 'success',
-            summary: this.l('::TalabatDashboard.Toast.Success'),
-            detail: this.l('::TalabatDashboard.Toast.BusySuccess'),
-          });
-          this.refresh();
-        },
-        error: error => {
-          console.error('Failed to set branch busy', error);
-          this.messageService.add({
-            severity: 'error',
-            summary: this.l('::TalabatDashboard.Toast.Error'),
-            detail: this.l('::TalabatDashboard.Toast.BusyError'),
-          });
-        },
-      });
+  barHeight(count: number): number {
+    return Math.max(4, Math.round((count / this.maxTrend()) * 100));
   }
 
-  setBranchAvailable(): void {
-    const vendor = this.vendorCode()?.trim();
-    
-    if (!vendor) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: 'Validation Error',
-        detail: 'Please enter a vendor code',
-      });
-      return;
-    }
-
-    this.branchLoading.set(true);
-    
-    this.talabatDashboardService
-      .setBranchAvailable(vendor)
-      .pipe(finalize(() => this.branchLoading.set(false)), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.messageService.add({
-            severity: 'success',
-            summary: this.l('::TalabatDashboard.Toast.Success'),
-            detail: this.l('::TalabatDashboard.Toast.AvailableSuccess'),
-          });
-          this.refresh();
-        },
-        error: error => {
-          console.error('Failed to set branch available', error);
-          this.messageService.add({
-            severity: 'error',
-            summary: this.l('::TalabatDashboard.Toast.Error'),
-            detail: this.l('::TalabatDashboard.Toast.AvailableError'),
-          });
-        },
-      });
-  }
-
-  openStatusDialog(): void {
-    this.statusDialogVisible.set(true);
-  }
-
-  closeStatusDialog(): void {
-    this.statusDialogVisible.set(false);
-  }
-
-  applyStatus(): void {
-    const status = this.selectedStatus();
-    // TODO: Real implementation should call a unified API to set any status.
-    // For now, we hardcode:
-    // - OPEN   -> setBranchAvailable()
-    // - other  -> setBranchBusy() with default reason/closingMinutes
-    if (status === 'OPEN') {
-      this.setBranchAvailable();
-    } else {
-      // Hardcoded path: reuse busy endpoint for all non-OPEN statuses.
-      this.setBranchBusy();
-    }
-    this.closeStatusDialog();
-  }
-
-  getStatusSeverity(status: string | undefined): 'success' | 'secondary' | 'info' | 'warn' | 'danger' | 'contrast' | undefined {
-    switch (status?.toLowerCase()) {
-      case 'success':
-      case 'done':
-        return 'success';
-      case 'partial':
-        return 'warn';
-      case 'failed':
-        return 'danger';
-      case 'submitted':
-      case 'in_progress':
-        return 'info';
-      case 'processing':
-        return 'info';
-      default:
-        return 'secondary';
-    }
-  }
-
-  getStatusIcon(status: string | undefined): string {
-    switch (status?.toLowerCase()) {
-      case 'success':
-      case 'done':
-        return 'pi pi-check-circle';
-      case 'partial':
-        return 'pi pi-exclamation-triangle';
-      case 'failed':
-        return 'pi pi-times-circle';
-      case 'processing':
-      case 'in_progress':
-        return 'pi pi-spin pi-spinner';
-      case 'submitted':
-        return 'pi pi-send';
-      default:
-        return 'pi pi-question-circle';
-    }
-  }
-
-  getStatusLabel(status: string | undefined): string {
-    switch (status?.toLowerCase()) {
-      case 'success':
-      case 'done':
-        return 'Completed';
-      case 'failed':
-        return 'Failed';
-      case 'partial':
-        return 'Partial';
-      case 'processing':
-      case 'in_progress':
-        return 'Processing';
-      case 'submitted':
-        return 'Submitted';
-      default:
-        return 'Unknown';
-    }
-  }
-
-  formatDate(date: string | undefined): string {
-    if (!date) return '-';
-    return new Date(date).toLocaleString();
-  }
-
-  formatDuration(seconds: number | undefined): string {
-    if (!seconds) return '-';
-    if (seconds < 60) return `${seconds}s`;
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}m ${remainingSeconds}s`;
-  }
-
-  private l(key: string, ...interpolateParams: string[]): string {
-    return this.localization.instant(key, ...interpolateParams);
+  statusClass(status: string): string {
+    const s = (status || '').toLowerCase();
+    if (s === 'succeeded' || s === 'completed') return 'ok';
+    if (s === 'failed') return 'fail';
+    if (s === 'processing') return 'proc';
+    return 'wait';
   }
 }
