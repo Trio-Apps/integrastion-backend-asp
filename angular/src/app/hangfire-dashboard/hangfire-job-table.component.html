@@ -20,8 +20,7 @@
         <tbody>
           <tr *ngFor="let job of jobs; trackBy: trackByJobId">
             <td>
-              <div class="fw-semibold">{{ job.jobName || ('::MenuSync.Table.NoValue' | abpLocalization) }}</div>
-              <div class="text-body-secondary small" *ngIf="job.arguments">{{ job.arguments }}</div>
+              <div class="fw-semibold">{{ displayName(job) }}</div>
             </td>
             <td>
               <span [ngClass]="getBadgeClass(job.state)">{{ job.state || ('::MenuSync.Table.Unknown' | abpLocalization) }}</span>
@@ -36,7 +35,7 @@
               <div class="text-body-secondary small" *ngIf="job.startedAt">{{ '::MenuSync.Table.Started' | abpLocalization }}: {{ job.startedAt | date: 'short' }}</div>
             </td>
             <td>
-              <span class="text-danger small" *ngIf="job.exceptionMessage">{{ job.exceptionMessage }}</span>
+              <span class="text-danger small" *ngIf="job.exceptionMessage">{{ friendlyError(job) }}</span>
               <span class="text-body-secondary small" *ngIf="!job.exceptionMessage">{{ '::MenuSync.Table.NoValue' | abpLocalization }}</span>
             </td>
           </tr>
