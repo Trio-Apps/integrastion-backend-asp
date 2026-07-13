@@ -102,19 +102,21 @@
 }
 .card-t { font-size: 0.9rem; font-weight: 600; color: var(--text-color); }
 
+.trend { display: flex; flex-direction: column; }
 .trend .spark {
   display: flex;
   align-items: flex-end;
-  gap: 10px;
-  height: 130px;
-  margin-top: 16px;
+  gap: 12px;
+  flex: 1;
+  min-height: 175px;
+  margin-top: 18px;
 
-  .bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 5px; }
-  .bar-col { width: 100%; height: 100%; display: flex; align-items: flex-end; justify-content: center; }
-  .bar { width: 58%; max-width: 32px; background: #1d9e75; border-radius: 6px 6px 0 0; transition: height 0.4s ease; min-height: 4px; }
+  .bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 7px; }
+  .bar-col { width: 100%; flex: 1; display: flex; align-items: flex-end; justify-content: center; }
+  .bar { width: 74%; max-width: 44px; background: #1d9e75; border-radius: 8px 8px 0 0; transition: height 0.4s ease; min-height: 8px; }
   .bar.today { background: #00c896; }
-  .bar-n { font-size: 0.72rem; font-weight: 500; color: var(--text-color); }
-  .bar-lbl { font-size: 0.68rem; color: var(--text-color-secondary); }
+  .bar-n { font-size: 0.78rem; font-weight: 600; color: var(--text-color); }
+  .bar-lbl { font-size: 0.72rem; color: var(--text-color-secondary); }
 }
 
 .status {
