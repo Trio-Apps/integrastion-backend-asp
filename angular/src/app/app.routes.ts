@@ -58,14 +58,6 @@ export const APP_ROUTES: Routes = [
     },
   },
   {
-    path: 'search',
-    loadComponent: () => import('./search/smart-search.component').then(c => c.SmartSearchComponent),
-    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
-    data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
-    },
-  },
-  {
     path: 'availability',
     loadComponent: () => import('./availability/availability.component').then(c => c.AvailabilityComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],

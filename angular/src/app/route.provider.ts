@@ -46,10 +46,6 @@ function configureRoutes() {
       iconClass: 'pi pi-chart-line', order: 1, layout: app, requiredPolicy: TENANT,
     },
     {
-      path: '/search', name: 'Search', parentName: '::Menu:Dashboard',
-      iconClass: 'pi pi-search', order: 1.5, layout: app, requiredPolicy: TENANT,
-    },
-    {
       path: '/hangfire-monitoring', name: 'Menu Synchronization', parentName: '::Menu:Dashboard',
       iconClass: 'pi pi-sync', order: 2, layout: app, requiredPolicy: ANY,
     },
