@@ -100,6 +100,7 @@ public class OrderXChangeDbContext :
 
     // Phase 2 — branch-scoped authorization (role -> allowed Foodics branches)
     public DbSet<RoleBranch> RoleBranches { get; set; }
+    public DbSet<OrderXChange.Availability.ItemAvailabilityState> ItemAvailabilityStates { get; set; }
     #endregion
 
     public OrderXChangeDbContext(DbContextOptions<OrderXChangeDbContext> options)
@@ -193,6 +194,18 @@ public class OrderXChangeDbContext :
                 .HasDatabaseName("IX_RoleBranches_Tenant_Role_Account_Branch");
 
             b.HasIndex(x => x.RoleId).HasDatabaseName("IX_RoleBranches_RoleId");
+        });
+
+        builder.Entity<OrderXChange.Availability.ItemAvailabilityState>(b =>
+        {
+            b.ToTable(OrderXChangeConsts.DbTablePrefix + "ItemAvailabilityStates", OrderXChangeConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.FoodicsProductId).IsRequired().HasMaxLength(100);
+            b.Property(x => x.VendorCode).IsRequired().HasMaxLength(100);
+            b.Property(x => x.Mode).HasMaxLength(30);
+            b.HasIndex(x => new { x.TenantId, x.FoodicsAccountId, x.FoodicsProductId, x.VendorCode })
+                .IsUnique()
+                .HasDatabaseName("IX_ItemAvailability_Tenant_Account_Product_Vendor");
         });
 
         // Configure FoodicsProductStaging entity
