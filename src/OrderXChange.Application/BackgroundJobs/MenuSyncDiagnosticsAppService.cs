@@ -119,6 +119,39 @@ public class MenuSyncDiagnosticsAppService : ApplicationService, IMenuSyncDiagno
         return new PagedResultDto<MenuSyncRunSummaryDto>(totalCount, summaries);
     }
 
+    public async Task<MenuSyncRunStatsDto> GetStatsAsync()
+    {
+        var queryable = await _syncRunRepository.GetQueryableAsync();
+        var counts = await queryable
+            .GroupBy(x => x.Status)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        int CountOf(params string[] names) => counts
+            .Where(c => names.Any(n => string.Equals(c.Key, n, StringComparison.OrdinalIgnoreCase)))
+            .Sum(c => c.Count);
+
+        var succeeded = CountOf("Completed", "Succeeded");
+        var failed = CountOf("Failed", "Cancelled");
+        var finished = succeeded + failed;
+
+        var last = await queryable
+            .OrderByDescending(x => x.StartedAt)
+            .Select(x => new { x.StartedAt, x.Status })
+            .FirstOrDefaultAsync();
+
+        return new MenuSyncRunStatsDto
+        {
+            Total = counts.Sum(c => c.Count),
+            Succeeded = succeeded,
+            Failed = failed,
+            Running = CountOf("Running", "Pending", "Retrying"),
+            SuccessRate = finished > 0 ? Math.Round((double)succeeded / finished * 100, 1) : 0,
+            LastSyncAt = last?.StartedAt,
+            LastSyncStatus = last?.Status,
+        };
+    }
+
     public async Task<MenuSyncRunDetailsDto> GetRunDetailsAsync(Guid id)
     {
         var accountScope = await GetCurrentTenantFoodicsAccountScopeAsync();

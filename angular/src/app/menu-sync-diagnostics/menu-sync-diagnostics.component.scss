@@ -259,3 +259,24 @@ input[type='datetime-local'] {
   text-transform: capitalize;
 }
 .fail { color: #dc2626; }
+
+.sync-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 1rem;
+}
+.ss-card {
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ss-label { font-size: 0.75rem; color: var(--text-color-secondary); }
+.ss-val { font-size: 1.5rem; font-weight: 600; color: var(--text-color); }
+.ss-val.ok { color: #059669; }
+.ss-val.fail { color: #dc2626; }
+@media (max-width: 900px) { .sync-summary { grid-template-columns: repeat(2, 1fr); } }

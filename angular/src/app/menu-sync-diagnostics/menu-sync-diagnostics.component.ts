@@ -12,6 +12,7 @@ import { TableLazyLoadEvent, TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import {
   MenuSyncDiagnosticsService,
+  MenuSyncRunStatsDto,
   MenuSyncRunDetailsDto,
   MenuSyncRunSummaryDto,
   MenuSyncVendorItemDto,
@@ -45,6 +46,7 @@ export class MenuSyncDiagnosticsComponent implements OnInit {
   readonly loadingDetails = signal(false);
   readonly loadingItems = signal(false);
   readonly runs = signal<MenuSyncRunSummaryDto[]>([]);
+  readonly stats = signal<MenuSyncRunStatsDto | null>(null);
   readonly totalRecords = signal(0);
   readonly rows = signal(10);
   readonly first = signal(0);
@@ -110,6 +112,11 @@ export class MenuSyncDiagnosticsComponent implements OnInit {
 
   refresh(): void {
     this.loadRuns({ first: 0, rows: this.rows() });
+    this.loadStats();
+  }
+
+  loadStats(): void {
+    this.service.getStats().subscribe({ next: s => this.stats.set(s), error: () => {} });
   }
 
   loadRuns(event?: TableLazyLoadEvent): void {

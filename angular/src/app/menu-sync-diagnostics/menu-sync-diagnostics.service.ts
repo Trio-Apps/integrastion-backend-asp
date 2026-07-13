@@ -10,6 +10,16 @@ export interface GetMenuSyncRunsInput extends PagedAndSortedResultRequestDto {
   toDate?: string;
 }
 
+export interface MenuSyncRunStatsDto {
+  total: number;
+  succeeded: number;
+  failed: number;
+  running: number;
+  successRate: number;
+  lastSyncAt?: string;
+  lastSyncStatus?: string;
+}
+
 export interface MenuSyncRunSummaryDto {
   id: string;
   foodicsAccountId: string;
@@ -135,6 +145,12 @@ export interface MenuSyncItemModifierOptionDto {
 @Injectable({ providedIn: 'root' })
 export class MenuSyncDiagnosticsService {
   apiName = 'Default';
+
+  getStats = (config?: Partial<Rest.Config>) =>
+    this.restService.request<any, MenuSyncRunStatsDto>(
+      { method: 'GET', url: '/api/menu-sync/runs/stats' },
+      { apiName: this.apiName, ...config }
+    );
 
   getRuns = (input: GetMenuSyncRunsInput, config?: Partial<Rest.Config>) =>
     this.restService.request<any, PagedResultDto<MenuSyncRunSummaryDto>>(

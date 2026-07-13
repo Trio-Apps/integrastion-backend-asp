@@ -81,6 +81,13 @@ public class MenuSyncController : AbpController
         return Ok(result);
     }
 
+    /// <summary>Aggregated stats for the diagnostics summary bar.</summary>
+    [HttpGet("runs/stats")]
+    public async Task<IActionResult> GetStatsAsync()
+    {
+        return Ok(await _menuSyncDiagnosticsAppService.GetStatsAsync());
+    }
+
     /// <summary>
     /// Gets complete diagnostics for one menu sync run.
     /// </summary>

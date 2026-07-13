@@ -11,6 +11,13 @@
   </div>
 
   <ng-container *ngIf="!isDetailsRoute()">
+  <div class="sync-summary" *ngIf="stats() as s">
+    <div class="ss-card"><span class="ss-label">Total syncs</span><span class="ss-val">{{ s.total | number }}</span></div>
+    <div class="ss-card"><span class="ss-label">Success rate</span><span class="ss-val ok">{{ s.successRate }}%</span></div>
+    <div class="ss-card"><span class="ss-label">Succeeded</span><span class="ss-val ok">{{ s.succeeded | number }}</span></div>
+    <div class="ss-card"><span class="ss-label">Failed</span><span class="ss-val fail">{{ s.failed | number }}</span></div>
+    <div class="ss-card"><span class="ss-label">Last sync</span><span class="ss-val">{{ s.lastSyncAt ? formatDate(s.lastSyncAt) : '—' }}</span></div>
+  </div>
   <div class="filters">
     <span class="filter-item search-filter">
       <label for="syncSearch">Search</label>

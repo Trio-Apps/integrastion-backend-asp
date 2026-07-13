@@ -11,6 +11,18 @@ public interface IMenuSyncDiagnosticsAppService : IApplicationService
     Task<PagedResultDto<MenuSyncRunSummaryDto>> GetRunsAsync(GetMenuSyncRunsInput input);
     Task<MenuSyncRunDetailsDto> GetRunDetailsAsync(Guid id);
     Task<List<MenuSyncVendorItemDto>> GetVendorItemsAsync(Guid id, string vendorCode);
+    Task<MenuSyncRunStatsDto> GetStatsAsync();
+}
+
+public class MenuSyncRunStatsDto
+{
+    public int Total { get; set; }
+    public int Succeeded { get; set; }
+    public int Failed { get; set; }
+    public int Running { get; set; }
+    public double SuccessRate { get; set; }
+    public DateTime? LastSyncAt { get; set; }
+    public string? LastSyncStatus { get; set; }
 }
 
 public class GetMenuSyncRunsInput : PagedAndSortedResultRequestDto
