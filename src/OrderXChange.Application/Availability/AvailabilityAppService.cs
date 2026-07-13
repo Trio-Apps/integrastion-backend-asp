@@ -41,21 +41,19 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
 
     public async Task<PagedResultDto<AvailabilityItemDto>> GetItemsAsync(GetAvailabilityInput input)
     {
-        var allowedVendors = await ResolveAllowedVendorsAsync();
-        if (allowedVendors is { Count: 0 })
+        // Vendors (branches) come from TalabatAccount, not from staging.
+        var vendors = await ResolveVendorsAsync();
+        if (vendors.Count == 0)
+            return new PagedResultDto<AvailabilityItemDto>(0, new List<AvailabilityItemDto>());
+
+        var vendor = !string.IsNullOrWhiteSpace(input.VendorCode)
+            ? vendors.FirstOrDefault(v => v.Code == input.VendorCode!.Trim())
+            : vendors[0];
+        if (vendor.Code == null)
             return new PagedResultDto<AvailabilityItemDto>(0, new List<AvailabilityItemDto>());
 
         var query = (await _stagingRepo.GetQueryableAsync()).AsNoTracking()
-            .Where(x => !x.IsDeleted && x.TalabatVendorCode != null);
-
-        if (allowedVendors != null)
-            query = query.Where(x => allowedVendors.Contains(x.TalabatVendorCode!));
-
-        if (!string.IsNullOrWhiteSpace(input.VendorCode))
-        {
-            var vendor = input.VendorCode.Trim();
-            query = query.Where(x => x.TalabatVendorCode == vendor);
-        }
+            .Where(x => !x.IsDeleted && x.FoodicsAccountId == vendor.AccountId);
 
         if (!string.IsNullOrWhiteSpace(input.Search))
         {
@@ -68,19 +66,19 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
             .OrderBy(x => x.Name)
             .Skip(input.SkipCount)
             .Take(input.MaxResultCount)
-            .Select(x => new { x.FoodicsProductId, x.Name, x.NameLocalized, x.Sku, x.CategoryName, Vendor = x.TalabatVendorCode! })
+            .Select(x => new { x.FoodicsProductId, x.Name, x.NameLocalized, x.Sku, x.CategoryName })
             .ToListAsync();
 
-        var productIds = rows.Select(r => r.FoodicsProductId).Distinct().ToList();
+        var productIds = rows.Select(r => r.FoodicsProductId).ToList();
         var stateQuery = await _availabilityRepo.GetQueryableAsync();
         var states = await stateQuery
-            .Where(a => productIds.Contains(a.FoodicsProductId))
-            .Select(a => new { a.FoodicsProductId, a.VendorCode, a.IsInStock, a.Mode, a.RestoreAtUtc })
+            .Where(a => a.VendorCode == vendor.Code && productIds.Contains(a.FoodicsProductId))
+            .Select(a => new { a.FoodicsProductId, a.IsInStock, a.Mode, a.RestoreAtUtc })
             .ToListAsync();
 
         var items = rows.Select(r =>
         {
-            var st = states.FirstOrDefault(s => s.FoodicsProductId == r.FoodicsProductId && s.VendorCode == r.Vendor);
+            var st = states.FirstOrDefault(s => s.FoodicsProductId == r.FoodicsProductId);
             return new AvailabilityItemDto
             {
                 FoodicsProductId = r.FoodicsProductId,
@@ -88,7 +86,7 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
                 NameLocalized = r.NameLocalized,
                 Sku = r.Sku,
                 CategoryName = r.CategoryName,
-                VendorCode = r.Vendor,
+                VendorCode = vendor.Code,
                 IsInStock = st?.IsInStock ?? true,
                 Mode = st?.Mode,
                 RestoreAtUtc = st?.RestoreAtUtc,
@@ -104,77 +102,69 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
         if (input.FoodicsProductIds.Count == 0 || input.VendorCodes.Count == 0)
             throw new UserFriendlyException("Select at least one item and one branch.");
 
-        var allowedVendors = await ResolveAllowedVendorsAsync();
-        var vendorCodes = input.VendorCodes.Distinct().ToList();
-        if (allowedVendors != null)
-            vendorCodes = vendorCodes.Where(v => allowedVendors.Contains(v)).ToList();
-        if (vendorCodes.Count == 0)
+        var vendors = await ResolveVendorsAsync();
+        var targets = vendors.Where(v => input.VendorCodes.Contains(v.Code)).ToList();
+        if (targets.Count == 0)
             return; // fail-closed: nothing in the caller's branch scope
-
-        // Resolve the (product, vendor, account) triples from staging so we only touch real items.
-        var productIds = input.FoodicsProductIds.Distinct().ToList();
-        var stagingQuery = await _stagingRepo.GetQueryableAsync();
-        var targets = await stagingQuery
-            .Where(x => productIds.Contains(x.FoodicsProductId) && x.TalabatVendorCode != null && vendorCodes.Contains(x.TalabatVendorCode))
-            .Select(x => new { x.FoodicsProductId, Vendor = x.TalabatVendorCode!, x.FoodicsAccountId })
-            .Distinct()
-            .ToListAsync();
 
         var now = _clock.Now;
         var mode = input.Mode == AvailabilityMode.ForADay ? AvailabilityMode.ForADay : AvailabilityMode.TillFurtherNotice;
         DateTime? restoreAt = mode == AvailabilityMode.ForADay ? now.Date.AddDays(1).AddHours(8) : null;
 
-        foreach (var t in targets)
+        foreach (var vendor in targets)
         {
-            var existing = await _availabilityRepo.FirstOrDefaultAsync(
-                a => a.FoodicsProductId == t.FoodicsProductId && a.VendorCode == t.Vendor);
+            foreach (var productId in input.FoodicsProductIds.Distinct())
+            {
+                var existing = await _availabilityRepo.FirstOrDefaultAsync(
+                    a => a.FoodicsProductId == productId && a.VendorCode == vendor.Code);
 
-            if (input.InStock)
-            {
-                // Back to the default (in stock) — remove any out-of-stock override.
-                if (existing != null)
-                    await _availabilityRepo.DeleteAsync(existing);
-            }
-            else if (existing == null)
-            {
-                await _availabilityRepo.InsertAsync(new ItemAvailabilityState
+                if (input.InStock)
                 {
-                    FoodicsAccountId = t.FoodicsAccountId,
-                    FoodicsProductId = t.FoodicsProductId,
-                    VendorCode = t.Vendor,
-                    IsInStock = false,
-                    Mode = mode,
-                    RestoreAtUtc = restoreAt,
-                });
-            }
-            else
-            {
-                existing.IsInStock = false;
-                existing.Mode = mode;
-                existing.RestoreAtUtc = restoreAt;
-                await _availabilityRepo.UpdateAsync(existing);
+                    if (existing != null)
+                        await _availabilityRepo.DeleteAsync(existing);
+                }
+                else if (existing == null)
+                {
+                    await _availabilityRepo.InsertAsync(new ItemAvailabilityState
+                    {
+                        FoodicsAccountId = vendor.AccountId,
+                        FoodicsProductId = productId,
+                        VendorCode = vendor.Code,
+                        IsInStock = false,
+                        Mode = mode,
+                        RestoreAtUtc = restoreAt,
+                    });
+                }
+                else
+                {
+                    existing.IsInStock = false;
+                    existing.Mode = mode;
+                    existing.RestoreAtUtc = restoreAt;
+                    await _availabilityRepo.UpdateAsync(existing);
+                }
             }
         }
 
-        // NOTE: pushing the out-of-stock state to Talabat's availability API is wired in a
-        // follow-up (§5: migrate TalabatCatalogClient to the current /catalog/items/availability
-        // contract). The DB state above is the source of truth the console + auto-restore use.
+        // NOTE: pushing the state to Talabat's availability API is a follow-up (§5).
     }
 
-    /// <summary>Null = all vendors (admin / Branches.All). Otherwise the vendor codes the caller may manage.</summary>
-    private async Task<List<string>?> ResolveAllowedVendorsAsync()
+    private async Task<List<(string Code, Guid AccountId)>> ResolveVendorsAsync()
     {
         var scope = await _branchProvider.GetScopeAsync();
-        if (scope.AllBranches)
-            return null;
-        if (scope.BranchIds.Count == 0)
-            return new List<string>();
+        var query = (await _talabatAccountRepo.GetQueryableAsync()).Where(a => a.IsActive);
+        if (!scope.AllBranches)
+        {
+            if (scope.BranchIds.Count == 0)
+                return new List<(string, Guid)>();
+            query = query.Where(a => a.FoodicsBranchId != null && scope.BranchIds.Contains(a.FoodicsBranchId));
+        }
 
-        var accountQuery = await _talabatAccountRepo.GetQueryableAsync();
-        return await accountQuery
-            .Where(a => a.FoodicsBranchId != null && scope.BranchIds.Contains(a.FoodicsBranchId))
-            .Select(a => a.VendorCode)
+        var list = await query
+            .Where(a => a.FoodicsAccountId != null)
+            .Select(a => new { a.VendorCode, a.FoodicsAccountId })
             .Distinct()
             .ToListAsync();
+
+        return list.Select(x => (x.VendorCode, x.FoodicsAccountId!.Value)).ToList();
     }
 }

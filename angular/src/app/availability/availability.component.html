@@ -1,0 +1,65 @@
+<div class="avail-page">
+  <div class="avail-head">
+    <div>
+      <h1>Availability</h1>
+      <p>Mark menu items in or out of stock on Talabat — for a day or until further notice.</p>
+    </div>
+  </div>
+
+  <div class="avail-bar">
+    <div class="search-box">
+      <i class="pi pi-search"></i>
+      <input type="text" [ngModel]="search()" (ngModelChange)="search.set($event)" (keyup.enter)="onSearch()" placeholder="Search item name, SKU, or product id…" />
+    </div>
+    <button class="btn" (click)="onSearch()">Search</button>
+    <span class="total" *ngIf="total()">{{ total() | number }} items</span>
+  </div>
+
+  <div class="card table-wrap">
+    <table>
+      <thead>
+        <tr><th>Item</th><th>Category</th><th>SKU</th><th>Vendor</th><th>Status</th><th class="actions-col">Actions</th></tr>
+      </thead>
+      <tbody>
+        @if (loading()) {
+          <tr><td colspan="6" class="center muted">Loading…</td></tr>
+        } @else if (!items().length) {
+          <tr><td colspan="6" class="center muted">No items found.</td></tr>
+        } @else {
+          @for (it of items(); track key(it)) {
+            <tr [class.oos]="!it.isInStock">
+              <td class="strong">{{ it.name }}</td>
+              <td class="muted">{{ it.categoryName || '—' }}</td>
+              <td class="muted mono">{{ it.sku || '—' }}</td>
+              <td class="muted">{{ it.vendorCode }}</td>
+              <td>
+                @if (it.isInStock) {
+                  <span class="badge ok">In stock</span>
+                } @else {
+                  <span class="badge fail">Out of stock</span>
+                  <span class="mode" *ngIf="it.mode">{{ it.mode === 'ForADay' ? 'for a day' : 'till further notice' }}</span>
+                }
+              </td>
+              <td class="actions-col">
+                @if (saving() === key(it)) {
+                  <i class="pi pi-spinner spin"></i>
+                } @else if (it.isInStock) {
+                  <button class="mini" (click)="set(it, false, 'ForADay')">Out · today</button>
+                  <button class="mini" (click)="set(it, false, 'TillFurtherNotice')">Out · till notice</button>
+                } @else {
+                  <button class="mini restore" (click)="set(it, true)">Mark in stock</button>
+                }
+              </td>
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pager" *ngIf="total() > rows">
+    <button class="btn" [disabled]="first() === 0" (click)="page(-1)">‹ Prev</button>
+    <span class="muted">{{ first() + 1 }}–{{ (first() + rows) < total() ? (first() + rows) : total() }} of {{ total() | number }}</span>
+    <button class="btn" [disabled]="first() + rows >= total()" (click)="page(1)">Next ›</button>
+  </div>
+</div>

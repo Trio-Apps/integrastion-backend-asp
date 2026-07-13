@@ -66,6 +66,14 @@ export const APP_ROUTES: Routes = [
     },
   },
   {
+    path: 'availability',
+    loadComponent: () => import('./availability/availability.component').then(c => c.AvailabilityComponent),
+    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    data: {
+      requiredPolicy: 'OrderXChange.Availability',
+    },
+  },
+  {
     path: 'talabat-payment-methods',
     loadComponent: () => import('./talabat-payment-methods/talabat-payment-methods.component').then(c => c.TalabatPaymentMethodsComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],

@@ -73,9 +73,8 @@ function configureRoutes() {
       iconClass: 'pi pi-truck', order: 3, layout: app, requiredPolicy: TENANT,
     },
     {
-      // Availability screen (§5) not built yet — hidden until its page exists.
       path: '/availability', name: 'Availability', parentName: 'Catalog',
-      iconClass: 'pi pi-check-circle', order: 4, layout: app, invisible: true,
+      iconClass: 'pi pi-check-circle', order: 4, layout: app,
       requiredPolicy: 'OrderXChange.Availability',
     },
 
