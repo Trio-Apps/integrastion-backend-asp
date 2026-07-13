@@ -72,7 +72,7 @@
       <tr [class.selected-row]="selectedRun()?.id === row.id">
         <td>{{ formatDate(row.startedAt) }}</td>
         <td><p-tag [severity]="getStatusSeverity(row.status)" [value]="row.status || 'Unknown'"></p-tag></td>
-        <td><span class="trigger-tag">{{ row.triggerSource || row.syncType || '-' }}</span></td>
+        <td><span class="trigger-tag">{{ row.syncType || row.triggerSource || '-' }}</span></td>
         <td>
           <div class="phase-cell">
             <span>{{ row.currentPhase || '-' }}</span>
@@ -82,7 +82,7 @@
         <td>
           <div>{{ row.productsSucceeded || 0 }}/{{ row.totalProductsProcessed || 0 }} products</div>
           <div class="muted">
-            {{ row.categoriesProcessed || 0 }} categories · {{ row.modifiersProcessed || 0 }} modifiers<span class="fail" *ngIf="row.productsFailed"> · {{ row.productsFailed }} failed</span><span *ngIf="row.productsSkipped"> · {{ row.productsSkipped }} skipped</span>
+            <span class="fail" *ngIf="row.productsFailed">{{ row.productsFailed }} failed</span><span *ngIf="row.productsSkipped">{{ row.productsFailed ? ' · ' : '' }}{{ row.productsSkipped }} skipped</span><span *ngIf="!row.productsFailed && !row.productsSkipped && row.totalProductsProcessed">all synced ✓</span>
           </div>
         </td>
         <td>

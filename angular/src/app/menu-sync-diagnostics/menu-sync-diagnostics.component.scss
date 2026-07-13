@@ -247,3 +247,15 @@ input[type='datetime-local'] {
     grid-template-columns: 1fr;
   }
 }
+
+.trigger-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 2px 9px;
+  border-radius: 20px;
+  background: color-mix(in srgb, #276d64 12%, transparent);
+  color: #276d64;
+  text-transform: capitalize;
+}
+.fail { color: #dc2626; }
