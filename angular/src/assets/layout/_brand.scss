@@ -1,73 +1,39 @@
 // ─────────────────────────────────────────────────────────────
-// BOON-IT brand layer — dark teal branded sidebar + polish.
-// Loaded after layout.scss so it overrides the Sakai defaults.
-// Brand colours: wordmark #276D64, bright chain-link accent #00EBB5.
+// BOON-IT brand layer — flush, full-height sidebar on the default
+// (light) theme. No coloured sidebar background.
 // ─────────────────────────────────────────────────────────────
 
 :root {
   --brand-teal: #276d64;
   --brand-accent: #00ebb5;
-  --brand-sidebar-bg: #276d64; // exact wordmark teal
 }
 
-// ── Branded sidebar: deep teal panel, flush + full height ──────
+// Flush, full-height sidebar (removes the floating card gaps),
+// keeps the default light surface + text colours.
 .layout-sidebar {
-  top: 5rem;                       // flush under the 5rem topbar
-  left: 0;                         // flush to the left edge
-  height: calc(100vh - 5rem);      // down to the bottom
-  border-radius: 0;                // not a floating card
-  background: var(--brand-sidebar-bg);
-  border: none;
-  border-right: 1px solid rgba(0, 235, 181, 0.14);
-  box-shadow: 2px 0 18px rgba(9, 40, 34, 0.12);
+  top: 5rem;
+  left: 0;
+  height: calc(100vh - 5rem);
+  border-radius: 0;
+  border-right: 1px solid var(--surface-border);
+  box-shadow: none;
   padding: 1rem 1rem;
 
-  &::-webkit-scrollbar { width: 8px; }
-  &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.14);
-    border-radius: 8px;
+  .layout-menu .layout-root-menuitem > .layout-menuitem-root-text {
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    margin: 1.1rem 0 0.35rem;
   }
 
-  .layout-menu {
-    .layout-root-menuitem > .layout-menuitem-root-text {
-      color: rgba(224, 250, 244, 0.66);
-      font-weight: 600;
-      font-size: 0.7rem;
-      letter-spacing: 0.08em;
-      margin: 1.15rem 0 0.35rem;
-      padding-left: 0.35rem;
-    }
-
-    ul a {
-      color: rgba(255, 255, 255, 0.85);
-      border-radius: 10px;
-      padding: 0.6rem 0.85rem;
-      margin-bottom: 2px;
-      font-size: 0.9rem;
-
-      .layout-menuitem-icon {
-        color: rgba(255, 255, 255, 0.68);
-        transition: color var(--element-transition-duration);
-      }
-
-      &:hover {
-        background-color: rgba(255, 255, 255, 0.12);
-        color: #ffffff;
-        .layout-menuitem-icon { color: #ffffff; }
-      }
-
-      &.active-route {
-        background-color: rgba(255, 255, 255, 0.16);
-        color: #ffffff;
-        font-weight: 600;
-        box-shadow: inset 3px 0 0 var(--brand-accent);
-        .layout-menuitem-icon { color: var(--brand-accent); }
-      }
-    }
+  .layout-menu ul a {
+    border-radius: 10px;
+    padding: 0.6rem 0.85rem;
+    margin-bottom: 2px;
+    font-size: 0.9rem;
   }
 }
 
-// ── Content sits flush against the full-height sidebar (no 2rem gap) ──
+// Content sits flush against the full-height sidebar (no 2rem gap).
 @media (min-width: 992px) {
   .layout-wrapper.layout-static .layout-main-container {
     margin-left: 20rem;
