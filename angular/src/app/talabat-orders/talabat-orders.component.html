@@ -194,7 +194,7 @@
             [icon]="expanded ? 'pi pi-chevron-down' : 'pi pi-chevron-right'"
           ></button>
         </td>
-        <td class="token-cell" [title]="row.orderCode || ''">{{ row.orderCode || '-' }}</td>
+        <td class="token-cell"><a class="order-link" [routerLink]="['/talabat-orders', row.id]" [title]="'Open order details'">{{ row.orderCode || '-' }}</a></td>
         <td>
           <div class="date-cell">{{ formatReceivedAt(row) }}</div>
         </td>

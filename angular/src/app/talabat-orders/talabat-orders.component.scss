@@ -205,3 +205,11 @@
   color: #64748b;
   white-space: nowrap;
 }
+
+.order-link {
+  color: var(--primary-color, #276d64);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.order-link:hover { text-decoration: underline; }

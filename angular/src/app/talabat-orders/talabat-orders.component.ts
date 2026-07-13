@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { interval } from 'rxjs';
 import { filter, finalize } from 'rxjs/operators';
@@ -19,6 +20,7 @@ import { TalabatOrderLogsService, TalabatOrderLogDto, TalabatOrderDetailsDto, Ge
   standalone: true,
   imports: [
     CommonModule,
+    RouterModule,
     FormsModule,
     LocalizationModule,
     TableModule,
