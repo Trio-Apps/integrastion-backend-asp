@@ -471,5 +471,12 @@ public class OrderXChangeHttpApiHostModule : AbpModule
             Cron.Minutely);
 
         logger.LogInformation("Recurring job TalabatOrderEnqueueWatchdogSweep scheduled every minute.");
+
+        recurringJobManager.AddOrUpdate<OrderXChange.Availability.AvailabilityAutoRestoreJob>(
+            "AvailabilityAutoRestore",
+            job => job.RestoreDueItemsAsync(),
+            Cron.Hourly());
+
+        logger.LogInformation("Recurring job AvailabilityAutoRestore scheduled hourly.");
     }
 }
