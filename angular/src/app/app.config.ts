@@ -27,7 +27,7 @@ import { APP_ROUTE_PROVIDER } from './route.provider';
 import { USER_MENU_PROVIDER } from './providers/user-menu.provider';
 import { providePrimeNG } from 'primeng/config';
 import { AppConfigurator } from './layout/component/app.configurator';
-import Aura from '@primeuix/themes/aura';
+import { BoonItPreset } from './theme/boonit-preset';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { MyCustomErrorHandlerService } from './MyCustomErrorHandlerService.service';
@@ -67,7 +67,7 @@ export const appConfig: ApplicationConfig = {
         privacyPolicyUrl: '/gdpr-cookie-consent/privacy',
       }),
     ),
-    providePrimeNG({ theme: { preset: Aura, options: { darkModeSelector: '.app-dark' } } }),
+    providePrimeNG({ theme: { preset: BoonItPreset, options: { darkModeSelector: '.app-dark' } } }),
     MessageService, // PrimeNG MessageService for toast notifications
     DialogService,  // PrimeNG DialogService for programmatic dynamic dialogs
     ROLE_BRANCH_ACTION_PROVIDER,
