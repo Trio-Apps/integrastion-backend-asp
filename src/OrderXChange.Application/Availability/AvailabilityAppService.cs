@@ -10,6 +10,7 @@ using OrderXChange.Permissions;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
+using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.TenantManagement.Talabat;
 using Volo.Abp.Timing;
@@ -24,19 +25,22 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
     private readonly IRepository<TalabatAccount, Guid> _talabatAccountRepo;
     private readonly ICurrentUserBranchProvider _branchProvider;
     private readonly IClock _clock;
+    private readonly IDataFilter _dataFilter;
 
     public AvailabilityAppService(
         IRepository<FoodicsProductStaging, Guid> stagingRepo,
         IRepository<ItemAvailabilityState, Guid> availabilityRepo,
         IRepository<TalabatAccount, Guid> talabatAccountRepo,
         ICurrentUserBranchProvider branchProvider,
-        IClock clock)
+        IClock clock,
+        IDataFilter dataFilter)
     {
         _stagingRepo = stagingRepo;
         _availabilityRepo = availabilityRepo;
         _talabatAccountRepo = talabatAccountRepo;
         _branchProvider = branchProvider;
         _clock = clock;
+        _dataFilter = dataFilter;
     }
 
     public async Task<PagedResultDto<AvailabilityItemDto>> GetItemsAsync(GetAvailabilityInput input)
@@ -115,13 +119,21 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
         {
             foreach (var productId in input.FoodicsProductIds.Distinct())
             {
-                var existing = await _availabilityRepo.FirstOrDefaultAsync(
-                    a => a.FoodicsProductId == productId && a.VendorCode == vendor.Code);
+                // The unique index (Tenant, Account, Product, Vendor) spans soft-deleted
+                // rows, so a stale soft-deleted state collides on insert (was a 500 on
+                // the second out-of-stock after an in-stock toggle). Look it up with the
+                // soft-delete filter OFF and revive/hard-delete instead of re-inserting.
+                ItemAvailabilityState? existing;
+                using (_dataFilter.Disable<ISoftDelete>())
+                {
+                    existing = await _availabilityRepo.FirstOrDefaultAsync(
+                        a => a.FoodicsProductId == productId && a.VendorCode == vendor.Code);
+                }
 
                 if (input.InStock)
                 {
                     if (existing != null)
-                        await _availabilityRepo.DeleteAsync(existing);
+                        await _availabilityRepo.HardDeleteAsync(existing);
                 }
                 else if (existing == null)
                 {
@@ -137,6 +149,7 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
                 }
                 else
                 {
+                    existing.IsDeleted = false; // revive if it was previously soft-deleted
                     existing.IsInStock = false;
                     existing.Mode = mode;
                     existing.RestoreAtUtc = restoreAt;
