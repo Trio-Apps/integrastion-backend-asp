@@ -20,6 +20,17 @@
       <button
         pButton
         type="button"
+        icon="pi pi-file-excel"
+        label="Export"
+        class="p-button-outlined"
+        [loading]="exporting()"
+        [disabled]="loading() || exporting()"
+        [title]="'Export the filtered orders to Excel'"
+        (click)="exportExcel()"
+      ></button>
+      <button
+        pButton
+        type="button"
         [icon]="autoRefreshEnabled() ? 'pi pi-pause' : 'pi pi-play'"
         [label]="autoRefreshEnabled() ? 'Auto-refresh: ON' : 'Auto-refresh: OFF'"
         [class]="autoRefreshEnabled() ? 'p-button-success p-button-outlined' : 'p-button-secondary p-button-outlined'"

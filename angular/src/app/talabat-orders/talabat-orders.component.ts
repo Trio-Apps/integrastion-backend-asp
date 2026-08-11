@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { interval } from 'rxjs';
 import { filter, finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { LocalizationModule } from '@abp/ng.core';
+import { LocalizationModule, RestService } from '@abp/ng.core';
 import { TableModule, TableLazyLoadEvent, TableRowExpandEvent } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ButtonModule } from 'primeng/button';
@@ -39,11 +39,13 @@ export class TalabatOrdersComponent {
   private readonly orderLogsService = inject(TalabatOrderLogsService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly messageService = inject(MessageService);
+  private readonly restService = inject(RestService);
 
   private readonly POLL_INTERVAL_MS = 30_000;
 
   readonly loading = signal<boolean>(false);
   readonly bulkRetrying = signal<boolean>(false);
+  readonly exporting = signal<boolean>(false);
   readonly logs = signal<TalabatOrderLogDto[]>([]);
   readonly totalRecords = signal<number>(0);
   readonly rows = signal<number>(10);
@@ -93,6 +95,64 @@ export class TalabatOrdersComponent {
 
   refresh(): void {
     this.loadLogs({ first: 0, rows: this.rows() });
+  }
+
+  private buildExportParams(): Record<string, string> {
+    const params: Record<string, string> = {};
+    const add = (key: string, value: string) => {
+      const v = value.trim();
+      if (v) params[key] = v;
+    };
+    add('searchTerm', this.searchTerm());
+    add('vendorCode', this.vendorCode());
+    add('branchId', this.branchId());
+    add('customerName', this.customerName());
+    add('customerPhone', this.customerPhone());
+    add('status', this.status());
+    add('fromDate', this.fromDate());
+    add('toDate', this.toDate());
+    return params;
+  }
+
+  exportExcel(): void {
+    if (this.exporting()) {
+      return;
+    }
+    this.exporting.set(true);
+    this.restService
+      .request<null, Blob>(
+        {
+          method: 'GET',
+          url: '/api/app/talabat-order-log/export',
+          params: this.buildExportParams(),
+          responseType: 'blob',
+        },
+        { apiName: 'Default' },
+      )
+      .pipe(finalize(() => this.exporting.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: blob => this.downloadBlob(blob),
+        error: error => {
+          console.error('Failed to export orders', error);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Export failed',
+            detail: 'Could not export the orders. Please try again.',
+          });
+        },
+      });
+  }
+
+  private downloadBlob(blob: Blob): void {
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `talabat-orders-${stamp}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   loadLogs(event?: TableLazyLoadEvent): void {

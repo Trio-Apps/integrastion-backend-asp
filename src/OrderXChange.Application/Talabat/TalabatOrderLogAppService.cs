@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text.Json;
 using System.Threading.Tasks;
+using ClosedXML.Excel;
 using Hangfire;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -58,11 +61,64 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
 
     public async Task<PagedResultDto<TalabatOrderLogDto>> GetListAsync(GetTalabatOrderLogsInput input)
     {
+        var queryable = await BuildFilteredQueryAsync(input);
+        if (queryable == null)
+            return new PagedResultDto<TalabatOrderLogDto>(0, []);
+
+        var totalCount = await queryable.CountAsync();
+
+        var sorting = string.IsNullOrWhiteSpace(input.Sorting)
+            ? "ReceivedAt desc"
+            : input.Sorting;
+
+        var maxResultCount = input.MaxResultCount <= 0
+            ? 10
+            : Math.Min(input.MaxResultCount, 100);
+
+        var items = await queryable
+            .OrderBy(sorting)
+            .Skip(input.SkipCount)
+            .Take(maxResultCount)
+            .Select(ProjectToDto)
+            .ToListAsync();
+
+        return new PagedResultDto<TalabatOrderLogDto>(totalCount, items);
+    }
+
+    // Cap on rows a single Excel export can pull, to bound memory use.
+    private const int ExportRowCap = 10000;
+
+    /// <summary>
+    /// Exports the orders matching the same filters + branch scope as the list to an .xlsx
+    /// workbook (all matching rows up to <see cref="ExportRowCap"/>, not just the current page).
+    /// Not on the app-service interface: reached via TalabatOrderLogExportController for a file download.
+    /// </summary>
+    public async Task<byte[]> ExportToExcelAsync(GetTalabatOrderLogsInput input)
+    {
+        var queryable = await BuildFilteredQueryAsync(input);
+
+        var sorting = string.IsNullOrWhiteSpace(input.Sorting)
+            ? "ReceivedAt desc"
+            : input.Sorting;
+
+        var rows = queryable == null
+            ? new List<TalabatOrderLogDto>()
+            : await queryable
+                .OrderBy(sorting)
+                .Take(ExportRowCap)
+                .Select(ProjectToDto)
+                .ToListAsync();
+
+        return BuildOrdersWorkbook(rows);
+    }
+
+    private async Task<IQueryable<TalabatOrderSyncLog>?> BuildFilteredQueryAsync(GetTalabatOrderLogsInput input)
+    {
         var scope = await _branchProvider.GetScopeAsync();
 
         // Fail-closed: a restricted user with no branch grants sees nothing.
         if (!scope.AllBranches && scope.BranchIds.Count == 0)
-            return new PagedResultDto<TalabatOrderLogDto>(0, []);
+            return null;
 
         var queryable = await _orderLogRepository.GetQueryableAsync();
         queryable = queryable.AsNoTracking();
@@ -149,52 +205,89 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
             queryable = queryable.Where(x => x.ReceivedAt <= input.ToDate.Value);
         }
 
-        var totalCount = await queryable.CountAsync();
+        return queryable;
+    }
 
-        var sorting = string.IsNullOrWhiteSpace(input.Sorting)
-            ? "ReceivedAt desc"
-            : input.Sorting;
+    private static readonly Expression<Func<TalabatOrderSyncLog, TalabatOrderLogDto>> ProjectToDto = x => new TalabatOrderLogDto
+    {
+        Id = x.Id,
+        FoodicsAccountId = x.FoodicsAccountId,
+        VendorCode = x.VendorCode,
+        PlatformRestaurantId = x.PlatformRestaurantId,
+        OrderToken = x.OrderToken,
+        OrderCode = x.OrderCode,
+        ShortCode = x.ShortCode,
+        Status = x.Status,
+        IsTestOrder = x.IsTestOrder,
+        ProductsCount = x.ProductsCount,
+        CategoriesCount = x.CategoriesCount,
+        OrderCreatedAt = x.OrderCreatedAt,
+        ReceivedAt = x.ReceivedAt,
+        LastAttemptAt = x.LastAttemptUtc,
+        Attempts = x.Attempts,
+        LastError = x.ErrorMessage,
+        CreationTime = x.CreationTime,
+        CustomerId = x.CustomerId,
+        CustomerName = x.CustomerName,
+        CustomerPhone = x.CustomerPhone,
+        CustomerAddress = x.CustomerAddress,
+        PaymentMethod = x.PaymentMethod,
+        ExpeditionType = x.ExpeditionType,
+        Channel = x.Channel,
+        GrandTotal = x.GrandTotal,
+        DiscountTotal = x.DiscountTotal
+    };
 
-        var maxResultCount = input.MaxResultCount <= 0
-            ? 10
-            : Math.Min(input.MaxResultCount, 100);
+    private static byte[] BuildOrdersWorkbook(IReadOnlyList<TalabatOrderLogDto> rows)
+    {
+        var headers = new[]
+        {
+            "Order ID", "Short Code", "Received (UTC)", "Vendor", "Customer ID", "Customer Name",
+            "Customer Phone", "Address", "Channel", "Expedition", "Payment", "Status", "Attempts",
+            "Grand Total", "Discount", "Last Error"
+        };
 
-        var items = await queryable
-            .OrderBy(sorting)
-            .Skip(input.SkipCount)
-            .Take(maxResultCount)
-            .Select(x => new TalabatOrderLogDto
-            {
-                Id = x.Id,
-                FoodicsAccountId = x.FoodicsAccountId,
-                VendorCode = x.VendorCode,
-                PlatformRestaurantId = x.PlatformRestaurantId,
-                OrderToken = x.OrderToken,
-                OrderCode = x.OrderCode,
-                ShortCode = x.ShortCode,
-                Status = x.Status,
-                IsTestOrder = x.IsTestOrder,
-                ProductsCount = x.ProductsCount,
-                CategoriesCount = x.CategoriesCount,
-                OrderCreatedAt = x.OrderCreatedAt,
-                ReceivedAt = x.ReceivedAt,
-                LastAttemptAt = x.LastAttemptUtc,
-                Attempts = x.Attempts,
-                LastError = x.ErrorMessage,
-                CreationTime = x.CreationTime,
-                CustomerId = x.CustomerId,
-                CustomerName = x.CustomerName,
-                CustomerPhone = x.CustomerPhone,
-                CustomerAddress = x.CustomerAddress,
-                PaymentMethod = x.PaymentMethod,
-                ExpeditionType = x.ExpeditionType,
-                Channel = x.Channel,
-                GrandTotal = x.GrandTotal,
-                DiscountTotal = x.DiscountTotal
-            })
-            .ToListAsync();
+        using var workbook = new XLWorkbook();
+        var ws = workbook.Worksheets.Add("Orders");
 
-        return new PagedResultDto<TalabatOrderLogDto>(totalCount, items);
+        for (var c = 0; c < headers.Length; c++)
+            ws.Cell(1, c + 1).Value = headers[c];
+
+        var headerRow = ws.Row(1);
+        headerRow.Style.Font.Bold = true;
+        headerRow.Style.Fill.BackgroundColor = XLColor.FromHtml("#276D64");
+        headerRow.Style.Font.FontColor = XLColor.White;
+
+        var r = 2;
+        foreach (var o in rows)
+        {
+            ws.Cell(r, 1).Value = o.OrderCode ?? string.Empty;
+            ws.Cell(r, 2).Value = o.ShortCode ?? string.Empty;
+            ws.Cell(r, 3).Value = o.ReceivedAt;
+            ws.Cell(r, 3).Style.DateFormat.Format = "yyyy-mm-dd hh:mm";
+            ws.Cell(r, 4).Value = o.VendorCode ?? string.Empty;
+            ws.Cell(r, 5).Value = o.CustomerId ?? string.Empty;
+            ws.Cell(r, 6).Value = o.CustomerName ?? string.Empty;
+            ws.Cell(r, 7).Value = o.CustomerPhone ?? string.Empty;
+            ws.Cell(r, 8).Value = o.CustomerAddress ?? string.Empty;
+            ws.Cell(r, 9).Value = o.Channel ?? string.Empty;
+            ws.Cell(r, 10).Value = o.ExpeditionType ?? string.Empty;
+            ws.Cell(r, 11).Value = o.PaymentMethod ?? string.Empty;
+            ws.Cell(r, 12).Value = o.Status ?? string.Empty;
+            ws.Cell(r, 13).Value = o.Attempts;
+            if (o.GrandTotal.HasValue) ws.Cell(r, 14).Value = o.GrandTotal.Value;
+            if (o.DiscountTotal.HasValue) ws.Cell(r, 15).Value = o.DiscountTotal.Value;
+            ws.Cell(r, 16).Value = o.LastError ?? string.Empty;
+            r++;
+        }
+
+        ws.SheetView.FreezeRows(1);
+        ws.RangeUsed()?.SetAutoFilter();
+        ws.Columns().AdjustToContents();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
     }
 
     public async Task<TalabatOrderDetailsDto> GetDetailsAsync(Guid id)
