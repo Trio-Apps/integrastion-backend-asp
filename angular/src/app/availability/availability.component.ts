@@ -6,6 +6,7 @@ import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AvailabilityService, AvailabilityItemDto } from './availability.service';
 
+
 @Component({
   selector: 'app-availability',
   standalone: true,
@@ -28,8 +29,48 @@ export class AvailabilityComponent implements OnInit {
   readonly rows = 15;
   readonly first = signal(0);
 
+  // "Out for a day" auto-restore schedule (configurable).
+  readonly dayEndTime = signal('05:00');
+  readonly timeZone = signal('Asia/Kuwait');
+  readonly nextRestore = signal<string | null>(null);
+  readonly savingSettings = signal(false);
+
   ngOnInit(): void {
     this.load();
+    this.loadSettings();
+  }
+
+  private loadSettings(): void {
+    this.svc
+      .getSettings()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: s => {
+          this.dayEndTime.set(s.dayEndTime || '05:00');
+          this.timeZone.set(s.timeZone || 'Asia/Kuwait');
+          this.nextRestore.set(s.nextRestoreAtUtc);
+        },
+        error: () => {},
+      });
+  }
+
+  saveSettings(): void {
+    this.savingSettings.set(true);
+    this.svc
+      .updateSettings({ dayEndTime: this.dayEndTime(), timeZone: this.timeZone().trim() })
+      .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.savingSettings.set(false)))
+      .subscribe({
+        next: s => {
+          this.nextRestore.set(s.nextRestoreAtUtc);
+          this.messageService.add({ severity: 'success', summary: 'Restore time saved' });
+        },
+        error: err =>
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Could not save',
+            detail: err?.error?.error?.message || 'Please check the time (HH:mm) and timezone.',
+          }),
+      });
   }
 
   key(item: AvailabilityItemDto): string {

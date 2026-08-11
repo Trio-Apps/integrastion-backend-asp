@@ -15,5 +15,15 @@ public class OrderXChangeSettingDefinitionProvider : SettingDefinitionProvider
         {
             context.Add(new SettingDefinition(OrderXChangeSettings.TalabatActiveDeliveryChargeId));
         }
+
+        if (context.GetOrNull(OrderXChangeSettings.AvailabilityDayEndTime) is null)
+        {
+            context.Add(new SettingDefinition(OrderXChangeSettings.AvailabilityDayEndTime, "05:00"));
+        }
+
+        if (context.GetOrNull(OrderXChangeSettings.AvailabilityTimeZone) is null)
+        {
+            context.Add(new SettingDefinition(OrderXChangeSettings.AvailabilityTimeZone, "Asia/Kuwait"));
+        }
     }
 }

@@ -6,6 +6,27 @@
     </div>
   </div>
 
+  <div class="avail-settings card">
+    <div class="s-text">
+      <strong>“Out for a day” restore time</strong>
+      <span class="muted">Items marked out of stock “for a day” come back at this time — the start of your next business day (e.g. when the shift ends).</span>
+    </div>
+    <div class="s-fields">
+      <label>Day ends at
+        <input type="time" [ngModel]="dayEndTime()" (ngModelChange)="dayEndTime.set($event)" />
+      </label>
+      <label>Timezone
+        <input type="text" [ngModel]="timeZone()" (ngModelChange)="timeZone.set($event)" placeholder="Asia/Kuwait" />
+      </label>
+      <button class="btn primary" [disabled]="savingSettings()" (click)="saveSettings()">
+        {{ savingSettings() ? 'Saving…' : 'Save' }}
+      </button>
+    </div>
+    <div class="s-next muted" *ngIf="nextRestore()">
+      A new “out for a day” toggle now would restore on {{ nextRestore() | date: 'EEE, MMM d, h:mm a' }}.
+    </div>
+  </div>
+
   <div class="avail-bar">
     <div class="search-box">
       <i class="pi pi-search"></i>

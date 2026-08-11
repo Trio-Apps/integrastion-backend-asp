@@ -35,8 +35,30 @@ public class SetAvailabilityInput
     public string? Mode { get; set; }
 }
 
+public class AvailabilitySettingsDto
+{
+    /// <summary>Local time of day ("HH:mm") the business day ends / a new day begins.</summary>
+    public string DayEndTime { get; set; } = "05:00";
+
+    /// <summary>Timezone id used to interpret <see cref="DayEndTime"/>.</summary>
+    public string TimeZone { get; set; } = "Asia/Kuwait";
+
+    /// <summary>
+    /// Preview: the UTC instant an item marked "out for a day" right now would be restored at.
+    /// </summary>
+    public DateTime NextRestoreAtUtc { get; set; }
+}
+
+public class UpdateAvailabilitySettingsInput
+{
+    public string DayEndTime { get; set; } = "05:00";
+    public string TimeZone { get; set; } = "Asia/Kuwait";
+}
+
 public interface IAvailabilityAppService : IApplicationService
 {
     Task<PagedResultDto<AvailabilityItemDto>> GetItemsAsync(GetAvailabilityInput input);
     Task SetAvailabilityAsync(SetAvailabilityInput input);
+    Task<AvailabilitySettingsDto> GetSettingsAsync();
+    Task<AvailabilitySettingsDto> UpdateSettingsAsync(UpdateAvailabilitySettingsInput input);
 }
