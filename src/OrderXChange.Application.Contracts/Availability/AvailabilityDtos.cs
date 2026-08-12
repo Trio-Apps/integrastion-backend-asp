@@ -6,6 +6,16 @@ using Volo.Abp.Application.Services;
 
 namespace OrderXChange.Availability;
 
+public class AvailabilityBranchStateDto
+{
+    public string VendorCode { get; set; } = string.Empty;
+    public string BranchName { get; set; } = string.Empty;
+    public bool IsInStock { get; set; } = true;
+    /// <summary>"ForADay" or "TillFurtherNotice"; null while in stock.</summary>
+    public string? Mode { get; set; }
+    public DateTime? RestoreAtUtc { get; set; }
+}
+
 public class AvailabilityItemDto
 {
     public string FoodicsProductId { get; set; } = string.Empty;
@@ -13,11 +23,12 @@ public class AvailabilityItemDto
     public string? NameLocalized { get; set; }
     public string? Sku { get; set; }
     public string? CategoryName { get; set; }
-    public string VendorCode { get; set; } = string.Empty;
-    public bool IsInStock { get; set; }
-    /// <summary>"ForADay" or "TillFurtherNotice"; null while in stock.</summary>
-    public string? Mode { get; set; }
-    public DateTime? RestoreAtUtc { get; set; }
+
+    /// <summary>Per-branch stock state for this item (branches that carry it).</summary>
+    public List<AvailabilityBranchStateDto> Branches { get; set; } = new();
+
+    public int BranchCount { get; set; }
+    public int OutOfStockCount { get; set; }
 }
 
 public class GetAvailabilityInput : PagedAndSortedResultRequestDto

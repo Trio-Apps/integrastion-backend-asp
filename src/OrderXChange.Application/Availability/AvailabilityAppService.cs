@@ -58,19 +58,17 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
 
     public async Task<PagedResultDto<AvailabilityItemDto>> GetItemsAsync(GetAvailabilityInput input)
     {
-        // Vendors (branches) come from TalabatAccount, not from staging.
+        // Vendors (branches) come from TalabatAccount. Show every product across all the
+        // caller's accessible branches, each item carrying its per-branch stock state.
         var vendors = await ResolveVendorsAsync();
         if (vendors.Count == 0)
             return new PagedResultDto<AvailabilityItemDto>(0, new List<AvailabilityItemDto>());
 
-        var vendor = !string.IsNullOrWhiteSpace(input.VendorCode)
-            ? vendors.FirstOrDefault(v => v.Code == input.VendorCode!.Trim())
-            : vendors[0];
-        if (vendor.Code == null)
-            return new PagedResultDto<AvailabilityItemDto>(0, new List<AvailabilityItemDto>());
+        var accountIds = vendors.Select(v => v.AccountId).Distinct().ToList();
+        var vendorCodes = vendors.Select(v => v.Code).ToList();
 
         var query = (await _stagingRepo.GetQueryableAsync()).AsNoTracking()
-            .Where(x => !x.IsDeleted && x.FoodicsAccountId == vendor.AccountId);
+            .Where(x => !x.IsDeleted && accountIds.Contains(x.FoodicsAccountId));
 
         if (!string.IsNullOrWhiteSpace(input.Search))
         {
@@ -83,19 +81,35 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
             .OrderBy(x => x.Name)
             .Skip(input.SkipCount)
             .Take(input.MaxResultCount)
-            .Select(x => new { x.FoodicsProductId, x.Name, x.NameLocalized, x.Sku, x.CategoryName })
+            .Select(x => new { x.FoodicsProductId, x.FoodicsAccountId, x.Name, x.NameLocalized, x.Sku, x.CategoryName })
             .ToListAsync();
 
         var productIds = rows.Select(r => r.FoodicsProductId).ToList();
         var stateQuery = await _availabilityRepo.GetQueryableAsync();
-        var states = await stateQuery
-            .Where(a => a.VendorCode == vendor.Code && productIds.Contains(a.FoodicsProductId))
-            .Select(a => new { a.FoodicsProductId, a.IsInStock, a.Mode, a.RestoreAtUtc })
+        var outStates = await stateQuery
+            .Where(a => !a.IsInStock && vendorCodes.Contains(a.VendorCode) && productIds.Contains(a.FoodicsProductId))
+            .Select(a => new { a.FoodicsProductId, a.VendorCode, a.Mode, a.RestoreAtUtc })
             .ToListAsync();
 
         var items = rows.Select(r =>
         {
-            var st = states.FirstOrDefault(s => s.FoodicsProductId == r.FoodicsProductId);
+            var branches = vendors
+                .Where(v => v.AccountId == r.FoodicsAccountId)
+                .Select(v =>
+                {
+                    var st = outStates.FirstOrDefault(s => s.FoodicsProductId == r.FoodicsProductId && s.VendorCode == v.Code);
+                    return new AvailabilityBranchStateDto
+                    {
+                        VendorCode = v.Code,
+                        BranchName = v.DisplayName,
+                        IsInStock = st == null,
+                        Mode = st?.Mode,
+                        RestoreAtUtc = st?.RestoreAtUtc,
+                    };
+                })
+                .OrderBy(b => b.BranchName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
             return new AvailabilityItemDto
             {
                 FoodicsProductId = r.FoodicsProductId,
@@ -103,10 +117,9 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
                 NameLocalized = r.NameLocalized,
                 Sku = r.Sku,
                 CategoryName = r.CategoryName,
-                VendorCode = vendor.Code,
-                IsInStock = st?.IsInStock ?? true,
-                Mode = st?.Mode,
-                RestoreAtUtc = st?.RestoreAtUtc,
+                Branches = branches,
+                BranchCount = branches.Count,
+                OutOfStockCount = branches.Count(b => !b.IsInStock),
             };
         }).ToList();
 
@@ -173,25 +186,34 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
         // NOTE: pushing the state to Talabat's availability API is a follow-up (§5).
     }
 
-    private async Task<List<(string Code, Guid AccountId)>> ResolveVendorsAsync()
+    private async Task<List<VendorInfo>> ResolveVendorsAsync()
     {
         var scope = await _branchProvider.GetScopeAsync();
         var query = (await _talabatAccountRepo.GetQueryableAsync()).Where(a => a.IsActive);
         if (!scope.AllBranches)
         {
             if (scope.BranchIds.Count == 0)
-                return new List<(string, Guid)>();
+                return new List<VendorInfo>();
             query = query.Where(a => a.FoodicsBranchId != null && scope.BranchIds.Contains(a.FoodicsBranchId));
         }
 
         var list = await query
             .Where(a => a.FoodicsAccountId != null)
-            .Select(a => new { a.VendorCode, a.FoodicsAccountId })
+            .Select(a => new { a.VendorCode, a.FoodicsAccountId, a.FoodicsBranchName, a.Name })
             .Distinct()
             .ToListAsync();
 
-        return list.Select(x => (x.VendorCode, x.FoodicsAccountId!.Value)).ToList();
+        return list
+            .Select(x => new VendorInfo(
+                x.VendorCode,
+                x.FoodicsAccountId!.Value,
+                !string.IsNullOrWhiteSpace(x.FoodicsBranchName)
+                    ? x.FoodicsBranchName!
+                    : (!string.IsNullOrWhiteSpace(x.Name) ? x.Name : x.VendorCode)))
+            .ToList();
     }
+
+    private sealed record VendorInfo(string Code, Guid AccountId, string DisplayName);
 
     public async Task<AvailabilitySettingsDto> GetSettingsAsync()
     {

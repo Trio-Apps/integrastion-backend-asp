@@ -2,16 +2,23 @@ import { Injectable } from '@angular/core';
 import { RestService } from '@abp/ng.core';
 import type { PagedResultDto } from '@abp/ng.core';
 
+export interface AvailabilityBranchStateDto {
+  vendorCode: string;
+  branchName: string;
+  isInStock: boolean;
+  mode?: string;
+  restoreAtUtc?: string;
+}
+
 export interface AvailabilityItemDto {
   foodicsProductId: string;
   name: string;
   nameLocalized?: string;
   sku?: string;
   categoryName?: string;
-  vendorCode: string;
-  isInStock: boolean;
-  mode?: string;
-  restoreAtUtc?: string;
+  branches: AvailabilityBranchStateDto[];
+  branchCount: number;
+  outOfStockCount: number;
 }
 
 export interface GetAvailabilityInput {

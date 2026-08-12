@@ -39,7 +39,7 @@
   <div class="card table-wrap">
     <table>
       <thead>
-        <tr><th>Item</th><th>Category</th><th>SKU</th><th>Vendor</th><th>Status</th><th class="actions-col">Actions</th></tr>
+        <tr><th>Item</th><th>Category</th><th>SKU</th><th>Branches</th><th>Status</th><th class="actions-col">Actions</th></tr>
       </thead>
       <tbody>
         @if (loading()) {
@@ -48,27 +48,27 @@
           <tr><td colspan="6" class="center muted">No items found.</td></tr>
         } @else {
           @for (it of items(); track key(it)) {
-            <tr [class.oos]="!it.isInStock">
+            <tr [class.oos]="it.outOfStockCount > 0">
               <td class="strong">{{ it.name }}</td>
               <td class="muted">{{ it.categoryName || '—' }}</td>
               <td class="muted mono">{{ it.sku || '—' }}</td>
-              <td class="muted">{{ it.vendorCode }}</td>
+              <td class="muted">{{ it.branchCount }}</td>
               <td>
-                @if (it.isInStock) {
+                @if (it.outOfStockCount === 0) {
                   <span class="badge ok">In stock</span>
                 } @else {
-                  <span class="badge fail">Out of stock</span>
-                  <span class="mode" *ngIf="it.mode">{{ it.mode === 'ForADay' ? 'for a day' : 'till further notice' }}</span>
+                  <span class="badge fail">{{ statusLabel(it) }}</span>
+                  <span class="mode" [title]="outBranchNames(it)">{{ outBranchNames(it) }}</span>
                 }
               </td>
               <td class="actions-col">
                 @if (saving() === key(it)) {
                   <i class="pi pi-spinner spin"></i>
-                } @else if (it.isInStock) {
-                  <button class="mini" (click)="set(it, false, 'ForADay')">Out · today</button>
-                  <button class="mini" (click)="set(it, false, 'TillFurtherNotice')">Out · till notice</button>
                 } @else {
-                  <button class="mini restore" (click)="set(it, true)">Mark in stock</button>
+                  <button class="mini" (click)="openOutDialog(it)">Mark out of stock</button>
+                  @if (it.outOfStockCount > 0) {
+                    <button class="mini restore" (click)="markInStock(it)">Mark in stock</button>
+                  }
                 }
               </td>
             </tr>
@@ -83,4 +83,52 @@
     <span class="muted">{{ first() + 1 }}–{{ (first() + rows) < total() ? (first() + rows) : total() }} of {{ total() | number }}</span>
     <button class="btn" [disabled]="first() + rows >= total()" (click)="page(1)">Next ›</button>
   </div>
+
+  @if (dialogItem(); as di) {
+    <div class="modal-overlay" (click)="closeDialog()">
+      <div class="modal-card" (click)="$event.stopPropagation()">
+        <div class="modal-head">
+          <strong>Mark out of stock</strong>
+          <button class="x" (click)="closeDialog()">×</button>
+        </div>
+        <div class="modal-item">{{ di.name }}</div>
+
+        <div class="modal-section">
+          <div class="modal-label">Duration</div>
+          <label class="radio">
+            <input type="radio" name="oosmode" [checked]="dialogMode() === 'ForADay'" (change)="dialogMode.set('ForADay')" />
+            For a day <span class="muted">(auto-restored next business day)</span>
+          </label>
+          <label class="radio">
+            <input type="radio" name="oosmode" [checked]="dialogMode() === 'TillFurtherNotice'" (change)="dialogMode.set('TillFurtherNotice')" />
+            Till further notice
+          </label>
+        </div>
+
+        <div class="modal-section">
+          <div class="modal-label row">
+            <span>Branches</span>
+            <button class="link" (click)="toggleAllBranches()">{{ allBranchesSelected() ? 'Clear all' : 'Select all' }}</button>
+          </div>
+          <div class="branch-list">
+            @for (b of di.branches; track b.vendorCode) {
+              <label class="check" [class.on]="isBranchSelected(b.vendorCode)">
+                <input type="checkbox" [checked]="isBranchSelected(b.vendorCode)" (change)="toggleBranch(b.vendorCode)" />
+                <span class="b-name">{{ b.branchName }}</span>
+                <span class="b-code muted">{{ b.vendorCode }}</span>
+                @if (!b.isInStock) { <span class="b-state">already out</span> }
+              </label>
+            }
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn" (click)="closeDialog()">Cancel</button>
+          <button class="btn primary" [disabled]="dialogSaving() || selectedBranches().size === 0" (click)="confirmOut()">
+            {{ dialogSaving() ? 'Applying…' : 'Mark out of stock' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
 </div>

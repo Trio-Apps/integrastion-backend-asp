@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MessageService } from 'primeng/api';
 import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { AvailabilityService, AvailabilityItemDto } from './availability.service';
+import { AvailabilityService, AvailabilityItemDto, AvailabilityBranchStateDto } from './availability.service';
 
 
 @Component({
@@ -28,6 +28,12 @@ export class AvailabilityComponent implements OnInit {
   readonly search = signal('');
   readonly rows = 15;
   readonly first = signal(0);
+
+  // Out-of-stock dialog state.
+  readonly dialogItem = signal<AvailabilityItemDto | null>(null);
+  readonly dialogMode = signal<string>('ForADay');
+  readonly selectedBranches = signal<Set<string>>(new Set());
+  readonly dialogSaving = signal(false);
 
   // "Out for a day" auto-restore schedule (configurable).
   readonly dayEndTime = signal('05:00');
@@ -74,7 +80,17 @@ export class AvailabilityComponent implements OnInit {
   }
 
   key(item: AvailabilityItemDto): string {
-    return item.foodicsProductId + '|' + item.vendorCode;
+    return item.foodicsProductId;
+  }
+
+  statusLabel(item: AvailabilityItemDto): string {
+    if (item.outOfStockCount === 0) return 'In stock';
+    if (item.branchCount <= 1) return 'Out of stock';
+    return `Out · ${item.outOfStockCount}/${item.branchCount} branches`;
+  }
+
+  outBranchNames(item: AvailabilityItemDto): string {
+    return item.branches.filter(b => !b.isInStock).map(b => b.branchName).join(', ');
   }
 
   load(): void {
@@ -103,17 +119,83 @@ export class AvailabilityComponent implements OnInit {
     this.load();
   }
 
-  set(item: AvailabilityItemDto, inStock: boolean, mode?: string): void {
+  // ---------- out-of-stock dialog ----------
+  openOutDialog(item: AvailabilityItemDto): void {
+    this.dialogMode.set('ForADay');
+    // Default: all branches selected ("normally applies to all branches").
+    this.selectedBranches.set(new Set(item.branches.map(b => b.vendorCode)));
+    this.dialogItem.set(item);
+  }
+
+  closeDialog(): void {
+    this.dialogItem.set(null);
+  }
+
+  isBranchSelected(vendorCode: string): boolean {
+    return this.selectedBranches().has(vendorCode);
+  }
+
+  toggleBranch(vendorCode: string): void {
+    const next = new Set(this.selectedBranches());
+    if (next.has(vendorCode)) {
+      next.delete(vendorCode);
+    } else {
+      next.add(vendorCode);
+    }
+    this.selectedBranches.set(next);
+  }
+
+  allBranchesSelected(): boolean {
+    const item = this.dialogItem();
+    return !!item && item.branches.length > 0 && this.selectedBranches().size === item.branches.length;
+  }
+
+  toggleAllBranches(): void {
+    const item = this.dialogItem();
+    if (!item) return;
+    this.selectedBranches.set(
+      this.allBranchesSelected() ? new Set() : new Set(item.branches.map(b => b.vendorCode)),
+    );
+  }
+
+  confirmOut(): void {
+    const item = this.dialogItem();
+    if (!item) return;
+    const vendorCodes = [...this.selectedBranches()];
+    if (vendorCodes.length === 0) {
+      this.messageService.add({ severity: 'warn', summary: 'Pick at least one branch' });
+      return;
+    }
+    this.dialogSaving.set(true);
+    this.svc
+      .setAvailability({ foodicsProductIds: [item.foodicsProductId], vendorCodes, inStock: false, mode: this.dialogMode() })
+      .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.dialogSaving.set(false)))
+      .subscribe({
+        next: () => {
+          this.messageService.add({
+            severity: 'success',
+            summary: 'Marked out of stock',
+            detail: `${vendorCodes.length} branch(es)`,
+          });
+          this.closeDialog();
+          this.load();
+        },
+        error: () => this.messageService.add({ severity: 'error', summary: 'Update failed' }),
+      });
+  }
+
+  // ---------- restore ----------
+  markInStock(item: AvailabilityItemDto): void {
+    const vendorCodes = item.branches.filter(b => !b.isInStock).map(b => b.vendorCode);
+    if (vendorCodes.length === 0) return;
     this.saving.set(this.key(item));
     this.svc
-      .setAvailability({ foodicsProductIds: [item.foodicsProductId], vendorCodes: [item.vendorCode], inStock, mode })
+      .setAvailability({ foodicsProductIds: [item.foodicsProductId], vendorCodes, inStock: true })
       .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.saving.set(null)))
       .subscribe({
         next: () => {
-          item.isInStock = inStock;
-          item.mode = inStock ? undefined : mode;
-          this.items.set([...this.items()]);
-          this.messageService.add({ severity: 'success', summary: inStock ? 'Marked in stock' : 'Marked out of stock' });
+          this.messageService.add({ severity: 'success', summary: 'Marked in stock' });
+          this.load();
         },
         error: () => this.messageService.add({ severity: 'error', summary: 'Update failed' }),
       });
