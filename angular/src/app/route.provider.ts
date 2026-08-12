@@ -96,8 +96,12 @@ function configureRoutes() {
       iconClass: 'pi pi-shopping-bag', order: 2, layout: app, requiredPolicy: TENANT,
     },
     {
+      path: '/identity/users', name: 'Users', parentName: 'Accounts & Access',
+      iconClass: 'pi pi-user', order: 3, layout: app, requiredPolicy: 'AbpIdentity.Users',
+    },
+    {
       path: '/identity/roles', name: 'Branch Access', parentName: 'Accounts & Access',
-      iconClass: 'pi pi-sitemap', order: 3, layout: app, requiredPolicy: 'OrderXChange.Branches.Manage',
+      iconClass: 'pi pi-sitemap', order: 4, layout: app, requiredPolicy: 'OrderXChange.Branches.Manage',
     },
   ]);
 }
