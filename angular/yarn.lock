@@ -32,6 +32,16 @@
     "@abp/ng.theme.shared" "~9.3.7"
     tslib "^2.0.0"
 
+"@abp/ng.identity@~9.3.6":
+  version "9.3.7"
+  resolved "https://registry.yarnpkg.com/@abp/ng.identity/-/ng.identity-9.3.7.tgz#a7a6e9cd752d54a84e7e4a48f8f45f6221cf6900"
+  integrity sha512-F00lD9TzZpeCzP64/Bd5rw6Bb9RhXcM6IY7U51N67P1h32ctWUjT6W4tRC+X1sWA1EgjjhS1P/Lx27olze2WgA==
+  dependencies:
+    "@abp/ng.components" "~9.3.7"
+    "@abp/ng.permission-management" "~9.3.7"
+    "@abp/ng.theme.shared" "~9.3.7"
+    tslib "^2.0.0"
+
 "@abp/ng.oauth@~9.3.6":
   version "9.3.7"
   resolved "https://registry.yarnpkg.com/@abp/ng.oauth/-/ng.oauth-9.3.7.tgz#4904a5654f61987f70fa933ec32c91881c55e3fe"

@@ -137,7 +137,7 @@ export const APP_ROUTES: Routes = [
   },
   {
     path: 'identity',
-    loadChildren: () => import('@volo/abp.ng.identity').then(c => c.createRoutes()),
+    loadChildren: () => import('@abp/ng.identity').then(c => c.createRoutes()),
   },
   {
     path: 'language-management',

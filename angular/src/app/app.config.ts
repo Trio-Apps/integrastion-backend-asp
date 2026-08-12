@@ -3,7 +3,7 @@ import { provideAbpOAuth } from '@abp/ng.oauth';
 import { provideSettingManagementConfig } from '@abp/ng.setting-management/config';
 import { provideFeatureManagementConfig } from '@abp/ng.feature-management';
 import { CUSTOM_ERROR_HANDLERS, provideAbpThemeShared,withValidationBluePrint,} from '@abp/ng.theme.shared';
-import { provideIdentityConfig } from '@volo/abp.ng.identity/config';
+import { provideIdentityConfig } from '@abp/ng.identity/config';
 import { provideCommercialUiConfig } from '@volo/abp.commercial.ng.ui/config';
 import { provideAccountAdminConfig } from '@volo/abp.ng.account/admin/config';
 import { provideAccountPublicConfig } from '@volo/abp.ng.account/public/config';

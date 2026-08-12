@@ -1,8 +1,8 @@
 import { provideAppInitializer } from '@angular/core';
 import { DialogService } from 'primeng/dynamicdialog';
 import { EntityAction } from '@abp/ng.components/extensible';
-import { IDENTITY_ENTITY_ACTION_CONTRIBUTORS } from '@volo/abp.ng.identity';
-import { IdentityRoleDto } from '@volo/abp.ng.identity/proxy';
+import { IDENTITY_ENTITY_ACTION_CONTRIBUTORS } from '@abp/ng.identity';
+import { IdentityRoleDto } from '@abp/ng.identity/proxy';
 import { RoleBranchModalComponent } from '../identity/role-branch-modal/role-branch-modal.component';
 
 function branchesActionContributor(actionList: any) {
