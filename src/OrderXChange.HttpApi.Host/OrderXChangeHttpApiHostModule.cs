@@ -478,5 +478,12 @@ public class OrderXChangeHttpApiHostModule : AbpModule
             Cron.Hourly());
 
         logger.LogInformation("Recurring job AvailabilityAutoRestore scheduled hourly.");
+
+        recurringJobManager.AddOrUpdate<OrderXChange.Reports.FailedOrdersDailyReportJob>(
+            "FailedOrdersDailyReport",
+            job => job.RunAsync(),
+            "*/15 * * * *");
+
+        logger.LogInformation("Recurring job FailedOrdersDailyReport scheduled every 15 minutes.");
     }
 }

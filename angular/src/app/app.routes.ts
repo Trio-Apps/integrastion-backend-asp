@@ -74,6 +74,15 @@ export const APP_ROUTES: Routes = [
     },
   },
   {
+    path: 'failed-orders-report',
+    loadComponent: () =>
+      import('./failed-orders-report/failed-orders-report.component').then(c => c.FailedOrdersReportComponent),
+    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    data: {
+      requiredPolicy: 'OrderXChange.Orders',
+    },
+  },
+  {
     path: 'talabat-payment-methods',
     loadComponent: () => import('./talabat-payment-methods/talabat-payment-methods.component').then(c => c.TalabatPaymentMethodsComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],

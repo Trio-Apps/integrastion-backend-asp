@@ -25,5 +25,20 @@ public class OrderXChangeSettingDefinitionProvider : SettingDefinitionProvider
         {
             context.Add(new SettingDefinition(OrderXChangeSettings.AvailabilityTimeZone, "Asia/Kuwait"));
         }
+
+        if (context.GetOrNull(OrderXChangeSettings.FailedOrdersReportEmail) is null)
+        {
+            context.Add(new SettingDefinition(OrderXChangeSettings.FailedOrdersReportEmail));
+        }
+
+        if (context.GetOrNull(OrderXChangeSettings.FailedOrdersReportTime) is null)
+        {
+            context.Add(new SettingDefinition(OrderXChangeSettings.FailedOrdersReportTime, "23:30"));
+        }
+
+        if (context.GetOrNull(OrderXChangeSettings.FailedOrdersReportLastSentDate) is null)
+        {
+            context.Add(new SettingDefinition(OrderXChangeSettings.FailedOrdersReportLastSentDate));
+        }
     }
 }

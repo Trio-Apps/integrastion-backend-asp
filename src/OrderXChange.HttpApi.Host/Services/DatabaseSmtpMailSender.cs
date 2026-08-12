@@ -8,10 +8,11 @@ using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.TenantManagement.Smtp;
+using OrderXChange.Emailing;
 
 namespace OrderXChange.HttpApi.Host.Services;
 
-public class DatabaseSmtpMailSender : ITransientDependency
+public class DatabaseSmtpMailSender : ISmtpMailSender, ITransientDependency
 {
     private readonly IRepository<SmtpConfig, Guid> _smtpConfigRepository;
     private readonly IDataFilter _dataFilter;

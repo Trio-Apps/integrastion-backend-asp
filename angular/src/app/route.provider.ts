@@ -84,6 +84,10 @@ function configureRoutes() {
       path: '/talabat-customer-mapping', name: 'Customer Mapping', parentName: 'Orders',
       iconClass: 'pi pi-users', order: 2, layout: app, requiredPolicy: TENANT,
     },
+    {
+      path: '/failed-orders-report', name: 'Daily Report', parentName: 'Orders',
+      iconClass: 'pi pi-envelope', order: 3, layout: app, requiredPolicy: 'OrderXChange.Orders',
+    },
 
     // ══════════ Accounts & Access (setup) ══════════
     { name: 'Accounts & Access', iconClass: PrimeIcons.COG, order: 40, layout: app, requiredPolicy: TENANT },
