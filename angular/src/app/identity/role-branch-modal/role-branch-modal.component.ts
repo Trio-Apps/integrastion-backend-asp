@@ -5,7 +5,6 @@ import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
 import { ButtonModule } from 'primeng/button';
-import { CheckboxModule } from 'primeng/checkbox';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
@@ -29,12 +28,12 @@ interface AccountGroup {
     CommonModule,
     FormsModule,
     ButtonModule,
-    CheckboxModule,
     ProgressSpinnerModule,
     ToastModule,
   ],
   providers: [MessageService],
   templateUrl: './role-branch-modal.component.html',
+  styleUrls: ['./role-branch-modal.component.scss'],
 })
 export class RoleBranchModalComponent implements OnInit {
   private roleBranchService = inject(RoleBranchService);
@@ -51,6 +50,48 @@ export class RoleBranchModalComponent implements OnInit {
 
   accountGroups: AccountGroup[] = [];
   selected = new Set<string>(); // key: `${accountId}::${branchId}`
+  filter = '';
+
+  /** Groups narrowed by the search box; groups with no match drop out entirely. */
+  get visibleGroups(): AccountGroup[] {
+    const term = this.filter.trim().toLowerCase();
+    if (!term) return this.accountGroups;
+
+    return this.accountGroups
+      .map(g => ({
+        ...g,
+        branches: g.branches.filter(b =>
+          `${b.name ?? ''} ${b.name_localized ?? ''}`.toLowerCase().includes(term),
+        ),
+      }))
+      .filter(g => g.branches.length > 0);
+  }
+
+  get totalBranches(): number {
+    return this.accountGroups.reduce((sum, g) => sum + g.branches.length, 0);
+  }
+
+  get selectedCount(): number {
+    return this.selected.size;
+  }
+
+  allSelectedIn(group: AccountGroup): boolean {
+    return group.branches.length > 0
+      && group.branches.every(b => this.isSelected(group.accountId, b.id!));
+  }
+
+  /** Select-all / clear-all for the branches currently listed under this group. */
+  toggleGroup(group: AccountGroup): void {
+    const selectAll = !this.allSelectedIn(group);
+    for (const b of group.branches) {
+      const k = this.key(group.accountId, b.id!);
+      if (selectAll) {
+        this.selected.add(k);
+      } else {
+        this.selected.delete(k);
+      }
+    }
+  }
 
   ngOnInit(): void {
     this.roleId = this.dialogConfig.data?.roleId ?? '';
@@ -119,7 +160,7 @@ export class RoleBranchModalComponent implements OnInit {
     return this.selected.has(this.key(accountId, branchId));
   }
 
-  toggle(accountId: string, branchId: string, branchName: string | undefined, checked: boolean): void {
+  toggle(accountId: string, branchId: string, checked: boolean): void {
     const k = this.key(accountId, branchId);
     if (checked) {
       this.selected.add(k);

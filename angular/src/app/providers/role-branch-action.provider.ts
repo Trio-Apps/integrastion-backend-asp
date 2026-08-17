@@ -15,7 +15,7 @@ function branchesActionContributor(actionList: any) {
         const role = data.record;
         dialogService.open(RoleBranchModalComponent, {
           header: `Branch Access — ${role?.name ?? 'Role'}`,
-          width: '480px',
+          width: '540px',
           data: {
             roleId: role?.id,
             roleName: role?.name,

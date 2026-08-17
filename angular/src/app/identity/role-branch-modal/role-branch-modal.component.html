@@ -1,47 +1,76 @@
 <p-toast></p-toast>
 
-<div class="role-branch-modal">
+<div class="rb-modal">
   @if (loading) {
-    <div class="flex justify-center align-center p-4">
-      <p-progressSpinner styleClass="w-8 h-8" strokeWidth="4"></p-progressSpinner>
+    <div class="rb-empty">
+      <p-progressSpinner styleClass="w-3rem h-3rem" strokeWidth="4"></p-progressSpinner>
     </div>
   }
 
-  @if (!loading && accountGroups.length === 0) {
-    <div class="p-4 text-center text-color-secondary">
-      <i class="pi pi-info-circle mb-2" style="font-size: 1.5rem;"></i>
-      <p>No Foodics branches are available. Connect a Foodics account first.</p>
-    </div>
-  }
-
-  @for (group of accountGroups; track group.accountId) {
-    <div class="mb-4">
-      <div class="font-semibold text-sm text-color-secondary mb-2 flex align-items-center gap-2">
+  @if (!loading) {
+    @if (accountGroups.length === 0) {
+      <div class="rb-empty">
         <i class="pi pi-building"></i>
-        {{ group.accountName }}
+        <span>No Foodics branches are available.<br />Connect a Foodics account first.</span>
       </div>
-      <div class="flex flex-column gap-2 pl-3">
-        @for (branch of group.branches; track branch.id) {
-          <div class="flex align-items-center gap-2">
-            <p-checkbox
-              [binary]="true"
-              [ngModel]="isSelected(group.accountId, branch.id!)"
-              (ngModelChange)="toggle(group.accountId, branch.id!, branch.name, $event)"
-              [inputId]="'branch-' + group.accountId + '-' + branch.id">
-            </p-checkbox>
-            <label [for]="'branch-' + group.accountId + '-' + branch.id" class="cursor-pointer">
-              {{ branch.name || branch.id }}
-              @if (branch.name_localized && branch.name_localized !== branch.name) {
-                <span class="text-color-secondary text-sm ml-1">({{ branch.name_localized }})</span>
+    } @else {
+      <div class="rb-hint">
+        <i class="pi pi-info-circle"></i>
+        <span>
+          Users with the <strong>{{ roleName }}</strong> role will only see orders and items
+          for the branches you tick here.
+        </span>
+      </div>
+
+      <div class="rb-bar">
+        @if (totalBranches > 6) {
+          <div class="search-box">
+            <i class="pi pi-search"></i>
+            <input type="text" placeholder="Search branches…" [(ngModel)]="filter" />
+          </div>
+        }
+        <span class="count-pill">{{ selectedCount }} of {{ totalBranches }} selected</span>
+      </div>
+
+      <div class="rb-groups">
+        @for (group of visibleGroups; track group.accountId) {
+          <div>
+            <div class="rb-group-head">
+              <i class="pi pi-building"></i>
+              <span>{{ group.accountName }}</span>
+              <button type="button" class="link" (click)="toggleGroup(group)">
+                {{ allSelectedIn(group) ? 'Clear all' : 'Select all' }}
+              </button>
+            </div>
+
+            <div class="branch-list">
+              @for (branch of group.branches; track branch.id) {
+                <label class="check" [class.on]="isSelected(group.accountId, branch.id!)">
+                  <input
+                    type="checkbox"
+                    [checked]="isSelected(group.accountId, branch.id!)"
+                    (change)="toggle(group.accountId, branch.id!, $any($event.target).checked)" />
+                  <span class="b-name">{{ branch.name || branch.id }}</span>
+                  @if (branch.name_localized && branch.name_localized !== branch.name) {
+                    <span class="b-alt">{{ branch.name_localized }}</span>
+                  }
+                </label>
               }
-            </label>
+            </div>
+          </div>
+        }
+
+        @if (visibleGroups.length === 0) {
+          <div class="rb-empty">
+            <i class="pi pi-search"></i>
+            <span>No branches match “{{ filter }}”.</span>
           </div>
         }
       </div>
-    </div>
+    }
   }
 
-  <div class="flex justify-content-end gap-2 pt-3 border-top-1 surface-border mt-3">
+  <div class="rb-actions">
     <p-button
       label="Cancel"
       severity="secondary"
@@ -54,7 +83,7 @@
       icon="pi pi-check"
       (onClick)="save()"
       [loading]="saving"
-      [disabled]="loading">
+      [disabled]="loading || accountGroups.length === 0">
     </p-button>
   </div>
 </div>
