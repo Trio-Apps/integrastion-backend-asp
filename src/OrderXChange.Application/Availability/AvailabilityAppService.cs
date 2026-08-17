@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using OrderXChange.Authorization;
 using OrderXChange.Domain.Staging;
 using OrderXChange.Permissions;
@@ -32,6 +33,7 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
     private readonly IDataFilter _dataFilter;
     private readonly ISettingProvider _settingProvider;
     private readonly ISettingManager _settingManager;
+    private readonly TalabatAvailabilityPushService _talabatPush;
 
     private const string DefaultDayEndTime = "05:00";
     private const string DefaultTimeZone = "Asia/Kuwait";
@@ -44,7 +46,8 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
         IClock clock,
         IDataFilter dataFilter,
         ISettingProvider settingProvider,
-        ISettingManager settingManager)
+        ISettingManager settingManager,
+        TalabatAvailabilityPushService talabatPush)
     {
         _stagingRepo = stagingRepo;
         _availabilityRepo = availabilityRepo;
@@ -54,6 +57,7 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
         _dataFilter = dataFilter;
         _settingProvider = settingProvider;
         _settingManager = settingManager;
+        _talabatPush = talabatPush;
     }
 
     public async Task<PagedResultDto<AvailabilityItemDto>> GetItemsAsync(GetAvailabilityInput input)
@@ -183,7 +187,28 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
             }
         }
 
-        // NOTE: pushing the state to Talabat's availability API is a follow-up (§5).
+        // §5: push the change to Talabat so the item actually goes (un)available there.
+        // Best-effort — a push failure must not fail the local toggle. For "for a day" we also
+        // send availableAt so Talabat can auto-restore; a manual "mark in stock" pushes available=true.
+        foreach (var vendor in targets)
+        {
+            try
+            {
+                await _talabatPush.PushAsync(
+                    vendor.AccountId,
+                    vendor.BranchId,
+                    vendor.Code,
+                    vendor.ChainCode,
+                    vendor.PosVendorId,
+                    input.FoodicsProductIds,
+                    input.InStock,
+                    input.InStock ? null : restoreAt);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Talabat availability push failed for vendor {VendorCode}.", vendor.Code);
+            }
+        }
     }
 
     private async Task<List<VendorInfo>> ResolveVendorsAsync()
@@ -199,7 +224,16 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
 
         var list = await query
             .Where(a => a.FoodicsAccountId != null)
-            .Select(a => new { a.VendorCode, a.FoodicsAccountId, a.FoodicsBranchName, a.Name })
+            .Select(a => new
+            {
+                a.VendorCode,
+                a.FoodicsAccountId,
+                a.FoodicsBranchName,
+                a.Name,
+                a.ChainCode,
+                a.PlatformRestaurantId,
+                a.FoodicsBranchId
+            })
             .Distinct()
             .ToListAsync();
 
@@ -209,11 +243,16 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
                 x.FoodicsAccountId!.Value,
                 !string.IsNullOrWhiteSpace(x.FoodicsBranchName)
                     ? x.FoodicsBranchName!
-                    : (!string.IsNullOrWhiteSpace(x.Name) ? x.Name : x.VendorCode)))
+                    : (!string.IsNullOrWhiteSpace(x.Name) ? x.Name : x.VendorCode),
+                x.ChainCode,
+                x.PlatformRestaurantId,
+                x.FoodicsBranchId))
             .ToList();
     }
 
-    private sealed record VendorInfo(string Code, Guid AccountId, string DisplayName);
+    private sealed record VendorInfo(
+        string Code, Guid AccountId, string DisplayName,
+        string? ChainCode, string? PosVendorId, string? BranchId);
 
     public async Task<AvailabilitySettingsDto> GetSettingsAsync()
     {
