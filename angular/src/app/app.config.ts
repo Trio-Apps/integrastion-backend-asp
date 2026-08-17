@@ -32,7 +32,6 @@ import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { MyCustomErrorHandlerService } from './MyCustomErrorHandlerService.service';
 import { TenantTokenInterceptor } from './interceptors/tenant-token.interceptor';
-import { IDENTITY_UI_PROVIDERS } from './providers/role-branch-action.provider';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -70,7 +69,9 @@ export const appConfig: ApplicationConfig = {
     providePrimeNG({ theme: { preset: BoonItPreset, options: { darkModeSelector: '.app-dark' } } }),
     MessageService, // PrimeNG MessageService for toast notifications
     DialogService,  // PrimeNG DialogService for programmatic dynamic dialogs
-    IDENTITY_UI_PROVIDERS,
+    // Identity UI contributors (Branches action, Reset-login-attempts, hidden lockout/role flags)
+    // are wired via createRoutes(...) options in app.routes.ts — NOT here. Providing them at the
+    // app root gets shadowed by the identity lazy-route injector, so they must go through the route.
     provideLanguageManagementConfig(),
     provideAuditLoggingConfig(),
     provideOpeniddictproConfig(),

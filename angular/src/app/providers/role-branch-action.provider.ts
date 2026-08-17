@@ -2,11 +2,6 @@ import { RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { DialogService } from 'primeng/dynamicdialog';
 import { EntityAction } from '@abp/ng.components/extensible';
-import {
-  IDENTITY_ENTITY_ACTION_CONTRIBUTORS,
-  IDENTITY_CREATE_FORM_PROP_CONTRIBUTORS,
-  IDENTITY_EDIT_FORM_PROP_CONTRIBUTORS,
-} from '@abp/ng.identity';
 import { IdentityRoleDto, IdentityUserDto } from '@abp/ng.identity/proxy';
 import { RoleBranchModalComponent } from '../identity/role-branch-modal/role-branch-modal.component';
 
@@ -80,26 +75,21 @@ function hideRoleFlagsFormProp(propList: any) {
   propList.dropByValue('isPublic', (prop: any) => prop.name);
 }
 
-export const IDENTITY_UI_PROVIDERS = [
-  {
-    provide: IDENTITY_ENTITY_ACTION_CONTRIBUTORS,
-    useValue: {
-      'Identity.RolesComponent': [branchesActionContributor],
-      'Identity.UsersComponent': [removeUserPermissionsAction, resetLoginAttemptsContributor],
-    },
-  },
-  {
-    provide: IDENTITY_CREATE_FORM_PROP_CONTRIBUTORS,
-    useValue: {
-      'Identity.UsersComponent': [hideLockoutFormProp],
-      'Identity.RolesComponent': [hideRoleFlagsFormProp],
-    },
-  },
-  {
-    provide: IDENTITY_EDIT_FORM_PROP_CONTRIBUTORS,
-    useValue: {
-      'Identity.UsersComponent': [hideLockoutFormProp],
-      'Identity.RolesComponent': [hideRoleFlagsFormProp],
-    },
-  },
-];
+// NOTE: these contributors MUST be passed as options to `createRoutes(...)` in app.routes.ts
+// (i.e. IdentityModule's `provideIdentity`). The identity module re-provides the contributor
+// tokens at the lazy-route injector scope with the options you pass; providing them only at the
+// app root gets shadowed by that empty route-scope provider, so the contributors never run.
+export const IDENTITY_ENTITY_ACTION_CONTRIBUTORS_VALUE = {
+  'Identity.RolesComponent': [branchesActionContributor],
+  'Identity.UsersComponent': [removeUserPermissionsAction, resetLoginAttemptsContributor],
+};
+
+export const IDENTITY_CREATE_FORM_PROP_CONTRIBUTORS_VALUE = {
+  'Identity.UsersComponent': [hideLockoutFormProp],
+  'Identity.RolesComponent': [hideRoleFlagsFormProp],
+};
+
+export const IDENTITY_EDIT_FORM_PROP_CONTRIBUTORS_VALUE = {
+  'Identity.UsersComponent': [hideLockoutFormProp],
+  'Identity.RolesComponent': [hideRoleFlagsFormProp],
+};

@@ -2,6 +2,11 @@ import { authGuard, permissionGuard } from '@abp/ng.core';
 import { Routes } from '@angular/router';
 import { GDPR_COOKIE_CONSENT_ROUTES } from './gdpr-cookie-consent/gdpr-cookie-consent.routes';
 import { passwordChangeRequiredGuard } from './guards/password-change-required.guard';
+import {
+  IDENTITY_ENTITY_ACTION_CONTRIBUTORS_VALUE,
+  IDENTITY_CREATE_FORM_PROP_CONTRIBUTORS_VALUE,
+  IDENTITY_EDIT_FORM_PROP_CONTRIBUTORS_VALUE,
+} from './providers/role-branch-action.provider';
 
 export const APP_ROUTES: Routes = [
   {
@@ -146,7 +151,14 @@ export const APP_ROUTES: Routes = [
   },
   {
     path: 'identity',
-    loadChildren: () => import('@abp/ng.identity').then(c => c.createRoutes()),
+    loadChildren: () =>
+      import('@abp/ng.identity').then(c =>
+        c.createRoutes({
+          entityActionContributors: IDENTITY_ENTITY_ACTION_CONTRIBUTORS_VALUE,
+          createFormPropContributors: IDENTITY_CREATE_FORM_PROP_CONTRIBUTORS_VALUE,
+          editFormPropContributors: IDENTITY_EDIT_FORM_PROP_CONTRIBUTORS_VALUE,
+        }),
+      ),
   },
   {
     path: 'language-management',

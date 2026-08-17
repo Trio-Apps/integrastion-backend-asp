@@ -7,8 +7,10 @@ namespace OrderXChange.Permissions;
 
 public class OrderXChangePermissionDefinitionProvider : PermissionDefinitionProvider
 {
-    private const string AbpAuditLoggingGroup = "AbpAuditLogging";
-    private const string AbpSettingManagementGroup = "AbpSettingManagement";
+    // NB: these are the real group names ABP registers (verified against the running
+    // permission-management API), NOT "AbpAuditLogging"/"AbpSettingManagement".
+    private const string AbpAuditLoggingGroup = "AuditLogging";
+    private const string AbpSettingManagementGroup = "SettingManagement";
 
     public override void Define(IPermissionDefinitionContext context)
     {
