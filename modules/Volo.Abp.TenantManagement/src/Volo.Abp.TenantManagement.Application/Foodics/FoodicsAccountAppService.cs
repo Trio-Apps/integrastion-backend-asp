@@ -11,6 +11,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using System.Threading.Tasks;
 using OrderXChange.BackgroundJobs;
+using OrderXChange.Permissions;
+using Volo.Abp.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
@@ -46,6 +48,7 @@ namespace Foodics
             _multiTenantFilter = multiTenantFilter;
         }
 
+        [Authorize(OrderXChangePermissions.FoodicsAccounts.Default)]
         public  async Task<FoodicsAccountDto> CreateAsync(CreateUpdateFoodicsAccountDto input)
         {
             if (!CurrentTenant.IsAvailable)
@@ -74,6 +77,7 @@ namespace Foodics
             return ObjectMapper.Map<FoodicsAccount,FoodicsAccountDto>(foodicsAccount);
         }
 
+        [Authorize(OrderXChangePermissions.FoodicsAccounts.Default)]
         public  async Task<FoodicsAccountDto> UpdateAsync(Guid id, CreateUpdateFoodicsAccountDto input)
         {
             if (!CurrentTenant.IsAvailable)
@@ -99,6 +103,15 @@ namespace Foodics
 
         public async Task<PagedResultDto<FoodicsAccountDto>> GetListAsync(PagedAndSortedResultRequestDto input)
         {
+            // Readable by whoever manages Foodics accounts, but also by whoever manages Talabat
+            // accounts — that page needs this list for its "linked Foodics account" dropdown.
+            if (!await AuthorizationService.IsGrantedAsync(OrderXChangePermissions.FoodicsAccounts.Default)
+                && !await AuthorizationService.IsGrantedAsync(OrderXChangePermissions.TalabatAccounts.Default))
+            {
+                throw new AbpAuthorizationException(
+                    "You need the Foodics Accounts or Talabat Accounts permission to list Foodics accounts.");
+            }
+
             var query = (await _foodicsAccountRepository.GetQueryableAsync()).PageBy(input.SkipCount, input.MaxResultCount);
 
             return new PagedResultDto<FoodicsAccountDto>
@@ -108,11 +121,13 @@ namespace Foodics
             };
         }
 
+        [Authorize(OrderXChangePermissions.FoodicsAccounts.Default)]
         public async Task DeleteAsync([Required]Guid id)
         {
             await _foodicsAccountRepository.DeleteAsync(x => x.Id == id);
         }
 
+        [Authorize(OrderXChangePermissions.FoodicsAccounts.Default)]
         public async Task<FoodicsAuthorizationUrlDto> GetAuthorizationUrlAsync(Guid id)
         {
             var account = await _foodicsAccountRepository.GetAsync(x => x.Id == id);
@@ -143,6 +158,7 @@ namespace Foodics
         }
 
         [AllowAnonymous]
+        [Authorize(OrderXChangePermissions.FoodicsAccounts.Default)]
         public async Task<FoodicsOAuthCallbackResultDto> CompleteAuthorizationAsync(CompleteFoodicsAuthorizationDto input)
         {
             if (string.IsNullOrWhiteSpace(input.Code))
@@ -200,6 +216,7 @@ namespace Foodics
             }
         }
 
+        [Authorize(OrderXChangePermissions.FoodicsAccounts.Default)]
         public async Task<FoodicsConnectionTestResultDto> TestConnectionAsync(Guid id)
         {
             var account = await _foodicsAccountRepository.GetAsync(x => x.Id == id);

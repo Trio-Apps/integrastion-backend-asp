@@ -6,9 +6,12 @@ using Hangfire.Common;
 using Hangfire.Storage;
 using Hangfire.Storage.Monitoring;
 using Volo.Abp.Application.Services;
+using Microsoft.AspNetCore.Authorization;
+using OrderXChange.Permissions;
 
 namespace OrderXChange.BackgroundJobs;
 
+[Authorize(OrderXChangePermissions.MenuSync.Default)]
 public class HangfireMonitoringAppService : ApplicationService, IHangfireMonitoringAppService
 {
     private readonly JobStorage _jobStorage;

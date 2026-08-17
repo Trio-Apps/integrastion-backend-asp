@@ -10,7 +10,7 @@ using Volo.Abp.Settings;
 
 namespace OrderXChange.Reports;
 
-[Authorize(OrderXChangePermissions.Orders.Default)]
+[Authorize(OrderXChangePermissions.DailyReport.Default)]
 public class FailedOrdersReportAppService : ApplicationService, IFailedOrdersReportAppService
 {
     private readonly ISettingProvider _settingProvider;
@@ -57,7 +57,7 @@ public class FailedOrdersReportAppService : ApplicationService, IFailedOrdersRep
         return await GetAsync();
     }
 
-    [Authorize(OrderXChangePermissions.Orders.Default)]
+    [Authorize(OrderXChangePermissions.DailyReport.Default)]
     public async Task<FailedOrdersReportTestResultDto> SendTestAsync()
     {
         var email = (await _settingProvider.GetOrNullAsync(OrderXChangeSettings.FailedOrdersReportEmail))?.Trim();

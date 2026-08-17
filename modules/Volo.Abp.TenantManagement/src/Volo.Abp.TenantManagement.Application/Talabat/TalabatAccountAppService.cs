@@ -11,13 +11,14 @@ using Volo.Abp.Data;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.TenantManagement;
+using OrderXChange.Permissions;
 
 namespace Volo.Abp.TenantManagement.Talabat
 {
     /// <summary>
     /// UPDATED: Now handles FoodicsAccountId for linking Foodics and Talabat accounts
     /// </summary>
-    [Authorize]
+    [Authorize(OrderXChangePermissions.TalabatAccounts.Default)]
     [RemoteService(true)]
     public class TalabatAccountAppService : TenantManagementAppServiceBase, ITalabatAccountAppService
     {

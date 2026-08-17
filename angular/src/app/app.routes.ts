@@ -27,7 +27,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./hangfire-dashboard/hangfire-dashboard.component').then(c => c.HangfireDashboardComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.MenuSync',
     },
   },
   {
@@ -35,7 +35,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./menu-sync-diagnostics/menu-sync-diagnostics.component').then(c => c.MenuSyncDiagnosticsComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.SyncDiagnostics',
     },
   },
   {
@@ -43,7 +43,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./menu-sync-diagnostics/menu-sync-diagnostics.component').then(c => c.MenuSyncDiagnosticsComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.SyncDiagnostics',
     },
   },
   {
@@ -84,7 +84,7 @@ export const APP_ROUTES: Routes = [
       import('./failed-orders-report/failed-orders-report.component').then(c => c.FailedOrdersReportComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Orders',
+      requiredPolicy: 'OrderXChange.DailyReport',
     },
   },
   {
@@ -92,7 +92,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./talabat-payment-methods/talabat-payment-methods.component').then(c => c.TalabatPaymentMethodsComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.PaymentMethods',
     },
   },
   {
@@ -100,7 +100,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./talabat-delivery-charges/talabat-delivery-charges.component').then(c => c.TalabatDeliveryChargesComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.DeliveryCharges',
     },
   },
   {
@@ -108,7 +108,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./talabat-customer-mapping/talabat-customer-mapping.component').then(c => c.TalabatCustomerMappingComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.CustomerMapping',
     },
   },
   {
@@ -116,7 +116,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./menu-demo/menu-demo.component').then(c => c.MenuDemoComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.Categories',
     },
   },
   {
@@ -185,7 +185,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./saas/foodics-list.component/foodics-list.component').then(c => c.FoodicsListComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.FoodicsAccounts',
     },
   },
   {
@@ -193,7 +193,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./saas/talabat-list.component/talabat-list.component').then(c => c.TalabatListComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.TalabatAccounts',
     },
   },
   {

@@ -2,6 +2,8 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using OrderXChange.Permissions;
 using OrderXChange.BackgroundJobs;
 using OrderXChange.Integrations.Foodics;
 using System.Text.Json;
@@ -32,6 +34,7 @@ public class MenuSyncController : AbpController
     /// <summary>
     /// Manually trigger a menu sync for a specific account
     /// </summary>
+    [Authorize(OrderXChangePermissions.MenuSync.Default)]
     [HttpPost("trigger")]
     public async Task<IActionResult> TriggerMenuSyncAsync(
         [FromQuery] Guid? foodicsAccountId = null,
@@ -55,6 +58,7 @@ public class MenuSyncController : AbpController
     /// <summary>
     /// Get menu sync status information
     /// </summary>
+    [Authorize(OrderXChangePermissions.MenuSync.Default)]
     [HttpGet("status")]
     public IActionResult GetStatus()
     {
@@ -74,6 +78,7 @@ public class MenuSyncController : AbpController
     /// <summary>
     /// Lists recent menu sync runs for the diagnostics dashboard.
     /// </summary>
+    [Authorize(OrderXChangePermissions.SyncDiagnostics.Default)]
     [HttpGet("runs")]
     public async Task<IActionResult> GetRunsAsync([FromQuery] GetMenuSyncRunsInput input)
     {
@@ -82,6 +87,7 @@ public class MenuSyncController : AbpController
     }
 
     /// <summary>Aggregated stats for the diagnostics summary bar.</summary>
+    [Authorize(OrderXChangePermissions.SyncDiagnostics.Default)]
     [HttpGet("runs/stats")]
     public async Task<IActionResult> GetStatsAsync()
     {
@@ -91,6 +97,7 @@ public class MenuSyncController : AbpController
     /// <summary>
     /// Gets complete diagnostics for one menu sync run.
     /// </summary>
+    [Authorize(OrderXChangePermissions.SyncDiagnostics.Default)]
     [HttpGet("runs/{id:guid}")]
     public async Task<IActionResult> GetRunDetailsAsync(Guid id)
     {
@@ -101,6 +108,7 @@ public class MenuSyncController : AbpController
     /// <summary>
     /// Gets the staged products and modifiers for a vendor in a selected sync run.
     /// </summary>
+    [Authorize(OrderXChangePermissions.SyncDiagnostics.Default)]
     [HttpGet("runs/{id:guid}/vendors/{vendorCode}/items")]
     public async Task<IActionResult> GetVendorItemsAsync(Guid id, string vendorCode)
     {
@@ -112,6 +120,7 @@ public class MenuSyncController : AbpController
     /// Gets available active branches for a specific FoodicsAccount.
     /// Used for dropdown selection when configuring TalabatAccount branch filtering.
     /// </summary>
+    [Authorize(OrderXChangePermissions.TalabatAccounts.Default)]
     [HttpGet("branches-for-account")]
     public async Task<IActionResult> GetBranchesForAccountAsync(
         [FromQuery] Guid foodicsAccountId,
@@ -125,6 +134,7 @@ public class MenuSyncController : AbpController
     /// Gets available groups for a specific FoodicsAccount.
     /// Used for dropdown selection when configuring TalabatAccount group filtering.
     /// </summary>
+    [Authorize(OrderXChangePermissions.TalabatAccounts.Default)]
     [HttpGet("groups-for-account")]
     public async Task<IActionResult> GetGroupsForAccountAsync(
         [FromQuery] Guid foodicsAccountId,
@@ -139,6 +149,7 @@ public class MenuSyncController : AbpController
     /// This is a simple ops tool; in a real setup the payload would typically
     /// come from a DLQ store rather than manual copy-paste.
     /// </summary>
+    [Authorize(OrderXChangePermissions.MenuSync.Default)]
     [HttpPost("replay")]
     public async Task<IActionResult> ReplayFromDlqAsync([FromBody] MenuSyncReplayInput input)
     {

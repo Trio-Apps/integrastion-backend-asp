@@ -19,8 +19,19 @@ public class OrderXChangePermissionDefinitionProvider : PermissionDefinitionProv
         myGroup.AddPermission(OrderXChangePermissions.Dashboard.Host, L("Permission:Dashboard"), MultiTenancySides.Host);
         myGroup.AddPermission(OrderXChangePermissions.Dashboard.Tenant, L("Permission:Dashboard"), MultiTenancySides.Tenant);
 
+        // Menu sync monitoring + diagnostics (one permission per page)
+        myGroup.AddPermission(OrderXChangePermissions.MenuSync.Default, L("Permission:MenuSync"), MultiTenancySides.Tenant);
+        myGroup.AddPermission(OrderXChangePermissions.SyncDiagnostics.Default, L("Permission:SyncDiagnostics"), MultiTenancySides.Tenant);
+
+        // Catalog pages
+        myGroup.AddPermission(OrderXChangePermissions.Categories.Default, L("Permission:Categories"), MultiTenancySides.Tenant);
+        myGroup.AddPermission(OrderXChangePermissions.PaymentMethods.Default, L("Permission:PaymentMethods"), MultiTenancySides.Tenant);
+        myGroup.AddPermission(OrderXChangePermissions.DeliveryCharges.Default, L("Permission:DeliveryCharges"), MultiTenancySides.Tenant);
+
         // Phase 2 — Orders Console
         myGroup.AddPermission(OrderXChangePermissions.Orders.Default, L("Permission:Orders"), MultiTenancySides.Tenant);
+        myGroup.AddPermission(OrderXChangePermissions.DailyReport.Default, L("Permission:DailyReport"), MultiTenancySides.Tenant);
+        myGroup.AddPermission(OrderXChangePermissions.CustomerMapping.Default, L("Permission:CustomerMapping"), MultiTenancySides.Tenant);
 
         // Phase 2 — Item & Modifier Availability (Manage is a child of the view permission)
         var availability = myGroup.AddPermission(
