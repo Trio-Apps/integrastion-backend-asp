@@ -67,6 +67,12 @@ function hideLockoutFormProp(propList: any) {
   propList.dropByValue('lockoutEnabled', (prop: any) => prop.name);
 }
 
+// Roles form: hide the "Default" and "Public" flags (not needed here).
+function hideRoleFlagsFormProp(propList: any) {
+  propList.dropByValue('isDefault', (prop: any) => prop.name);
+  propList.dropByValue('isPublic', (prop: any) => prop.name);
+}
+
 export const IDENTITY_UI_PROVIDERS = [
   {
     provide: IDENTITY_ENTITY_ACTION_CONTRIBUTORS,
@@ -79,12 +85,14 @@ export const IDENTITY_UI_PROVIDERS = [
     provide: IDENTITY_CREATE_FORM_PROP_CONTRIBUTORS,
     useValue: {
       'Identity.UsersComponent': [hideLockoutFormProp],
+      'Identity.RolesComponent': [hideRoleFlagsFormProp],
     },
   },
   {
     provide: IDENTITY_EDIT_FORM_PROP_CONTRIBUTORS,
     useValue: {
       'Identity.UsersComponent': [hideLockoutFormProp],
+      'Identity.RolesComponent': [hideRoleFlagsFormProp],
     },
   },
 ];
