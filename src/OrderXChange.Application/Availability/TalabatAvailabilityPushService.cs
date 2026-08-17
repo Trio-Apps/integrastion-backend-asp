@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OrderXChange.Application.Contracts.Integrations.Talabat;
 using OrderXChange.Application.Integrations.Talabat;
@@ -21,15 +22,18 @@ public class TalabatAvailabilityPushService : ITransientDependency
 {
     private readonly IMenuMappingService _menuMappingService;
     private readonly TalabatCatalogClient _catalogClient;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<TalabatAvailabilityPushService> _logger;
 
     public TalabatAvailabilityPushService(
         IMenuMappingService menuMappingService,
         TalabatCatalogClient catalogClient,
+        IConfiguration configuration,
         ILogger<TalabatAvailabilityPushService> logger)
     {
         _menuMappingService = menuMappingService;
         _catalogClient = catalogClient;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -52,7 +56,7 @@ public class TalabatAvailabilityPushService : ITransientDependency
             return;
         }
 
-        var items = new List<TalabatItemAvailability>();
+        var remoteCodes = new List<string>();
         foreach (var productId in foodicsProductIds.Distinct())
         {
             var mapping = await _menuMappingService.GetMappingByFoodicsIdAsync(
@@ -66,24 +70,35 @@ public class TalabatAvailabilityPushService : ITransientDependency
                 continue;
             }
 
-            items.Add(new TalabatItemAvailability
-            {
-                RemoteCode = mapping.TalabatRemoteCode,
-                IsAvailable = isAvailable,
-                AvailableAt = isAvailable ? null : availableAtUtc
-            });
+            remoteCodes.Add(mapping.TalabatRemoteCode);
         }
 
-        if (items.Count == 0)
+        if (remoteCodes.Count == 0)
         {
             return;
+        }
+
+        var request = new TalabatUpdateItemAvailabilityRequest
+        {
+            GlobalEntityId = ResolvePlatformKey(vendorCode),
+            Items = remoteCodes,
+            Type = "ITEM",
+            IsAvailable = isAvailable,
+        };
+
+        // When taking an item out of stock with a known restore time, tell Talabat when it
+        // comes back so it auto-restores; otherwise leave it unavailable indefinitely.
+        if (!isAvailable && availableAtUtc.HasValue)
+        {
+            request.WillBeAvailable = "AT_TIMESTAMP";
+            request.AtTimeStamp = DateTime.SpecifyKind(availableAtUtc.Value, DateTimeKind.Utc);
         }
 
         var response = await _catalogClient.UpdateCatalogItemAvailabilityAsync(
             chainCode,
             posVendorId,
             vendorCode,
-            new TalabatUpdateItemAvailabilityRequest { Items = items },
+            request,
             cancellationToken);
 
         if (response is { Success: false })
@@ -92,5 +107,19 @@ public class TalabatAvailabilityPushService : ITransientDependency
                 "Talabat availability push reported failure for vendor {VendorCode}: {Message}",
                 vendorCode, response.Message);
         }
+    }
+
+    // globalEntityId identifies the delivery platform (e.g. "TB_KW" for Talabat Kuwait).
+    // Prefer a per-vendor override, then the top-level Talabat setting, then a safe default.
+    private string ResolvePlatformKey(string vendorCode)
+    {
+        var vendorKey = _configuration[$"Talabat:VendorConfig:{vendorCode}:PlatformKey"];
+        if (!string.IsNullOrWhiteSpace(vendorKey))
+        {
+            return vendorKey;
+        }
+
+        var globalKey = _configuration["Talabat:PlatformKey"];
+        return string.IsNullOrWhiteSpace(globalKey) ? "TB_KW" : globalKey;
     }
 }
