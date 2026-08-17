@@ -938,13 +938,14 @@ public class TalabatCatalogClient : ITransientDependency
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Put, url);
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        // Talabat expects the raw array of item-availability entries as the body
-        // (a Set), not wrapped in an object ({ "items": [...] } is rejected as VALIDATION_ERROR).
-        var json = JsonSerializer.Serialize(request.Items, new JsonSerializerOptions
+        var json = JsonSerializer.Serialize(request, new JsonSerializerOptions
         {
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         });
         httpRequest.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        // Log the exact body so we can align it with Talabat's schema without guessing.
+        _logger.LogInformation("Item availability request body -> {Body}", json);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
