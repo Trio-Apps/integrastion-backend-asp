@@ -67,9 +67,7 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
 
         var totalCount = await queryable.CountAsync();
 
-        var sorting = string.IsNullOrWhiteSpace(input.Sorting)
-            ? "ReceivedAt desc"
-            : input.Sorting;
+        var sorting = ResolveSorting(input.Sorting);
 
         var maxResultCount = input.MaxResultCount <= 0
             ? 10
@@ -88,6 +86,39 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
     // Cap on rows a single Excel export can pull, to bound memory use.
     private const int ExportRowCap = 10000;
 
+    private const string DefaultSorting = "ReceivedAt desc";
+
+    // Sorting reaches Dynamic LINQ's OrderBy, which throws on an unknown member — an unrecognised
+    // value used to surface as a 500 on both the list and the export. Only allow the columns the
+    // grid can actually sort by, and fall back to the default otherwise.
+    private static readonly HashSet<string> SortableFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        nameof(TalabatOrderSyncLog.ReceivedAt),
+        nameof(TalabatOrderSyncLog.OrderCode),
+        nameof(TalabatOrderSyncLog.ShortCode),
+        nameof(TalabatOrderSyncLog.VendorCode),
+        nameof(TalabatOrderSyncLog.Status),
+        nameof(TalabatOrderSyncLog.Attempts),
+        nameof(TalabatOrderSyncLog.CustomerName),
+        nameof(TalabatOrderSyncLog.GrandTotal),
+    };
+
+    private static string ResolveSorting(string? sorting)
+    {
+        if (string.IsNullOrWhiteSpace(sorting))
+            return DefaultSorting;
+
+        var parts = sorting.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        // The grid sends camelCase field names, so match case-insensitively but pass the
+        // entity's own spelling on to Dynamic LINQ.
+        if (parts.Length is < 1 or > 2 || !SortableFields.TryGetValue(parts[0], out var field))
+            return DefaultSorting;
+
+        var descending = parts.Length == 2 && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase);
+        return $"{field} {(descending ? "desc" : "asc")}";
+    }
+
     /// <summary>
     /// Exports the orders matching the same filters + branch scope as the list to an .xlsx
     /// workbook (all matching rows up to <see cref="ExportRowCap"/>, not just the current page).
@@ -97,9 +128,7 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
     {
         var queryable = await BuildFilteredQueryAsync(input);
 
-        var sorting = string.IsNullOrWhiteSpace(input.Sorting)
-            ? "ReceivedAt desc"
-            : input.Sorting;
+        var sorting = ResolveSorting(input.Sorting);
 
         var rows = queryable == null
             ? new List<TalabatOrderLogDto>()

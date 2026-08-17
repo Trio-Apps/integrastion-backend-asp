@@ -77,6 +77,7 @@ export class TalabatOrdersComponent {
   readonly customerPhone = signal<string>('');
   readonly fromDate = signal<string>('');
   readonly toDate = signal<string>('');
+  readonly sorting = signal<string>('');
   readonly branches = signal<{ value: string; label: string }[]>([]);
   readonly errorDialogVisible = signal<boolean>(false);
   readonly selectedErrorMessage = signal<string>('');
@@ -111,6 +112,7 @@ export class TalabatOrdersComponent {
     add('status', this.status());
     add('fromDate', this.fromDate());
     add('toDate', this.toDate());
+    add('sorting', this.sorting());
     return params;
   }
 
@@ -165,6 +167,8 @@ export class TalabatOrdersComponent {
     if (event?.sortField) {
       sorting = `${event.sortField} ${event.sortOrder === 1 ? 'asc' : 'desc'}`;
     }
+    // Remembered so an export can reproduce the order the user is looking at.
+    this.sorting.set(sorting);
 
     const input: GetTalabatOrderLogsInput = {
       skipCount,
