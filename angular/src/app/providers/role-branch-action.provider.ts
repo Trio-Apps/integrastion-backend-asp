@@ -36,6 +36,13 @@ function branchesActionContributor(actionList: any) {
   actionList.addMany(actions);
 }
 
+// Users grid: manage permissions via roles only — drop the per-user "Permissions" action.
+function removeUserPermissionsAction(actionList: any) {
+  ['AbpIdentity::Permissions', 'AbpPermissionManagement::Permissions', 'Permissions'].forEach(key =>
+    actionList.dropByValue(key, (action: any) => action.text),
+  );
+}
+
 // Users grid: "Reset login attempts" action → clears failed attempts and unlocks the account.
 function resetLoginAttemptsContributor(actionList: any) {
   const actions = EntityAction.createMany<IdentityUserDto>([
@@ -78,7 +85,7 @@ export const IDENTITY_UI_PROVIDERS = [
     provide: IDENTITY_ENTITY_ACTION_CONTRIBUTORS,
     useValue: {
       'Identity.RolesComponent': [branchesActionContributor],
-      'Identity.UsersComponent': [resetLoginAttemptsContributor],
+      'Identity.UsersComponent': [removeUserPermissionsAction, resetLoginAttemptsContributor],
     },
   },
   {
