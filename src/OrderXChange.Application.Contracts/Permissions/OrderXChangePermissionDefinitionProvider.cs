@@ -43,7 +43,6 @@ public class OrderXChangePermissionDefinitionProvider : PermissionDefinitionProv
         myGroup.AddPermission(OrderXChangePermissions.TalabatAccounts.Default, L("Permission:TalabatAccounts"), MultiTenancySides.Tenant);
 
         // Phase 2 — branch-scoped authorization management
-        myGroup.AddPermission(OrderXChangePermissions.Branches.Manage, L("Permission:Branches.Manage"), MultiTenancySides.Tenant);
         myGroup.AddPermission(OrderXChangePermissions.Branches.All, L("Permission:Branches.All"), MultiTenancySides.Tenant);
     }
 

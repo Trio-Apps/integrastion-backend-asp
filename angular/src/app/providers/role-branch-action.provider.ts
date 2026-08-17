@@ -24,7 +24,7 @@ function branchesActionContributor(actionList: any) {
           closable: true,
         });
       },
-      permission: 'OrderXChange.Branches.Manage',
+      permission: 'AbpIdentity.Roles.Update',
     },
   ]);
 

@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using OrderXChange.Application.Integrations.Foodics;
 using OrderXChange.BackgroundJobs;
-using OrderXChange.Permissions;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Identity;
 
 namespace OrderXChange.Authorization;
 
@@ -14,7 +14,7 @@ namespace OrderXChange.Authorization;
 /// Reads/writes the role → Foodics branch grants that drive branch-scoped authorization.
 /// Available branches are sourced live from Foodics (reusing the menu-sync branch lookup).
 /// </summary>
-[Authorize(OrderXChangePermissions.Branches.Manage)]
+[Authorize(IdentityPermissions.Roles.Update)]
 public class RoleBranchAppService : OrderXChangeAppService, IRoleBranchAppService
 {
     private readonly IRepository<RoleBranch, Guid> _roleBranchRepository;

@@ -17,7 +17,6 @@
     "Permission:Availability.Manage": "Manage Availability (In/Out of Stock)",
     "Permission:FoodicsAccounts": "Foodics Accounts",
     "Permission:TalabatAccounts": "Talabat Accounts",
-    "Permission:Branches.Manage": "Manage Role Branch Access",
     "Permission:Branches.All": "Access All Branches",
     "Menu:Dashboard": "Dashboard",
     "Menu:HomePage": "Home page",

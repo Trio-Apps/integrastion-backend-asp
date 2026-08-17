@@ -8,7 +8,7 @@ namespace OrderXChange.Authorization;
 
 /// <summary>
 /// Manages which Foodics branches each identity role may access (branch-scoped authorization).
-/// Guarded by <c>OrderXChange.Branches.Manage</c>.
+/// Guarded by <c>AbpIdentity.Roles.Update</c> — whoever may edit a role may set its branches.
 /// </summary>
 public interface IRoleBranchAppService : IApplicationService
 {
