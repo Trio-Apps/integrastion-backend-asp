@@ -104,8 +104,8 @@ function configureRoutes() {
       iconClass: 'pi pi-user', order: 3, layout: app, requiredPolicy: 'AbpIdentity.Users',
     },
     {
-      path: '/identity/roles', name: 'Branch Access', parentName: 'Accounts & Access',
-      iconClass: 'pi pi-sitemap', order: 4, layout: app, requiredPolicy: 'OrderXChange.Branches.Manage',
+      path: '/identity/roles', name: 'Roles', parentName: 'Accounts & Access',
+      iconClass: 'pi pi-sitemap', order: 4, layout: app, requiredPolicy: 'AbpIdentity.Roles',
     },
   ]);
 }
