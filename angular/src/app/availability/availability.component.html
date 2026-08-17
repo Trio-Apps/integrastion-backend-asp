@@ -36,19 +36,43 @@
     <span class="total" *ngIf="total()">{{ total() | number }} items</span>
   </div>
 
+  @if (selectedItems().size) {
+    <div class="bulk-bar">
+      <span class="b-count">{{ selectedItems().size }} selected</span>
+      <button class="btn primary" [disabled]="bulkSaving()" (click)="openBulkOutDialog()">
+        Mark out of stock
+      </button>
+      @if (selectedRestorable().length) {
+        <button class="btn" [disabled]="bulkSaving()" (click)="bulkMarkInStock()">
+          {{ bulkSaving() ? 'Applying…' : 'Mark in stock' }}
+        </button>
+      }
+      <button class="link" (click)="clearSelection()">Clear</button>
+    </div>
+  }
+
   <div class="card table-wrap">
     <table>
       <thead>
-        <tr><th>Item</th><th>Category</th><th>SKU</th><th>Branches</th><th>Status</th><th class="actions-col">Actions</th></tr>
+        <tr>
+          <th class="pick-col">
+            <input type="checkbox" [checked]="allOnPageSelected()" (change)="toggleAllOnPage()"
+                   [disabled]="!items().length" title="Select all on this page" />
+          </th>
+          <th>Item</th><th>Category</th><th>SKU</th><th>Branches</th><th>Status</th><th class="actions-col">Actions</th>
+        </tr>
       </thead>
       <tbody>
         @if (loading()) {
-          <tr><td colspan="6" class="center muted">Loading…</td></tr>
+          <tr><td colspan="7" class="center muted">Loading…</td></tr>
         } @else if (!items().length) {
-          <tr><td colspan="6" class="center muted">No items found.</td></tr>
+          <tr><td colspan="7" class="center muted">No items found.</td></tr>
         } @else {
           @for (it of items(); track key(it)) {
-            <tr [class.oos]="it.outOfStockCount > 0">
+            <tr [class.oos]="it.outOfStockCount > 0" [class.picked]="isItemSelected(it)">
+              <td class="pick-col">
+                <input type="checkbox" [checked]="isItemSelected(it)" (change)="toggleItem(it)" />
+              </td>
               <td class="strong">{{ it.name }}</td>
               <td class="muted">{{ it.categoryName || '—' }}</td>
               <td class="muted mono">{{ it.sku || '—' }}</td>
@@ -84,14 +108,14 @@
     <button class="btn" [disabled]="first() + rows >= total()" (click)="page(1)">Next ›</button>
   </div>
 
-  @if (dialogItem(); as di) {
+  @if (dialogItems().length) {
     <div class="modal-overlay" (click)="closeDialog()">
       <div class="modal-card" (click)="$event.stopPropagation()">
         <div class="modal-head">
           <strong>Mark out of stock</strong>
           <button class="x" (click)="closeDialog()">×</button>
         </div>
-        <div class="modal-item">{{ di.name }}</div>
+        <div class="modal-item">{{ dialogTitle() }}</div>
 
         <div class="modal-section">
           <div class="modal-label">Duration</div>
@@ -111,12 +135,12 @@
             <button class="link" (click)="toggleAllBranches()">{{ allBranchesSelected() ? 'Clear all' : 'Select all' }}</button>
           </div>
           <div class="branch-list">
-            @for (b of di.branches; track b.vendorCode) {
+            @for (b of dialogBranches(); track b.vendorCode) {
               <label class="check" [class.on]="isBranchSelected(b.vendorCode)">
                 <input type="checkbox" [checked]="isBranchSelected(b.vendorCode)" (change)="toggleBranch(b.vendorCode)" />
                 <span class="b-name">{{ b.branchName }}</span>
                 <span class="b-code muted">{{ b.vendorCode }}</span>
-                @if (!b.isInStock) { <span class="b-state">already out</span> }
+                @if (dialogItems().length === 1 && !b.isInStock) { <span class="b-state">already out</span> }
               </label>
             }
           </div>

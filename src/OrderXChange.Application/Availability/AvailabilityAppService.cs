@@ -144,9 +144,25 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
         var mode = input.Mode == AvailabilityMode.ForADay ? AvailabilityMode.ForADay : AvailabilityMode.TillFurtherNotice;
         DateTime? restoreAt = mode == AvailabilityMode.ForADay ? await ResolveForADayRestoreUtcAsync() : null;
 
+        // A bulk selection can span Foodics accounts, and each branch belongs to exactly one
+        // account. Resolve which account owns each product so we never write state (or push)
+        // for a product/branch pair that cannot exist.
+        var requestedIds = input.FoodicsProductIds.Distinct().ToList();
+        var ownership = (await (await _stagingRepo.GetQueryableAsync()).AsNoTracking()
+                .Where(x => !x.IsDeleted && requestedIds.Contains(x.FoodicsProductId))
+                .Select(x => new { x.FoodicsProductId, x.FoodicsAccountId })
+                .Distinct()
+                .ToListAsync())
+            .GroupBy(x => x.FoodicsAccountId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.FoodicsProductId).ToHashSet());
+
         foreach (var vendor in targets)
         {
-            foreach (var productId in input.FoodicsProductIds.Distinct())
+            var ownedByVendorAccount = ownership.TryGetValue(vendor.AccountId, out var owned)
+                ? owned
+                : new HashSet<string>();
+
+            foreach (var productId in requestedIds.Where(ownedByVendorAccount.Contains))
             {
                 // The unique index (Tenant, Account, Product, Vendor) spans soft-deleted
                 // rows, so a stale soft-deleted state collides on insert (was a 500 on
@@ -192,6 +208,15 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
         // send availableAt so Talabat can auto-restore; a manual "mark in stock" pushes available=true.
         foreach (var vendor in targets)
         {
+            var pushIds = ownership.TryGetValue(vendor.AccountId, out var ownedForPush)
+                ? requestedIds.Where(ownedForPush.Contains).ToList()
+                : new List<string>();
+
+            if (pushIds.Count == 0)
+            {
+                continue;
+            }
+
             try
             {
                 await _talabatPush.PushAsync(
@@ -200,7 +225,7 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
                     vendor.Code,
                     vendor.ChainCode,
                     vendor.PosVendorId,
-                    input.FoodicsProductIds,
+                    pushIds,
                     input.InStock,
                     input.InStock ? null : restoreAt);
             }
