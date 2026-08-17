@@ -32,10 +32,10 @@ function branchesActionContributor(actionList: any) {
 }
 
 // Users grid: manage permissions via roles only — drop the per-user "Permissions" action.
+// NB: dropByValue(value, compareFn) — compareFn(item, value) MUST return a boolean. Passing a
+// mapper (item => item.text) makes every node "match" and silently drops the FIRST action (Edit).
 function removeUserPermissionsAction(actionList: any) {
-  ['AbpIdentity::Permissions', 'AbpPermissionManagement::Permissions', 'Permissions'].forEach(key =>
-    actionList.dropByValue(key, (action: any) => action.text),
-  );
+  actionList.dropByValue('AbpIdentity::Permissions', (action: any, text: string) => action.text === text);
 }
 
 // Users grid: "Reset login attempts" action → clears failed attempts and unlocks the account.
@@ -65,14 +65,15 @@ function resetLoginAttemptsContributor(actionList: any) {
 }
 
 // Users form: hide the confusing "Account lockout" (lockoutEnabled) field.
+// compareFn(item, value) must return a boolean — see removeUserPermissionsAction above.
 function hideLockoutFormProp(propList: any) {
-  propList.dropByValue('lockoutEnabled', (prop: any) => prop.name);
+  propList.dropByValue('lockoutEnabled', (prop: any, name: string) => prop.name === name);
 }
 
 // Roles form: hide the "Default" and "Public" flags (not needed here).
 function hideRoleFlagsFormProp(propList: any) {
-  propList.dropByValue('isDefault', (prop: any) => prop.name);
-  propList.dropByValue('isPublic', (prop: any) => prop.name);
+  propList.dropByValue('isDefault', (prop: any, name: string) => prop.name === name);
+  propList.dropByValue('isPublic', (prop: any, name: string) => prop.name === name);
 }
 
 // NOTE: these contributors MUST be passed as options to `createRoutes(...)` in app.routes.ts
