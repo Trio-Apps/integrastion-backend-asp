@@ -930,7 +930,10 @@ public class TalabatCatalogClient : ITransientDependency
 
         await _authClient.PreFetchCredentialsAsync(vendorCode, cancellationToken);
         var accessToken = await _authClient.GetAccessTokenAsync(vendorCode, cancellationToken);
-        var url = $"v2/chains/{Uri.EscapeDataString(chainCode)}/vendors/{Uri.EscapeDataString(posVendorId)}/catalog/items/availability";
+        // The {posVendorId} path segment is the POS-side vendor code (e.g. "PH-SIDDIQ-002"),
+        // exactly like the working menu-import-logs endpoint — NOT the numeric platform
+        // restaurant id (783216), which left the update unrouted ({"status":"Failed","details":[]}).
+        var url = $"v2/chains/{Uri.EscapeDataString(chainCode)}/vendors/{Uri.EscapeDataString(vendorCode)}/catalog/items/availability";
 
         _logger.LogInformation(
             "Pushing item availability to Talabat. ChainCode={ChainCode}, PosVendorId={PosVendorId}, VendorCode={VendorCode}, ItemCount={ItemCount}",
