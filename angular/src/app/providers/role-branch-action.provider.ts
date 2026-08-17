@@ -28,7 +28,9 @@ function branchesActionContributor(actionList: any) {
     },
   ]);
 
-  actionList.addMany(actions);
+  // NB: addMany() only returns a position builder — it adds nothing on its own.
+  // addManyTail() is what actually appends (this is what @abp/ng.identity itself uses).
+  actionList.addManyTail(actions);
 }
 
 // Users grid: manage permissions via roles only — drop the per-user "Permissions" action.
@@ -61,7 +63,7 @@ function resetLoginAttemptsContributor(actionList: any) {
     },
   ]);
 
-  actionList.addMany(actions);
+  actionList.addManyTail(actions);
 }
 
 // Users form: hide the confusing "Account lockout" (lockoutEnabled) field.
