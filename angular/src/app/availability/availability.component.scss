@@ -6,6 +6,15 @@
   p { margin: 4px 0 0; font-size: 0.85rem; color: var(--text-color-secondary); }
 }
 
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--surface-border); }
+.tab {
+  border: none; background: none; cursor: pointer;
+  padding: 0.55rem 1rem; font-size: 0.9rem; color: var(--text-color-secondary);
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  &:hover { color: var(--brand); }
+  &.on { color: var(--brand); font-weight: 600; border-bottom-color: var(--brand); }
+}
+
 .avail-bar { display: flex; align-items: center; gap: 10px; }
 .search-box {
   flex: 1;

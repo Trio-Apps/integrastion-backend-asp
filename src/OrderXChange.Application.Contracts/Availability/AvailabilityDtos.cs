@@ -24,6 +24,9 @@ public class AvailabilityItemDto
     public string? Sku { get; set; }
     public string? CategoryName { get; set; }
 
+    /// <summary>"Product" for a menu item, "Modifier" for a topping.</summary>
+    public string EntityType { get; set; } = "Product";
+
     /// <summary>Per-branch stock state for this item (branches that carry it).</summary>
     public List<AvailabilityBranchStateDto> Branches { get; set; } = new();
 
@@ -35,6 +38,9 @@ public class GetAvailabilityInput : PagedAndSortedResultRequestDto
 {
     public string? Search { get; set; }
     public string? VendorCode { get; set; }
+
+    /// <summary>"Product" (default) lists menu items; "Modifier" lists toppings.</summary>
+    public string? EntityType { get; set; }
 }
 
 public class SetAvailabilityInput
@@ -44,6 +50,9 @@ public class SetAvailabilityInput
     public bool InStock { get; set; }
     /// <summary>When going out of stock: "ForADay" (auto-restored next day) or "TillFurtherNotice".</summary>
     public string? Mode { get; set; }
+
+    /// <summary>"Product" (default) or "Modifier" — must match what the ids refer to.</summary>
+    public string? EntityType { get; set; }
 }
 
 public class AvailabilitySettingsDto

@@ -25,6 +25,8 @@ export class AvailabilityComponent implements OnInit {
   readonly loading = signal(false);
   readonly saving = signal<string | null>(null); // key of the row being saved
 
+  // 'Product' = menu items, 'Modifier' = toppings. Talabat treats them as separate catalog types.
+  readonly entityType = signal<'Product' | 'Modifier'>('Product');
   readonly search = signal('');
   readonly rows = 15;
   readonly first = signal(0);
@@ -100,7 +102,12 @@ export class AvailabilityComponent implements OnInit {
   load(): void {
     this.loading.set(true);
     this.svc
-      .getItems({ search: this.search().trim() || undefined, maxResultCount: this.rows, skipCount: this.first() })
+      .getItems({
+        search: this.search().trim() || undefined,
+        entityType: this.entityType(),
+        maxResultCount: this.rows,
+        skipCount: this.first(),
+      })
       .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.loading.set(false)))
       .subscribe({
         next: r => {
@@ -109,6 +116,21 @@ export class AvailabilityComponent implements OnInit {
         },
         error: () => this.messageService.add({ severity: 'error', summary: 'Failed to load items' }),
       });
+  }
+
+  switchTo(type: 'Product' | 'Modifier'): void {
+    if (this.entityType() === type) return;
+    this.entityType.set(type);
+    this.first.set(0);
+    this.clearSelection();
+    this.load();
+  }
+
+  /** Wording differs between the two tabs. */
+  noun(plural = false): string {
+    const modifier = this.entityType() === 'Modifier';
+    if (plural) return modifier ? 'toppings' : 'items';
+    return modifier ? 'topping' : 'item';
   }
 
   onSearch(): void {
@@ -248,6 +270,7 @@ export class AvailabilityComponent implements OnInit {
         vendorCodes,
         inStock: false,
         mode,
+        entityType: this.entityType(),
       })
       .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.dialogSaving.set(false)))
       .subscribe({
@@ -284,7 +307,12 @@ export class AvailabilityComponent implements OnInit {
     if (vendorCodes.length === 0) return;
     this.saving.set(this.key(item));
     this.svc
-      .setAvailability({ foodicsProductIds: [item.foodicsProductId], vendorCodes, inStock: true })
+      .setAvailability({
+        foodicsProductIds: [item.foodicsProductId],
+        vendorCodes,
+        inStock: true,
+        entityType: this.entityType(),
+      })
       .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.saving.set(null)))
       .subscribe({
         next: () => {
@@ -312,7 +340,12 @@ export class AvailabilityComponent implements OnInit {
 
     this.bulkSaving.set(true);
     this.svc
-      .setAvailability({ foodicsProductIds: items.map(i => i.foodicsProductId), vendorCodes, inStock: true })
+      .setAvailability({
+        foodicsProductIds: items.map(i => i.foodicsProductId),
+        vendorCodes,
+        inStock: true,
+        entityType: this.entityType(),
+      })
       .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.bulkSaving.set(false)))
       .subscribe({
         next: () => {

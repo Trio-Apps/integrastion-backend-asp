@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using OrderXChange.Application.Integrations.Foodics;
 using OrderXChange.Authorization;
 using OrderXChange.Domain.Staging;
 using OrderXChange.Permissions;
@@ -62,6 +64,11 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
 
     public async Task<PagedResultDto<AvailabilityItemDto>> GetItemsAsync(GetAvailabilityInput input)
     {
+        if (input.EntityType == AvailabilityEntityType.Modifier)
+        {
+            return await GetModifiersAsync(input);
+        }
+
         // Vendors (branches) come from TalabatAccount. Show every product across all the
         // caller's accessible branches, each item carrying its per-branch stock state.
         var vendors = await ResolveVendorsAsync();
@@ -91,7 +98,8 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
         var productIds = rows.Select(r => r.FoodicsProductId).ToList();
         var stateQuery = await _availabilityRepo.GetQueryableAsync();
         var outStates = await stateQuery
-            .Where(a => !a.IsInStock && vendorCodes.Contains(a.VendorCode) && productIds.Contains(a.FoodicsProductId))
+            .Where(a => !a.IsInStock && a.EntityType == AvailabilityEntityType.Product
+                && vendorCodes.Contains(a.VendorCode) && productIds.Contains(a.FoodicsProductId))
             .Select(a => new { a.FoodicsProductId, a.VendorCode, a.Mode, a.RestoreAtUtc })
             .ToListAsync();
 
@@ -121,6 +129,7 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
                 NameLocalized = r.NameLocalized,
                 Sku = r.Sku,
                 CategoryName = r.CategoryName,
+                EntityType = AvailabilityEntityType.Product,
                 Branches = branches,
                 BranchCount = branches.Count,
                 OutOfStockCount = branches.Count(b => !b.IsInStock),
@@ -128,6 +137,131 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
         }).ToList();
 
         return new PagedResultDto<AvailabilityItemDto>(totalCount, items);
+    }
+
+    /// <summary>
+    /// Toppings list. Foodics keeps modifiers inside each product row (ModifiersJson) rather than
+    /// in their own table, so they are read out of staging and de-duplicated by modifier id.
+    /// </summary>
+    private async Task<PagedResultDto<AvailabilityItemDto>> GetModifiersAsync(GetAvailabilityInput input)
+    {
+        var vendors = await ResolveVendorsAsync();
+        if (vendors.Count == 0)
+            return new PagedResultDto<AvailabilityItemDto>(0, new List<AvailabilityItemDto>());
+
+        var accountIds = vendors.Select(v => v.AccountId).Distinct().ToList();
+        var modifiers = await LoadModifiersAsync(accountIds);
+
+        if (!string.IsNullOrWhiteSpace(input.Search))
+        {
+            var term = input.Search.Trim();
+            modifiers = modifiers
+                .Where(m => m.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
+                    || m.Id.Contains(term, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        var totalCount = modifiers.Count;
+        var page = modifiers
+            .OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase)
+            .Skip(input.SkipCount)
+            .Take(input.MaxResultCount)
+            .ToList();
+
+        var pageIds = page.Select(m => m.Id).ToList();
+        var vendorCodes = vendors.Select(v => v.Code).ToList();
+        var stateQuery = await _availabilityRepo.GetQueryableAsync();
+        var outStates = await stateQuery
+            .Where(a => !a.IsInStock && a.EntityType == AvailabilityEntityType.Modifier
+                && vendorCodes.Contains(a.VendorCode) && pageIds.Contains(a.FoodicsProductId))
+            .Select(a => new { a.FoodicsProductId, a.VendorCode, a.Mode, a.RestoreAtUtc })
+            .ToListAsync();
+
+        var items = page.Select(m =>
+        {
+            var branches = vendors
+                .Where(v => v.AccountId == m.AccountId)
+                .Select(v =>
+                {
+                    var st = outStates.FirstOrDefault(x => x.FoodicsProductId == m.Id && x.VendorCode == v.Code);
+                    return new AvailabilityBranchStateDto
+                    {
+                        VendorCode = v.Code,
+                        BranchName = v.DisplayName,
+                        IsInStock = st == null,
+                        Mode = st?.Mode,
+                        RestoreAtUtc = st?.RestoreAtUtc,
+                    };
+                })
+                .OrderBy(b => b.BranchName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return new AvailabilityItemDto
+            {
+                FoodicsProductId = m.Id,
+                Name = m.Name,
+                NameLocalized = m.NameLocalized,
+                CategoryName = m.UsedInProducts == 1 ? "1 item" : $"{m.UsedInProducts} items",
+                EntityType = AvailabilityEntityType.Modifier,
+                Branches = branches,
+                BranchCount = branches.Count,
+                OutOfStockCount = branches.Count(b => !b.IsInStock),
+            };
+        }).ToList();
+
+        return new PagedResultDto<AvailabilityItemDto>(totalCount, items);
+    }
+
+    private sealed record ModifierRow(Guid AccountId, string Id, string Name, string? NameLocalized, int UsedInProducts);
+
+    private async Task<List<ModifierRow>> LoadModifiersAsync(List<Guid> accountIds)
+    {
+        var rows = await (await _stagingRepo.GetQueryableAsync()).AsNoTracking()
+            .Where(x => !x.IsDeleted && accountIds.Contains(x.FoodicsAccountId) && x.ModifiersJson != null)
+            .Select(x => new { x.FoodicsAccountId, x.ModifiersJson })
+            .ToListAsync();
+
+        // key: account + modifier id, so the same modifier under two accounts stays separate
+        var seen = new Dictionary<(Guid, string), ModifierRow>();
+
+        foreach (var row in rows)
+        {
+            List<FoodicsModifierDto>? parsed;
+            try
+            {
+                parsed = JsonSerializer.Deserialize<List<FoodicsModifierDto>>(row.ModifiersJson!);
+            }
+            catch (JsonException)
+            {
+                continue; // a malformed staging row must not break the whole list
+            }
+
+            if (parsed == null)
+                continue;
+
+            foreach (var modifier in parsed)
+            {
+                if (string.IsNullOrWhiteSpace(modifier.Id) || modifier.DeletedAt != null)
+                    continue;
+
+                var key = (row.FoodicsAccountId, modifier.Id);
+                if (seen.TryGetValue(key, out var existing))
+                {
+                    seen[key] = existing with { UsedInProducts = existing.UsedInProducts + 1 };
+                }
+                else
+                {
+                    seen[key] = new ModifierRow(
+                        row.FoodicsAccountId,
+                        modifier.Id,
+                        string.IsNullOrWhiteSpace(modifier.Name) ? modifier.Id : modifier.Name!,
+                        modifier.NameLocalized,
+                        1);
+                }
+            }
+        }
+
+        return seen.Values.ToList();
     }
 
     [Authorize(OrderXChangePermissions.Availability.Manage)]
@@ -144,17 +278,34 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
         var mode = input.Mode == AvailabilityMode.ForADay ? AvailabilityMode.ForADay : AvailabilityMode.TillFurtherNotice;
         DateTime? restoreAt = mode == AvailabilityMode.ForADay ? await ResolveForADayRestoreUtcAsync() : null;
 
+        var entityType = input.EntityType == AvailabilityEntityType.Modifier
+            ? AvailabilityEntityType.Modifier
+            : AvailabilityEntityType.Product;
+
         // A bulk selection can span Foodics accounts, and each branch belongs to exactly one
-        // account. Resolve which account owns each product so we never write state (or push)
-        // for a product/branch pair that cannot exist.
+        // account. Resolve which account owns each id so we never write state (or push) for a
+        // pair that cannot exist.
         var requestedIds = input.FoodicsProductIds.Distinct().ToList();
-        var ownership = (await (await _stagingRepo.GetQueryableAsync()).AsNoTracking()
-                .Where(x => !x.IsDeleted && requestedIds.Contains(x.FoodicsProductId))
-                .Select(x => new { x.FoodicsProductId, x.FoodicsAccountId })
-                .Distinct()
-                .ToListAsync())
-            .GroupBy(x => x.FoodicsAccountId)
-            .ToDictionary(g => g.Key, g => g.Select(x => x.FoodicsProductId).ToHashSet());
+        Dictionary<Guid, HashSet<string>> ownership;
+
+        if (entityType == AvailabilityEntityType.Modifier)
+        {
+            var accountIds = targets.Select(t => t.AccountId).Distinct().ToList();
+            ownership = (await LoadModifiersAsync(accountIds))
+                .Where(m => requestedIds.Contains(m.Id))
+                .GroupBy(m => m.AccountId)
+                .ToDictionary(g => g.Key, g => g.Select(m => m.Id).ToHashSet());
+        }
+        else
+        {
+            ownership = (await (await _stagingRepo.GetQueryableAsync()).AsNoTracking()
+                    .Where(x => !x.IsDeleted && requestedIds.Contains(x.FoodicsProductId))
+                    .Select(x => new { x.FoodicsProductId, x.FoodicsAccountId })
+                    .Distinct()
+                    .ToListAsync())
+                .GroupBy(x => x.FoodicsAccountId)
+                .ToDictionary(g => g.Key, g => g.Select(x => x.FoodicsProductId).ToHashSet());
+        }
 
         foreach (var vendor in targets)
         {
@@ -172,7 +323,9 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
                 using (_dataFilter.Disable<ISoftDelete>())
                 {
                     existing = await _availabilityRepo.FirstOrDefaultAsync(
-                        a => a.FoodicsProductId == productId && a.VendorCode == vendor.Code);
+                        a => a.FoodicsProductId == productId
+                            && a.VendorCode == vendor.Code
+                            && a.EntityType == entityType);
                 }
 
                 if (input.InStock)
@@ -186,6 +339,7 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
                     {
                         FoodicsAccountId = vendor.AccountId,
                         FoodicsProductId = productId,
+                        EntityType = entityType,
                         VendorCode = vendor.Code,
                         IsInStock = false,
                         Mode = mode,
@@ -227,7 +381,8 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
                     vendor.PosVendorId,
                     pushIds,
                     input.InStock,
-                    input.InStock ? null : restoreAt);
+                    input.InStock ? null : restoreAt,
+                    entityType);
             }
             catch (Exception ex)
             {

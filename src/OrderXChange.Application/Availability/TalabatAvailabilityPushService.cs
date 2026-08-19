@@ -46,6 +46,7 @@ public class TalabatAvailabilityPushService : ITransientDependency
         IReadOnlyCollection<string> foodicsProductIds,
         bool isAvailable,
         DateTime? availableAtUtc,
+        string entityType = AvailabilityEntityType.Product,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(chainCode) || string.IsNullOrWhiteSpace(posVendorId))
@@ -56,17 +57,22 @@ public class TalabatAvailabilityPushService : ITransientDependency
             return;
         }
 
+        // A topping is a Talabat "TOPPING" and maps through the Modifier mapping; a menu item is
+        // an "ITEM" and maps through the Product mapping.
+        var isModifier = entityType == AvailabilityEntityType.Modifier;
+        var mappingType = isModifier ? MenuMappingEntityType.Modifier : MenuMappingEntityType.Product;
+
         var remoteCodes = new List<string>();
         foreach (var productId in foodicsProductIds.Distinct())
         {
             var mapping = await _menuMappingService.GetMappingByFoodicsIdAsync(
-                foodicsAccountId, branchId, MenuMappingEntityType.Product, productId, cancellationToken);
+                foodicsAccountId, branchId, mappingType, productId, cancellationToken);
 
             if (mapping == null || string.IsNullOrWhiteSpace(mapping.TalabatRemoteCode))
             {
                 _logger.LogWarning(
-                    "No Talabat remote code for product {ProductId} (account {AccountId}, branch {BranchId}); skipping availability push for it.",
-                    productId, foodicsAccountId, branchId ?? "ALL");
+                    "No Talabat remote code for {EntityType} {ProductId} (account {AccountId}, branch {BranchId}); skipping availability push for it.",
+                    entityType, productId, foodicsAccountId, branchId ?? "ALL");
                 continue;
             }
 
@@ -82,7 +88,7 @@ public class TalabatAvailabilityPushService : ITransientDependency
         {
             GlobalEntityId = ResolvePlatformKey(vendorCode),
             Items = remoteCodes,
-            Type = "ITEM",
+            Type = isModifier ? "TOPPING" : "ITEM",
             IsAvailable = isAvailable,
         };
 

@@ -16,6 +16,7 @@ export interface AvailabilityItemDto {
   nameLocalized?: string;
   sku?: string;
   categoryName?: string;
+  entityType: string;
   branches: AvailabilityBranchStateDto[];
   branchCount: number;
   outOfStockCount: number;
@@ -24,6 +25,8 @@ export interface AvailabilityItemDto {
 export interface GetAvailabilityInput {
   search?: string;
   vendorCode?: string;
+  /** 'Product' (menu items) or 'Modifier' (toppings). */
+  entityType?: string;
   maxResultCount?: number;
   skipCount?: number;
 }
@@ -33,6 +36,7 @@ export interface SetAvailabilityInput {
   vendorCodes: string[];
   inStock: boolean;
   mode?: string;
+  entityType?: string;
 }
 
 export interface AvailabilitySettingsDto {

@@ -203,7 +203,9 @@ public class OrderXChangeDbContext :
             b.Property(x => x.FoodicsProductId).IsRequired().HasMaxLength(100);
             b.Property(x => x.VendorCode).IsRequired().HasMaxLength(100);
             b.Property(x => x.Mode).HasMaxLength(30);
-            b.HasIndex(x => new { x.TenantId, x.FoodicsAccountId, x.FoodicsProductId, x.VendorCode })
+            b.Property(x => x.EntityType).IsRequired().HasMaxLength(30).HasDefaultValue("Product");
+            // EntityType is part of the key: a product and a topping can share an id space.
+            b.HasIndex(x => new { x.TenantId, x.FoodicsAccountId, x.EntityType, x.FoodicsProductId, x.VendorCode })
                 .IsUnique()
                 .HasDatabaseName("IX_ItemAvailability_Tenant_Account_Product_Vendor");
         });

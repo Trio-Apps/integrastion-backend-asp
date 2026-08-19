@@ -2,8 +2,15 @@
   <div class="avail-head">
     <div>
       <h1>Availability</h1>
-      <p>Mark menu items in or out of stock on Talabat — for a day or until further notice.</p>
+      <p>Mark menu items and toppings in or out of stock on Talabat — for a day or until further notice.</p>
     </div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" class="tab" [class.on]="entityType() === 'Product'"
+            [attr.aria-selected]="entityType() === 'Product'" (click)="switchTo('Product')">Items</button>
+    <button type="button" role="tab" class="tab" [class.on]="entityType() === 'Modifier'"
+            [attr.aria-selected]="entityType() === 'Modifier'" (click)="switchTo('Modifier')">Toppings</button>
   </div>
 
   <div class="avail-settings card">
@@ -30,10 +37,10 @@
   <div class="avail-bar">
     <div class="search-box">
       <i class="pi pi-search"></i>
-      <input type="text" [ngModel]="search()" (ngModelChange)="search.set($event)" (keyup.enter)="onSearch()" placeholder="Search item name, SKU, or product id…" />
+      <input type="text" [ngModel]="search()" (ngModelChange)="search.set($event)" (keyup.enter)="onSearch()" [placeholder]="'Search ' + noun() + ' name or id…'" />
     </div>
     <button class="btn" (click)="onSearch()">Search</button>
-    <span class="total" *ngIf="total()">{{ total() | number }} items</span>
+    <span class="total" *ngIf="total()">{{ total() | number }} {{ noun(true) }}</span>
   </div>
 
   @if (selectedItems().size) {
@@ -59,14 +66,17 @@
             <input type="checkbox" [checked]="allOnPageSelected()" (change)="toggleAllOnPage()"
                    [disabled]="!items().length" title="Select all on this page" />
           </th>
-          <th>Item</th><th>Category</th><th>SKU</th><th>Branches</th><th>Status</th><th class="actions-col">Actions</th>
+          <th>{{ entityType() === 'Modifier' ? 'Topping' : 'Item' }}</th>
+          <th>{{ entityType() === 'Modifier' ? 'Used in' : 'Category' }}</th>
+          @if (entityType() !== 'Modifier') { <th>SKU</th> }
+          <th>Branches</th><th>Status</th><th class="actions-col">Actions</th>
         </tr>
       </thead>
       <tbody>
         @if (loading()) {
-          <tr><td colspan="7" class="center muted">Loading…</td></tr>
+          <tr><td [attr.colspan]="entityType() === 'Modifier' ? 6 : 7" class="center muted">Loading…</td></tr>
         } @else if (!items().length) {
-          <tr><td colspan="7" class="center muted">No items found.</td></tr>
+          <tr><td [attr.colspan]="entityType() === 'Modifier' ? 6 : 7" class="center muted">No {{ noun(true) }} found.</td></tr>
         } @else {
           @for (it of items(); track key(it)) {
             <tr [class.oos]="it.outOfStockCount > 0" [class.picked]="isItemSelected(it)">
@@ -75,7 +85,7 @@
               </td>
               <td class="strong">{{ it.name }}</td>
               <td class="muted">{{ it.categoryName || '—' }}</td>
-              <td class="muted mono">{{ it.sku || '—' }}</td>
+              @if (entityType() !== 'Modifier') { <td class="muted mono">{{ it.sku || '—' }}</td> }
               <td class="muted">{{ it.branchCount }}</td>
               <td>
                 @if (it.outOfStockCount === 0) {
