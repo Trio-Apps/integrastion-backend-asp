@@ -21,7 +21,7 @@ import { SmartSearchService, SmartSearchResultDto } from '../../search/smart-sea
         <i class="pi pi-bars"></i>
       </button>
       <a class="layout-topbar-logo" routerLink="/">
-        <img src="assets/images/logo/newlogo.png" alt="BEON-IT" class="layout-topbar-logo-image" />
+        <span class="layout-topbar-logo-text">OrderXChange</span>
       </a>
     </div>
 

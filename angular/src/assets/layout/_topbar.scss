@@ -32,11 +32,11 @@
             width: 3rem;
         }
 
-        .layout-topbar-logo-image {
-            display: block;
-            height: 24px;
-            width: auto;
-            object-fit: contain;
+        .layout-topbar-logo-text {
+            font-size: 1.15rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            white-space: nowrap;
         }
 
         &:focus-visible {
@@ -113,8 +113,8 @@
         }
 
         .layout-topbar-logo {
-            .layout-topbar-logo-image {
-                height: 20px;
+            .layout-topbar-logo-text {
+                font-size: 1rem;
             }
         }
 
