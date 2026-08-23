@@ -2,6 +2,7 @@ import { authGuard, permissionGuard } from '@abp/ng.core';
 import { Routes } from '@angular/router';
 import { GDPR_COOKIE_CONSENT_ROUTES } from './gdpr-cookie-consent/gdpr-cookie-consent.routes';
 import { passwordChangeRequiredGuard } from './guards/password-change-required.guard';
+import { landingGuard } from './guards/landing.guard';
 import {
   IDENTITY_ENTITY_ACTION_CONTRIBUTORS_VALUE,
   IDENTITY_CREATE_FORM_PROP_CONTRIBUTORS_VALUE,
@@ -17,10 +18,12 @@ export const APP_ROUTES: Routes = [
   {
     path: 'dashboard',
     loadComponent: () => import('./dashboard/dashboard.component').then(c => c.DashboardComponent),
-    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
-    data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant',
-    },
+    canActivate: [authGuard, passwordChangeRequiredGuard, landingGuard],
+  },
+  {
+    path: 'no-access',
+    loadComponent: () => import('./account/no-access/no-access.component').then(c => c.NoAccessComponent),
+    canActivate: [authGuard],
   },
   {
     path: 'hangfire-monitoring',
