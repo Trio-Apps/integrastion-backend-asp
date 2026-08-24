@@ -66,7 +66,7 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
     {
         if (input.EntityType == AvailabilityEntityType.Modifier)
         {
-            return await GetModifiersAsync(input);
+            return await GetToppingsAsync(input);
         }
 
         // Vendors (branches) come from TalabatAccount. Show every product across all the
@@ -140,29 +140,29 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
     }
 
     /// <summary>
-    /// Toppings list. Foodics keeps modifiers inside each product row (ModifiersJson) rather than
-    /// in their own table, so they are read out of staging and de-duplicated by modifier id.
+    /// Toppings list — one row per selectable option, whichever group or product it belongs to.
     /// </summary>
-    private async Task<PagedResultDto<AvailabilityItemDto>> GetModifiersAsync(GetAvailabilityInput input)
+    private async Task<PagedResultDto<AvailabilityItemDto>> GetToppingsAsync(GetAvailabilityInput input)
     {
         var vendors = await ResolveVendorsAsync();
         if (vendors.Count == 0)
             return new PagedResultDto<AvailabilityItemDto>(0, new List<AvailabilityItemDto>());
 
         var accountIds = vendors.Select(v => v.AccountId).Distinct().ToList();
-        var modifiers = await LoadModifiersAsync(accountIds);
+        var toppings = await LoadToppingsAsync(accountIds);
 
         if (!string.IsNullOrWhiteSpace(input.Search))
         {
             var term = input.Search.Trim();
-            modifiers = modifiers
+            toppings = toppings
                 .Where(m => m.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
+                    || m.GroupName.Contains(term, StringComparison.OrdinalIgnoreCase)
                     || m.Id.Contains(term, StringComparison.OrdinalIgnoreCase))
                 .ToList();
         }
 
-        var totalCount = modifiers.Count;
-        var page = modifiers
+        var totalCount = toppings.Count;
+        var page = toppings
             .OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase)
             .Skip(input.SkipCount)
             .Take(input.MaxResultCount)
@@ -201,7 +201,7 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
                 FoodicsProductId = m.Id,
                 Name = m.Name,
                 NameLocalized = m.NameLocalized,
-                CategoryName = m.UsedInProducts == 1 ? "1 item" : $"{m.UsedInProducts} items",
+                CategoryName = m.GroupCount > 1 ? $"{m.GroupName} +{m.GroupCount - 1}" : m.GroupName,
                 EntityType = AvailabilityEntityType.Modifier,
                 Branches = branches,
                 BranchCount = branches.Count,
@@ -212,17 +212,31 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
         return new PagedResultDto<AvailabilityItemDto>(totalCount, items);
     }
 
-    private sealed record ModifierRow(Guid AccountId, string Id, string Name, string? NameLocalized, int UsedInProducts);
+    private sealed record ToppingRow(
+        Guid AccountId,
+        string Id,
+        string Name,
+        string? NameLocalized,
+        string GroupName,
+        int GroupCount,
+        int UsedInProducts);
 
-    private async Task<List<ModifierRow>> LoadModifiersAsync(List<Guid> accountIds)
+    /// <summary>
+    /// A Talabat "topping" is the selectable modifier OPTION (e.g. "Soy Milk"), not the group it
+    /// sits in ("Your Choice Of Milk:"). Foodics nests both inside each product's ModifiersJson,
+    /// so options are read out of staging and de-duplicated by option id — one row per topping,
+    /// however many products offer it.
+    /// </summary>
+    private async Task<List<ToppingRow>> LoadToppingsAsync(List<Guid> accountIds)
     {
         var rows = await (await _stagingRepo.GetQueryableAsync()).AsNoTracking()
             .Where(x => !x.IsDeleted && accountIds.Contains(x.FoodicsAccountId) && x.ModifiersJson != null)
             .Select(x => new { x.FoodicsAccountId, x.ModifiersJson })
             .ToListAsync();
 
-        // key: account + modifier id, so the same modifier under two accounts stays separate
-        var seen = new Dictionary<(Guid, string), ModifierRow>();
+        // key: account + option id, so the same topping under two accounts stays separate
+        var seen = new Dictionary<(Guid, string), ToppingRow>();
+        var groupsPerOption = new Dictionary<(Guid, string), HashSet<string>>();
 
         foreach (var row in rows)
         {
@@ -239,24 +253,46 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
             if (parsed == null)
                 continue;
 
-            foreach (var modifier in parsed)
+            foreach (var group in parsed)
             {
-                if (string.IsNullOrWhiteSpace(modifier.Id) || modifier.DeletedAt != null)
+                if (group.DeletedAt != null || group.Options == null)
                     continue;
 
-                var key = (row.FoodicsAccountId, modifier.Id);
-                if (seen.TryGetValue(key, out var existing))
+                var groupName = string.IsNullOrWhiteSpace(group.Name) ? "—" : group.Name!;
+
+                foreach (var option in group.Options)
                 {
-                    seen[key] = existing with { UsedInProducts = existing.UsedInProducts + 1 };
-                }
-                else
-                {
-                    seen[key] = new ModifierRow(
-                        row.FoodicsAccountId,
-                        modifier.Id,
-                        string.IsNullOrWhiteSpace(modifier.Name) ? modifier.Id : modifier.Name!,
-                        modifier.NameLocalized,
-                        1);
+                    if (string.IsNullOrWhiteSpace(option.Id) || option.DeletedAt != null || option.IsDeleted == true)
+                        continue;
+
+                    var key = (row.FoodicsAccountId, option.Id);
+
+                    if (!groupsPerOption.TryGetValue(key, out var groupNames))
+                    {
+                        groupNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        groupsPerOption[key] = groupNames;
+                    }
+                    groupNames.Add(groupName);
+
+                    if (seen.TryGetValue(key, out var existing))
+                    {
+                        seen[key] = existing with
+                        {
+                            UsedInProducts = existing.UsedInProducts + 1,
+                            GroupCount = groupNames.Count,
+                        };
+                    }
+                    else
+                    {
+                        seen[key] = new ToppingRow(
+                            row.FoodicsAccountId,
+                            option.Id,
+                            string.IsNullOrWhiteSpace(option.Name) ? option.Id : option.Name!,
+                            option.NameLocalized,
+                            groupName,
+                            1,
+                            1);
+                    }
                 }
             }
         }
@@ -291,7 +327,7 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
         if (entityType == AvailabilityEntityType.Modifier)
         {
             var accountIds = targets.Select(t => t.AccountId).Distinct().ToList();
-            ownership = (await LoadModifiersAsync(accountIds))
+            ownership = (await LoadToppingsAsync(accountIds))
                 .Where(m => requestedIds.Contains(m.Id))
                 .GroupBy(m => m.AccountId)
                 .ToDictionary(g => g.Key, g => g.Select(m => m.Id).ToHashSet());

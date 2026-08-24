@@ -57,10 +57,11 @@ public class TalabatAvailabilityPushService : ITransientDependency
             return;
         }
 
-        // A topping is a Talabat "TOPPING" and maps through the Modifier mapping; a menu item is
-        // an "ITEM" and maps through the Product mapping.
+        // A Talabat "TOPPING" is the selectable modifier OPTION (e.g. "Soy Milk"), not the group
+        // it sits in, so it maps through the ModifierOption mapping. A menu item is an "ITEM" and
+        // maps through the Product mapping.
         var isModifier = entityType == AvailabilityEntityType.Modifier;
-        var mappingType = isModifier ? MenuMappingEntityType.Modifier : MenuMappingEntityType.Product;
+        var mappingType = isModifier ? MenuMappingEntityType.ModifierOption : MenuMappingEntityType.Product;
 
         var remoteCodes = new List<string>();
         foreach (var productId in foodicsProductIds.Distinct())

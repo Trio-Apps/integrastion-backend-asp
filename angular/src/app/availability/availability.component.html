@@ -67,7 +67,7 @@
                    [disabled]="!items().length" title="Select all on this page" />
           </th>
           <th>{{ entityType() === 'Modifier' ? 'Topping' : 'Item' }}</th>
-          <th>{{ entityType() === 'Modifier' ? 'Used in' : 'Category' }}</th>
+          <th>{{ entityType() === 'Modifier' ? 'Group' : 'Category' }}</th>
           @if (entityType() !== 'Modifier') { <th>SKU</th> }
           <th>Branches</th><th>Status</th><th class="actions-col">Actions</th>
         </tr>
