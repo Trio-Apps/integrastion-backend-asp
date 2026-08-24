@@ -37,7 +37,11 @@ export class AvailabilityComponent implements OnInit {
 
   // Out-of-stock dialog state. Holds one item for a row action, or many for a bulk action.
   readonly dialogItems = signal<AvailabilityItemDto[]>([]);
+  // The dialog picks branches for both directions: taking out of stock and putting back.
+  readonly dialogAction = signal<'out' | 'in'>('out');
   readonly dialogMode = signal<string>('ForADay');
+  // Whether the change applies to every branch or only the ones ticked below.
+  readonly branchScope = signal<'all' | 'specific'>('specific');
   readonly selectedBranches = signal<Set<string>>(new Set());
   readonly dialogSaving = signal(false);
 
@@ -190,28 +194,50 @@ export class AvailabilityComponent implements OnInit {
 
   // ---------- out-of-stock dialog ----------
   openOutDialog(item: AvailabilityItemDto): void {
-    this.openDialogFor([item]);
+    this.openDialogFor([item], 'out');
   }
 
   openBulkOutDialog(): void {
     const rows = this.selectedRows();
     if (rows.length) {
-      this.openDialogFor(rows);
+      this.openDialogFor(rows, 'out');
     }
   }
 
-  private openDialogFor(items: AvailabilityItemDto[]): void {
+  private openDialogFor(items: AvailabilityItemDto[], action: 'out' | 'in'): void {
     this.dialogMode.set('ForADay');
+    this.dialogAction.set(action);
     this.dialogItems.set(items);
-    // Default: all branches selected ("normally applies to all branches").
-    this.selectedBranches.set(new Set(this.dialogBranches().map(b => b.vendorCode)));
+
+    // Applying to every branch has to be a deliberate choice, so nothing is pre-ticked.
+    // With a single branch there is nothing to choose, so select it and skip the question.
+    const branches = this.dialogBranches();
+    if (branches.length === 1) {
+      this.branchScope.set('all');
+      this.selectedBranches.set(new Set([branches[0].vendorCode]));
+    } else {
+      this.branchScope.set('specific');
+      this.selectedBranches.set(new Set());
+    }
   }
 
-  /** Branches to offer in the dialog: the union across the items being changed. */
+  setBranchScope(scope: 'all' | 'specific'): void {
+    this.branchScope.set(scope);
+    this.selectedBranches.set(
+      scope === 'all' ? new Set(this.dialogBranches().map(b => b.vendorCode)) : new Set(),
+    );
+  }
+
+  /**
+   * Branches to offer in the dialog: the union across the items being changed. When putting
+   * stock back, only the branches that are actually out are worth offering.
+   */
   dialogBranches(): AvailabilityBranchStateDto[] {
+    const restoring = this.dialogAction() === 'in';
     const byCode = new Map<string, AvailabilityBranchStateDto>();
     for (const item of this.dialogItems()) {
       for (const b of item.branches) {
+        if (restoring && b.isInStock) continue;
         if (!byCode.has(b.vendorCode)) {
           byCode.set(b.vendorCode, b);
         }
@@ -254,12 +280,17 @@ export class AvailabilityComponent implements OnInit {
     );
   }
 
-  confirmOut(): void {
+  confirmDialog(): void {
     const items = this.dialogItems();
     if (!items.length) return;
     const vendorCodes = [...this.selectedBranches()];
     if (vendorCodes.length === 0) {
       this.messageService.add({ severity: 'warn', summary: 'Pick at least one branch' });
+      return;
+    }
+
+    if (this.dialogAction() === 'in') {
+      this.restore(items, vendorCodes);
       return;
     }
     const mode = this.dialogMode();
@@ -305,10 +336,23 @@ export class AvailabilityComponent implements OnInit {
   markInStock(item: AvailabilityItemDto): void {
     const vendorCodes = item.branches.filter(b => !b.isInStock).map(b => b.vendorCode);
     if (vendorCodes.length === 0) return;
+
+    // More than one branch is out, so let the user say which ones come back.
+    if (vendorCodes.length > 1) {
+      this.openDialogFor([item], 'in');
+      return;
+    }
+
+    this.restore([item], vendorCodes);
+  }
+
+  /** Puts the given branches of the given rows back in stock. */
+  private restore(items: AvailabilityItemDto[], vendorCodes: string[]): void {
+    const item = items[0];
     this.saving.set(this.key(item));
     this.svc
       .setAvailability({
-        foodicsProductIds: [item.foodicsProductId],
+        foodicsProductIds: items.map(i => i.foodicsProductId),
         vendorCodes,
         inStock: true,
         entityType: this.entityType(),
@@ -316,8 +360,16 @@ export class AvailabilityComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.saving.set(null)))
       .subscribe({
         next: () => {
-          this.patchItem(item, b => (b.isInStock ? b : { ...b, isInStock: true, mode: undefined, restoreAtUtc: undefined }));
+          const picked = new Set(vendorCodes);
+          for (const row of items) {
+            this.patchItem(row, b =>
+              b.isInStock || !picked.has(b.vendorCode)
+                ? b
+                : { ...b, isInStock: true, mode: undefined, restoreAtUtc: undefined },
+            );
+          }
           this.messageService.add({ severity: 'success', summary: 'Marked in stock' });
+          this.closeDialog();
         },
         error: () => this.messageService.add({ severity: 'error', summary: 'Update failed' }),
       });

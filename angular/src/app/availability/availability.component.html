@@ -122,11 +122,12 @@
     <div class="modal-overlay" (click)="closeDialog()">
       <div class="modal-card" (click)="$event.stopPropagation()">
         <div class="modal-head">
-          <strong>Mark out of stock</strong>
+          <strong>{{ dialogAction() === 'in' ? 'Mark in stock' : 'Mark out of stock' }}</strong>
           <button class="x" (click)="closeDialog()">×</button>
         </div>
         <div class="modal-item">{{ dialogTitle() }}</div>
 
+        @if (dialogAction() === 'out') {
         <div class="modal-section">
           <div class="modal-label">Duration</div>
           <label class="radio">
@@ -138,28 +139,51 @@
             Till further notice
           </label>
         </div>
+        }
 
         <div class="modal-section">
-          <div class="modal-label row">
-            <span>Branches</span>
-            <button class="link" (click)="toggleAllBranches()">{{ allBranchesSelected() ? 'Clear all' : 'Select all' }}</button>
-          </div>
-          <div class="branch-list">
-            @for (b of dialogBranches(); track b.vendorCode) {
-              <label class="check" [class.on]="isBranchSelected(b.vendorCode)">
-                <input type="checkbox" [checked]="isBranchSelected(b.vendorCode)" (change)="toggleBranch(b.vendorCode)" />
-                <span class="b-name">{{ b.branchName }}</span>
-                <span class="b-code muted">{{ b.vendorCode }}</span>
-                @if (dialogItems().length === 1 && !b.isInStock) { <span class="b-state">already out</span> }
-              </label>
+          <div class="modal-label">Applies to</div>
+
+          @if (dialogBranches().length === 1) {
+            <div class="scope-single muted">
+              {{ dialogBranches()[0].branchName }} — the only branch affected.
+            </div>
+          } @else {
+            <label class="radio">
+              <input type="radio" name="oosscope" [checked]="branchScope() === 'specific'"
+                     (change)="setBranchScope('specific')" />
+              Specific branches
+            </label>
+            <label class="radio">
+              <input type="radio" name="oosscope" [checked]="branchScope() === 'all'"
+                     (change)="setBranchScope('all')" />
+              {{ dialogAction() === 'in' ? 'All branches that are out' : 'All branches' }}
+              <span class="muted">({{ dialogBranches().length }})</span>
+            </label>
+
+            @if (branchScope() === 'specific') {
+              <div class="modal-label row scope-pick">
+                <span>Pick branches</span>
+                <button class="link" (click)="toggleAllBranches()">{{ allBranchesSelected() ? 'Clear all' : 'Select all' }}</button>
+              </div>
+              <div class="branch-list">
+                @for (b of dialogBranches(); track b.vendorCode) {
+                  <label class="check" [class.on]="isBranchSelected(b.vendorCode)">
+                    <input type="checkbox" [checked]="isBranchSelected(b.vendorCode)" (change)="toggleBranch(b.vendorCode)" />
+                    <span class="b-name">{{ b.branchName }}</span>
+                    <span class="b-code muted">{{ b.vendorCode }}</span>
+                    @if (dialogItems().length === 1 && !b.isInStock) { <span class="b-state">already out</span> }
+                  </label>
+                }
+              </div>
             }
-          </div>
+          }
         </div>
 
         <div class="modal-actions">
           <button class="btn" (click)="closeDialog()">Cancel</button>
-          <button class="btn primary" [disabled]="dialogSaving() || selectedBranches().size === 0" (click)="confirmOut()">
-            {{ dialogSaving() ? 'Applying…' : 'Mark out of stock' }}
+          <button class="btn primary" [disabled]="dialogSaving() || selectedBranches().size === 0" (click)="confirmDialog()">
+            {{ dialogSaving() ? 'Applying…' : (dialogAction() === 'in' ? 'Mark in stock' : 'Mark out of stock') }}
           </button>
         </div>
       </div>
