@@ -28,6 +28,8 @@ export class AvailabilityComponent implements OnInit {
   // 'Product' = menu items, 'Modifier' = toppings. Talabat treats them as separate catalog types.
   readonly entityType = signal<'Product' | 'Modifier'>('Product');
   readonly search = signal('');
+  // "Unavailable only" filter — the quickest way to see what is currently switched off.
+  readonly onlyUnavailable = signal(false);
   readonly rows = 15;
   readonly first = signal(0);
 
@@ -109,6 +111,7 @@ export class AvailabilityComponent implements OnInit {
       .getItems({
         search: this.search().trim() || undefined,
         entityType: this.entityType(),
+        onlyUnavailable: this.onlyUnavailable() || undefined,
         maxResultCount: this.rows,
         skipCount: this.first(),
       })
@@ -135,6 +138,19 @@ export class AvailabilityComponent implements OnInit {
     const modifier = this.entityType() === 'Modifier';
     if (plural) return modifier ? 'toppings' : 'items';
     return modifier ? 'topping' : 'item';
+  }
+
+  toggleUnavailableOnly(): void {
+    this.onlyUnavailable.set(!this.onlyUnavailable());
+    this.first.set(0);
+    this.clearSelection();
+    this.load();
+  }
+
+  /** Distinct aggregators this row publishes to, e.g. "Talabat". */
+  aggregators(item: AvailabilityItemDto): string {
+    const names = new Set(item.branches.map(b => b.aggregator).filter(Boolean));
+    return names.size ? [...names].join(', ') : '—';
   }
 
   onSearch(): void {

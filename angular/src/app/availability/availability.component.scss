@@ -41,6 +41,10 @@
   &:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
   &:disabled { opacity: 0.5; cursor: default; }
 }
+.filter-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  &.on { border-color: var(--brand); color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, transparent); }
+}
 .total { font-size: 0.82rem; color: var(--text-color-secondary); margin-left: auto; }
 
 // Bulk action bar — appears only while rows are selected.

@@ -40,7 +40,14 @@
       <input type="text" [ngModel]="search()" (ngModelChange)="search.set($event)" (keyup.enter)="onSearch()" [placeholder]="'Search ' + noun() + ' name or id…'" />
     </div>
     <button class="btn" (click)="onSearch()">Search</button>
-    <span class="total" *ngIf="total()">{{ total() | number }} {{ noun(true) }}</span>
+    <button class="btn filter-toggle" [class.on]="onlyUnavailable()" (click)="toggleUnavailableOnly()"
+            [attr.aria-pressed]="onlyUnavailable()">
+      <i class="pi" [class.pi-filter]="!onlyUnavailable()" [class.pi-filter-fill]="onlyUnavailable()"></i>
+      Unavailable only
+    </button>
+    <span class="total" *ngIf="total()">
+      {{ total() | number }} {{ onlyUnavailable() ? 'unavailable ' + noun(true) : noun(true) }}
+    </span>
   </div>
 
   @if (selectedItems().size) {
@@ -69,14 +76,14 @@
           <th>{{ entityType() === 'Modifier' ? 'Topping' : 'Item' }}</th>
           <th>{{ entityType() === 'Modifier' ? 'Group' : 'Category' }}</th>
           @if (entityType() !== 'Modifier') { <th>SKU</th> }
-          <th>Branches</th><th>Status</th><th class="actions-col">Actions</th>
+          <th>Aggregator</th><th>Branches</th><th>Status</th><th class="actions-col">Actions</th>
         </tr>
       </thead>
       <tbody>
         @if (loading()) {
-          <tr><td [attr.colspan]="entityType() === 'Modifier' ? 6 : 7" class="center muted">Loading…</td></tr>
+          <tr><td [attr.colspan]="entityType() === 'Modifier' ? 7 : 8" class="center muted">Loading…</td></tr>
         } @else if (!items().length) {
-          <tr><td [attr.colspan]="entityType() === 'Modifier' ? 6 : 7" class="center muted">No {{ noun(true) }} found.</td></tr>
+          <tr><td [attr.colspan]="entityType() === 'Modifier' ? 7 : 8" class="center muted">No {{ onlyUnavailable() ? 'unavailable ' : '' }}{{ noun(true) }} found.</td></tr>
         } @else {
           @for (it of items(); track key(it)) {
             <tr [class.oos]="it.outOfStockCount > 0" [class.picked]="isItemSelected(it)">
@@ -86,6 +93,7 @@
               <td class="strong">{{ it.name }}</td>
               <td class="muted">{{ it.categoryName || '—' }}</td>
               @if (entityType() !== 'Modifier') { <td class="muted mono">{{ it.sku || '—' }}</td> }
+              <td class="muted">{{ aggregators(it) }}</td>
               <td class="muted">{{ it.branchCount }}</td>
               <td>
                 @if (it.outOfStockCount === 0) {
@@ -146,7 +154,7 @@
 
           @if (dialogBranches().length === 1) {
             <div class="scope-single muted">
-              {{ dialogBranches()[0].branchName }} — the only branch affected.
+              {{ dialogBranches()[0].branchName }} ({{ dialogBranches()[0].aggregator }}) — the only branch affected.
             </div>
           } @else {
             <label class="radio">
@@ -171,7 +179,7 @@
                   <label class="check" [class.on]="isBranchSelected(b.vendorCode)">
                     <input type="checkbox" [checked]="isBranchSelected(b.vendorCode)" (change)="toggleBranch(b.vendorCode)" />
                     <span class="b-name">{{ b.branchName }}</span>
-                    <span class="b-code muted">{{ b.vendorCode }}</span>
+                    <span class="b-code muted">{{ b.aggregator }} · {{ b.vendorCode }}</span>
                     @if (dialogItems().length === 1 && !b.isInStock) { <span class="b-state">already out</span> }
                   </label>
                 }

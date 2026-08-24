@@ -10,6 +10,9 @@ public class AvailabilityBranchStateDto
 {
     public string VendorCode { get; set; } = string.Empty;
     public string BranchName { get; set; } = string.Empty;
+
+    /// <summary>Delivery platform this branch publishes to, e.g. "Talabat".</summary>
+    public string Aggregator { get; set; } = string.Empty;
     public bool IsInStock { get; set; } = true;
     /// <summary>"ForADay" or "TillFurtherNotice"; null while in stock.</summary>
     public string? Mode { get; set; }
@@ -41,6 +44,9 @@ public class GetAvailabilityInput : PagedAndSortedResultRequestDto
 
     /// <summary>"Product" (default) lists menu items; "Modifier" lists toppings.</summary>
     public string? EntityType { get; set; }
+
+    /// <summary>Only return rows that are currently out of stock on at least one branch.</summary>
+    public bool? OnlyUnavailable { get; set; }
 }
 
 public class SetAvailabilityInput

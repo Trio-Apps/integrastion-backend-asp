@@ -87,6 +87,19 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
             query = query.Where(x => x.Name.Contains(s) || (x.Sku != null && x.Sku.Contains(s)) || x.FoodicsProductId.Contains(s));
         }
 
+        if (input.OnlyUnavailable == true)
+        {
+            // Narrow to what is actually out somewhere in the caller's branches, before paging.
+            var outIds = await (await _availabilityRepo.GetQueryableAsync())
+                .Where(a => !a.IsInStock && a.EntityType == AvailabilityEntityType.Product
+                    && vendorCodes.Contains(a.VendorCode))
+                .Select(a => a.FoodicsProductId)
+                .Distinct()
+                .ToListAsync();
+
+            query = query.Where(x => outIds.Contains(x.FoodicsProductId));
+        }
+
         var totalCount = await query.CountAsync();
         var rows = await query
             .OrderBy(x => x.Name)
@@ -114,6 +127,7 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
                     {
                         VendorCode = v.Code,
                         BranchName = v.DisplayName,
+                        Aggregator = v.Aggregator,
                         IsInStock = st == null,
                         Mode = st?.Mode,
                         RestoreAtUtc = st?.RestoreAtUtc,
@@ -149,6 +163,7 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
             return new PagedResultDto<AvailabilityItemDto>(0, new List<AvailabilityItemDto>());
 
         var accountIds = vendors.Select(v => v.AccountId).Distinct().ToList();
+        var vendorCodes = vendors.Select(v => v.Code).ToList();
         var toppings = await LoadToppingsAsync(accountIds);
 
         if (!string.IsNullOrWhiteSpace(input.Search))
@@ -161,6 +176,19 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
                 .ToList();
         }
 
+        if (input.OnlyUnavailable == true)
+        {
+            var outIds = (await (await _availabilityRepo.GetQueryableAsync())
+                .Where(a => !a.IsInStock && a.EntityType == AvailabilityEntityType.Modifier
+                    && vendorCodes.Contains(a.VendorCode))
+                .Select(a => a.FoodicsProductId)
+                .Distinct()
+                .ToListAsync())
+                .ToHashSet();
+
+            toppings = toppings.Where(m => outIds.Contains(m.Id)).ToList();
+        }
+
         var totalCount = toppings.Count;
         var page = toppings
             .OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase)
@@ -169,7 +197,6 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
             .ToList();
 
         var pageIds = page.Select(m => m.Id).ToList();
-        var vendorCodes = vendors.Select(v => v.Code).ToList();
         var stateQuery = await _availabilityRepo.GetQueryableAsync();
         var outStates = await stateQuery
             .Where(a => !a.IsInStock && a.EntityType == AvailabilityEntityType.Modifier
@@ -188,6 +215,7 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
                     {
                         VendorCode = v.Code,
                         BranchName = v.DisplayName,
+                        Aggregator = v.Aggregator,
                         IsInStock = st == null,
                         Mode = st?.Mode,
                         RestoreAtUtc = st?.RestoreAtUtc,
@@ -448,7 +476,8 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
                 a.Name,
                 a.ChainCode,
                 a.PlatformRestaurantId,
-                a.FoodicsBranchId
+                a.FoodicsBranchId,
+                a.PlatformKey
             })
             .Distinct()
             .ToListAsync();
@@ -462,13 +491,31 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
                     : (!string.IsNullOrWhiteSpace(x.Name) ? x.Name : x.VendorCode),
                 x.ChainCode,
                 x.PlatformRestaurantId,
-                x.FoodicsBranchId))
+                x.FoodicsBranchId,
+                ResolveAggregatorName(x.PlatformKey)))
             .ToList();
+    }
+
+    // The platform key encodes the aggregator and country (e.g. "TB_KW"); show the brand.
+    private static string ResolveAggregatorName(string? platformKey)
+    {
+        var key = (platformKey ?? string.Empty).Trim();
+        if (key.Length == 0)
+            return "Talabat";
+
+        var brand = key.Split('_')[0].ToUpperInvariant();
+        return brand switch
+        {
+            "TB" => "Talabat",
+            "FP" => "foodpanda",
+            "FO" => "foodora",
+            _ => key,
+        };
     }
 
     private sealed record VendorInfo(
         string Code, Guid AccountId, string DisplayName,
-        string? ChainCode, string? PosVendorId, string? BranchId);
+        string? ChainCode, string? PosVendorId, string? BranchId, string Aggregator);
 
     public async Task<AvailabilitySettingsDto> GetSettingsAsync()
     {

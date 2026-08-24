@@ -5,6 +5,7 @@ import type { PagedResultDto } from '@abp/ng.core';
 export interface AvailabilityBranchStateDto {
   vendorCode: string;
   branchName: string;
+  aggregator: string;
   isInStock: boolean;
   mode?: string;
   restoreAtUtc?: string;
@@ -27,6 +28,8 @@ export interface GetAvailabilityInput {
   vendorCode?: string;
   /** 'Product' (menu items) or 'Modifier' (toppings). */
   entityType?: string;
+  /** Only rows that are out of stock on at least one branch. */
+  onlyUnavailable?: boolean;
   maxResultCount?: number;
   skipCount?: number;
 }
