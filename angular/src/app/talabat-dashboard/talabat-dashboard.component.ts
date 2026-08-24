@@ -3,12 +3,13 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { DashboardService, DashboardOverviewDto } from '../dashboard/dashboard.service';
+import { FormsModule } from '@angular/forms';
+import { DashboardService, DashboardOverviewDto, DashboardOrderCountDto } from '../dashboard/dashboard.service';
 
 @Component({
   selector: 'app-talabat-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, FormsModule],
   templateUrl: './talabat-dashboard.component.html',
   styleUrls: ['./talabat-dashboard.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -18,6 +19,12 @@ export class TalabatDashboardComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly data = signal<DashboardOverviewDto | null>(null);
+
+  // Order counter for a chosen day — defaults to today.
+  readonly countDate = signal<string>(new Date().toLocaleDateString('en-CA'));
+  readonly dayCount = signal<DashboardOrderCountDto | null>(null);
+  readonly countLoading = signal<boolean>(false);
+  readonly today = new Date().toLocaleDateString('en-CA');
   readonly loading = signal<boolean>(false);
   readonly error = signal<boolean>(false);
 
@@ -46,6 +53,27 @@ export class TalabatDashboardComponent implements OnInit {
 
   ngOnInit(): void {
     this.load();
+    this.loadDayCount();
+  }
+
+  onCountDateChange(value: string): void {
+    if (!value) return;
+    this.countDate.set(value);
+    this.loadDayCount();
+  }
+
+  loadDayCount(): void {
+    this.countLoading.set(true);
+    this.svc
+      .getOrderCount(this.countDate())
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.countLoading.set(false)),
+      )
+      .subscribe({
+        next: c => this.dayCount.set(c),
+        error: () => this.dayCount.set(null),
+      });
   }
 
   load(): void {

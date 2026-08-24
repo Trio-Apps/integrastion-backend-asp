@@ -43,6 +43,15 @@ export interface DashboardRecentOrderDto {
   receivedAt: string;
 }
 
+export interface DashboardOrderCountDto {
+  date: string;
+  total: number;
+  succeeded: number;
+  failed: number;
+  inProgress: number;
+  revenue: number;
+}
+
 export interface DashboardOverviewDto {
   orders: DashboardOrderStatsDto;
   ordersTrend: DashboardDailyCountDto[];
@@ -60,6 +69,13 @@ export class DashboardService {
   getOverview = () =>
     this.restService.request<any, DashboardOverviewDto>(
       { method: 'GET', url: '/api/app/dashboard/overview' },
+      { apiName: this.apiName },
+    );
+
+  /** Orders received on one calendar day. Omit the date for today. */
+  getOrderCount = (date?: string) =>
+    this.restService.request<any, DashboardOrderCountDto>(
+      { method: 'GET', url: '/api/app/dashboard/order-count', params: date ? { date } : {} },
       { apiName: this.apiName },
     );
 }

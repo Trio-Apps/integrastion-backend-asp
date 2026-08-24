@@ -58,6 +58,65 @@ public class DashboardAppService : ApplicationService, IDashboardAppService
         }
     }
 
+    public async Task<DashboardOrderCountDto> GetOrderCountAsync(DateTime? date = null)
+    {
+        var isHost = CurrentTenant.Id == null;
+        using (isHost ? _dataFilter.Disable<IMultiTenant>() : null)
+        {
+            return await BuildOrderCountAsync(date?.Date ?? _clock.Now.Date);
+        }
+    }
+
+    private async Task<DashboardOrderCountDto> BuildOrderCountAsync(DateTime day)
+    {
+        var result = new DashboardOrderCountDto { Date = day };
+
+        var scope = await _branchProvider.GetScopeAsync();
+        List<string>? allowedVendorCodes = null;
+        if (!scope.AllBranches)
+        {
+            // Fail-closed: a user with no branch grants counts nothing.
+            if (scope.BranchIds.Count == 0)
+                return result;
+
+            var accQ = await _talabatAccountRepo.GetQueryableAsync();
+            allowedVendorCodes = await accQ
+                .Where(a => a.FoodicsBranchId != null && scope.BranchIds.Contains(a.FoodicsBranchId))
+                .Select(a => a.VendorCode)
+                .Distinct()
+                .ToListAsync();
+
+            if (allowedVendorCodes.Count == 0)
+                return result;
+        }
+
+        var dayEnd = day.AddDays(1);
+        var query = (await _orderRepo.GetQueryableAsync()).AsNoTracking()
+            .Where(x => x.ReceivedAt >= day && x.ReceivedAt < dayEnd);
+
+        if (allowedVendorCodes != null)
+            query = query.Where(x => allowedVendorCodes.Contains(x.VendorCode));
+
+        var byStatus = await query
+            .GroupBy(x => x.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        int Count(params string[] names) => byStatus
+            .Where(s => names.Any(n => string.Equals(s.Status, n, StringComparison.OrdinalIgnoreCase)))
+            .Sum(s => s.Count);
+
+        result.Total = byStatus.Sum(s => s.Count);
+        result.Succeeded = Count("Succeeded", "Completed");
+        result.Failed = Count("Failed");
+        result.InProgress = Count("Processing", "Enqueued", "Received");
+        result.Revenue = await query
+            .Where(x => x.GrandTotal != null && (x.Status == "Succeeded" || x.Status == "Completed"))
+            .SumAsync(x => (decimal?)x.GrandTotal) ?? 0m;
+
+        return result;
+    }
+
     private async Task<DashboardOverviewDto> BuildOverviewAsync()
     {
         var scope = await _branchProvider.GetScopeAsync();

@@ -31,6 +31,17 @@ public class DashboardOrderStatsDto
     public decimal Revenue7Days { get; set; }
 }
 
+/// <summary>Order counts for one calendar day, for the date-picking counter.</summary>
+public class DashboardOrderCountDto
+{
+    public DateTime Date { get; set; }
+    public int Total { get; set; }
+    public int Succeeded { get; set; }
+    public int Failed { get; set; }
+    public int InProgress { get; set; }
+    public decimal Revenue { get; set; }
+}
+
 public class DashboardDailyCountDto
 {
     public DateTime Date { get; set; }

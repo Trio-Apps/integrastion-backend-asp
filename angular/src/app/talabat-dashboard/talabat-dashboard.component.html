@@ -14,9 +14,20 @@
     <!-- Uniform metric grid: block cards (top row = label + icon), value, footnote -->
     <div class="stats">
       <div class="card metric" style="--c: #1d9e75">
-        <div class="m-top"><span class="m-lbl">Orders today</span><span class="m-ic"><i class="pi pi-inbox"></i></span></div>
-        <div class="m-val">{{ d.orders.today }}</div>
-        <div class="m-foot">{{ d.orders.total }} total all-time</div>
+        <div class="m-top">
+          <span class="m-lbl">{{ countDate() === today ? 'Orders today' : 'Orders on' }}</span>
+          <span class="m-ic"><i class="pi pi-inbox"></i></span>
+        </div>
+        <div class="m-val">
+          {{ countLoading() ? '…' : (dayCount()?.total ?? d.orders.today) }}
+        </div>
+        <input class="m-date" type="date" [max]="today" [ngModel]="countDate()"
+               (ngModelChange)="onCountDateChange($event)" aria-label="Count orders for this date" />
+        @if (dayCount(); as c) {
+          <div class="m-foot">{{ c.succeeded }} ok · {{ c.failed }} failed</div>
+        } @else {
+          <div class="m-foot">{{ d.orders.total }} total all-time</div>
+        }
       </div>
       <div class="card metric" style="--c: #2563eb">
         <div class="m-top"><span class="m-lbl">Orders · 7 days</span><span class="m-ic"><i class="pi pi-calendar"></i></span></div>

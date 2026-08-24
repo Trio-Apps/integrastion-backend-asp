@@ -220,3 +220,16 @@ table {
 @media (max-width: 560px) {
   .stats { grid-template-columns: 1fr; }
 }
+
+// Date picker inside the order-counter tile.
+.metric .m-date {
+  margin-top: 6px;
+  width: 100%;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.78rem;
+  color: var(--text-color);
+  background: var(--surface-card);
+  &:focus { outline: none; border-color: var(--c, var(--primary-color)); }
+}
