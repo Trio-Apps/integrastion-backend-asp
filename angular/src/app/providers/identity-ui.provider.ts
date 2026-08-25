@@ -4,6 +4,7 @@ import { DialogService } from 'primeng/dynamicdialog';
 import { EntityAction } from '@abp/ng.components/extensible';
 import { IdentityUserDto } from '@abp/ng.identity/proxy';
 import { UserBranchModalComponent } from '../identity/user-branch-modal/user-branch-modal.component';
+import { ResetPasswordModalComponent } from '../identity/reset-password-modal/reset-password-modal.component';
 
 // Users grid: "Branches" action → branch-scoped access dialog. Branches follow the person,
 // not their role, so two users sharing a role can still cover different branches.
@@ -39,6 +40,30 @@ function branchesActionContributor(actionList: any) {
 // mapper (item => item.text) makes every node "match" and silently drops the FIRST action (Edit).
 function removeUserPermissionsAction(actionList: any) {
   actionList.dropByValue('AbpIdentity::Permissions', (action: any, text: string) => action.text === text);
+}
+
+// Users grid: "Reset password" action → set or generate a password for someone who cannot use
+// the emailed self-service link. They are asked to change it at their next sign-in.
+function resetPasswordContributor(actionList: any) {
+  const actions = EntityAction.createMany<IdentityUserDto>([
+    {
+      text: 'Reset password',
+      action: data => {
+        const dialogService = data.getInjected(DialogService);
+        const user = data.record;
+        dialogService.open(ResetPasswordModalComponent, {
+          header: `Reset password — ${user?.userName ?? 'User'}`,
+          width: '460px',
+          data: { userId: user?.id, userName: user?.userName },
+          modal: true,
+          closable: true,
+        });
+      },
+      permission: 'AbpIdentity.Users.Update',
+    },
+  ]);
+
+  actionList.addManyTail(actions);
 }
 
 // Users grid: "Reset login attempts" action → clears failed attempts and unlocks the account.
@@ -87,6 +112,7 @@ export const IDENTITY_ENTITY_ACTION_CONTRIBUTORS_VALUE = {
   'Identity.UsersComponent': [
     removeUserPermissionsAction,
     branchesActionContributor,
+    resetPasswordContributor,
     resetLoginAttemptsContributor,
   ],
 };
