@@ -111,7 +111,7 @@ function configureRoutes() {
       iconClass: 'pi pi-users', order: 2, layout: app, requiredPolicy: P.customerMapping,
     },
     {
-      path: '/failed-orders-report', name: 'Daily Report', parentName: 'Orders',
+      path: '/failed-orders-report', name: 'Daily Failed Orders Report', parentName: 'Orders',
       iconClass: 'pi pi-envelope', order: 3, layout: app, requiredPolicy: P.dailyReport,
     },
 

@@ -14,7 +14,7 @@ import { FailedOrdersReportService } from './failed-orders-report.service';
   template: `
     <div class="fr-page">
       <div class="fr-head">
-        <h1>Daily failed-orders report</h1>
+        <h1>Daily Failed Orders Report</h1>
         <p>
           Get an email at the end of each day listing orders that stayed <strong>Failed</strong>
           after all {{ 3 }} retry attempts. Leave the email empty to turn the report off.

@@ -11,7 +11,7 @@
     "Permission:PaymentMethods": "Payment Methods",
     "Permission:DeliveryCharges": "Delivery Charges",
     "Permission:Orders": "Orders Console",
-    "Permission:DailyReport": "Daily Report",
+    "Permission:DailyReport": "Daily Failed Orders Report",
     "Permission:CustomerMapping": "Customer Mapping",
     "Permission:Availability": "Item & Modifier Availability",
     "Permission:Availability.Manage": "Manage Availability (In/Out of Stock)",

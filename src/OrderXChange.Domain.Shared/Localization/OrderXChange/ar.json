@@ -16,7 +16,7 @@
     "Permission:PaymentMethods": "طرق الدفع",
     "Permission:DeliveryCharges": "رسوم التوصيل",
     "Permission:Orders": "شاشة الطلبات",
-    "Permission:DailyReport": "التقرير اليومي",
+    "Permission:DailyReport": "تقرير الأوردرات الفاشلة اليومي",
     "Permission:CustomerMapping": "ربط العملاء",
     "Permission:Availability": "توفّر الأصناف والإضافات",
     "Permission:Availability.Manage": "إدارة التوفّر (متوفر/غير متوفر)",
