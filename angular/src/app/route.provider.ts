@@ -103,7 +103,7 @@ function configureRoutes() {
       requiredPolicy: anyOf(P.orders, P.customerMapping, P.dailyReport),
     },
     {
-      path: '/talabat-orders', name: 'Talabat Orders', parentName: 'Orders',
+      path: '/talabat-orders', name: 'Orders', parentName: 'Orders',
       iconClass: 'pi pi-inbox', order: 1, layout: app, requiredPolicy: P.orders,
     },
     {
