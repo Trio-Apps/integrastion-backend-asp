@@ -99,19 +99,19 @@ function configureRoutes() {
 
     // ══════════ Orders ══════════
     {
-      name: 'Orders', iconClass: 'pi pi-shopping-cart', order: 30, layout: app,
+      name: '::Menu:Orders', iconClass: 'pi pi-shopping-cart', order: 30, layout: app,
       requiredPolicy: anyOf(P.orders, P.customerMapping, P.dailyReport),
     },
     {
-      path: '/talabat-orders', name: 'Orders', parentName: 'Orders',
+      path: '/talabat-orders', name: 'Orders', parentName: '::Menu:Orders',
       iconClass: 'pi pi-inbox', order: 1, layout: app, requiredPolicy: P.orders,
     },
     {
-      path: '/talabat-customer-mapping', name: 'Customer Mapping', parentName: 'Orders',
+      path: '/talabat-customer-mapping', name: 'Customer Mapping', parentName: '::Menu:Orders',
       iconClass: 'pi pi-users', order: 2, layout: app, requiredPolicy: P.customerMapping,
     },
     {
-      path: '/failed-orders-report', name: 'Daily Failed Orders Report', parentName: 'Orders',
+      path: '/failed-orders-report', name: 'Daily Failed Orders Report', parentName: '::Menu:Orders',
       iconClass: 'pi pi-envelope', order: 3, layout: app, requiredPolicy: P.dailyReport,
     },
 
