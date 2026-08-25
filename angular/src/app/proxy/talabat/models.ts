@@ -75,6 +75,7 @@ export interface GetTalabatOrderLogsInput extends PagedAndSortedResultRequestDto
   searchTerm?: string;
   vendorCode?: string;
   branchId?: string;
+  aggregator?: string;
   customerName?: string;
   customerPhone?: string;
   status?: string;
@@ -92,6 +93,7 @@ export interface TalabatOrderLogDto {
   id?: string;
   foodicsAccountId?: string;
   vendorCode?: string;
+  aggregator?: string;
   platformRestaurantId?: string;
   orderToken?: string;
   orderCode?: string;

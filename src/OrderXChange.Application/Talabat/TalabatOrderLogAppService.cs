@@ -80,6 +80,8 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
             .Select(ProjectToDto)
             .ToListAsync();
 
+        await StampAggregatorAsync(items);
+
         return new PagedResultDto<TalabatOrderLogDto>(totalCount, items);
     }
 
@@ -138,6 +140,8 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
                 .Select(ProjectToDto)
                 .ToListAsync();
 
+        await StampAggregatorAsync(rows);
+
         return BuildOrdersWorkbook(rows);
     }
 
@@ -184,6 +188,19 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
         {
             var vendor = input.VendorCode.Trim();
             queryable = queryable.Where(x => x.VendorCode == vendor);
+        }
+
+        if (!string.IsNullOrWhiteSpace(input.Aggregator))
+        {
+            // Orders only store the vendor code, so resolve which vendors belong to that platform.
+            var wanted = input.Aggregator.Trim();
+            var map = await GetAggregatorByVendorAsync();
+            var vendorCodes = map
+                .Where(kv => string.Equals(kv.Value, wanted, StringComparison.OrdinalIgnoreCase))
+                .Select(kv => kv.Key)
+                .ToList();
+
+            queryable = queryable.Where(x => x.VendorCode != null && vendorCodes.Contains(x.VendorCode));
         }
 
         if (!string.IsNullOrWhiteSpace(input.CustomerName))
@@ -271,7 +288,7 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
     {
         var headers = new[]
         {
-            "Order ID", "Short Code", "Received (UTC)", "Vendor", "Customer ID", "Customer Name",
+            "Order ID", "Short Code", "Received (UTC)", "Vendor", "Aggregator", "Customer ID", "Customer Name",
             "Customer Phone", "Address", "Channel", "Expedition", "Payment", "Status", "Attempts",
             "Grand Total", "Discount", "Last Error"
         };
@@ -295,18 +312,19 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
             ws.Cell(r, 3).Value = o.ReceivedAt;
             ws.Cell(r, 3).Style.DateFormat.Format = "yyyy-mm-dd hh:mm";
             ws.Cell(r, 4).Value = o.VendorCode ?? string.Empty;
-            ws.Cell(r, 5).Value = o.CustomerId ?? string.Empty;
-            ws.Cell(r, 6).Value = o.CustomerName ?? string.Empty;
-            ws.Cell(r, 7).Value = o.CustomerPhone ?? string.Empty;
-            ws.Cell(r, 8).Value = o.CustomerAddress ?? string.Empty;
-            ws.Cell(r, 9).Value = o.Channel ?? string.Empty;
-            ws.Cell(r, 10).Value = o.ExpeditionType ?? string.Empty;
-            ws.Cell(r, 11).Value = o.PaymentMethod ?? string.Empty;
-            ws.Cell(r, 12).Value = o.Status ?? string.Empty;
-            ws.Cell(r, 13).Value = o.Attempts;
-            if (o.GrandTotal.HasValue) ws.Cell(r, 14).Value = o.GrandTotal.Value;
-            if (o.DiscountTotal.HasValue) ws.Cell(r, 15).Value = o.DiscountTotal.Value;
-            ws.Cell(r, 16).Value = o.LastError ?? string.Empty;
+            ws.Cell(r, 5).Value = o.Aggregator ?? string.Empty;
+            ws.Cell(r, 6).Value = o.CustomerId ?? string.Empty;
+            ws.Cell(r, 7).Value = o.CustomerName ?? string.Empty;
+            ws.Cell(r, 8).Value = o.CustomerPhone ?? string.Empty;
+            ws.Cell(r, 9).Value = o.CustomerAddress ?? string.Empty;
+            ws.Cell(r, 10).Value = o.Channel ?? string.Empty;
+            ws.Cell(r, 11).Value = o.ExpeditionType ?? string.Empty;
+            ws.Cell(r, 12).Value = o.PaymentMethod ?? string.Empty;
+            ws.Cell(r, 13).Value = o.Status ?? string.Empty;
+            ws.Cell(r, 14).Value = o.Attempts;
+            if (o.GrandTotal.HasValue) ws.Cell(r, 15).Value = o.GrandTotal.Value;
+            if (o.DiscountTotal.HasValue) ws.Cell(r, 16).Value = o.DiscountTotal.Value;
+            ws.Cell(r, 17).Value = o.LastError ?? string.Empty;
             r++;
         }
 
@@ -534,6 +552,76 @@ public class TalabatOrderLogAppService : ApplicationService, ITalabatOrderLogApp
         };
 
         await _eventBus.PublishAsync(retryEvent);
+    }
+
+    // The platform key encodes the aggregator and country (e.g. "TB_KW"); show the brand.
+    private static string ResolveAggregatorName(string? platformKey)
+    {
+        var key = (platformKey ?? string.Empty).Trim();
+        if (key.Length == 0)
+            return "Talabat";
+
+        return key.Split('_')[0].ToUpperInvariant() switch
+        {
+            "TB" => "Talabat",
+            "FP" => "foodpanda",
+            "FO" => "foodora",
+            _ => key,
+        };
+    }
+
+    private async Task StampAggregatorAsync(List<TalabatOrderLogDto> rows)
+    {
+        if (rows.Count == 0)
+            return;
+
+        var map = await GetAggregatorByVendorAsync();
+        foreach (var row in rows)
+        {
+            row.Aggregator = row.VendorCode != null && map.TryGetValue(row.VendorCode, out var name)
+                ? name
+                : null;
+        }
+    }
+
+    private async Task<Dictionary<string, string>> GetAggregatorByVendorAsync()
+    {
+        var accounts = await (await _talabatAccountRepository.GetQueryableAsync())
+            .AsNoTracking()
+            .Select(a => new { a.VendorCode, a.PlatformKey })
+            .ToListAsync();
+
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var account in accounts)
+        {
+            if (!string.IsNullOrWhiteSpace(account.VendorCode))
+                map[account.VendorCode] = ResolveAggregatorName(account.PlatformKey);
+        }
+
+        return map;
+    }
+
+    public async Task<List<string>> GetAggregatorsAsync()
+    {
+        var scope = await _branchProvider.GetScopeAsync();
+        if (!scope.AllBranches && scope.BranchIds.Count == 0)
+            return [];
+
+        var accountQueryable = (await _talabatAccountRepository.GetQueryableAsync()).AsNoTracking();
+        if (!scope.AllBranches)
+        {
+            var branchIds = scope.BranchIds;
+            accountQueryable = accountQueryable
+                .Where(a => a.FoodicsBranchId != null && branchIds.Contains(a.FoodicsBranchId));
+        }
+
+        var keys = await accountQueryable.Select(a => a.PlatformKey).Distinct().ToListAsync();
+
+        return keys
+            .Select(ResolveAggregatorName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     public async Task<List<BranchLookupDto>> GetAccessibleBranchesAsync()

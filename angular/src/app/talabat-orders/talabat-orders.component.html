@@ -69,6 +69,18 @@
       />
     </span>
     <span class="filter-item">
+      <label for="aggregatorFilter">Aggregator</label>
+      <select
+        id="aggregatorFilter"
+        class="status-select"
+        [ngModel]="aggregator()"
+        (ngModelChange)="aggregator.set($event || '')"
+      >
+        <option value="">All Aggregators</option>
+        <option *ngFor="let a of aggregators()" [value]="a.value">{{ a.label }}</option>
+      </select>
+    </span>
+    <span class="filter-item">
       <label for="branchFilter">Branch</label>
       <select
         id="branchFilter"
@@ -180,6 +192,7 @@
         <th pSortableColumn="orderCode">Order ID <p-sortIcon field="orderCode"></p-sortIcon></th>
         <th pSortableColumn="receivedAt">Received <p-sortIcon field="receivedAt"></p-sortIcon></th>
         <th pSortableColumn="vendorCode">Vendor <p-sortIcon field="vendorCode"></p-sortIcon></th>
+        <th>Aggregator</th>
         <th>Customer ID</th>
         <th>Customer Name</th>
         <th>Address</th>
@@ -210,6 +223,7 @@
           <div class="date-cell">{{ formatReceivedAt(row) }}</div>
         </td>
         <td>{{ row.vendorCode || '-' }}</td>
+        <td>{{ row.aggregator || '-' }}</td>
         <td class="customer-cell">{{ row.customerId || '-' }}</td>
         <td class="customer-cell">{{ row.customerName || '-' }}</td>
         <td class="address-cell" [title]="row.customerAddress || ''">{{ row.customerAddress || '-' }}</td>
@@ -262,7 +276,7 @@
 
     <ng-template pTemplate="rowexpansion" let-row>
       <tr>
-        <td colspan="15">
+        <td colspan="16">
           <div class="order-detail-panel">
             <ng-container *ngIf="isDetailsLoading(row.id)">
               <div class="detail-loading">
@@ -331,7 +345,7 @@
 
     <ng-template pTemplate="emptymessage">
       <tr>
-        <td colspan="15">No orders recorded yet.</td>
+        <td colspan="16">No orders recorded yet.</td>
       </tr>
     </ng-template>
   </p-table>

@@ -61,6 +61,13 @@ export class TalabatOrdersComponent {
       )
       .subscribe(() => this.loadLogs({ first: 0, rows: this.rows() }));
 
+    this.orderLogsService.getAggregators()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: list => this.aggregators.set((list ?? []).map(a => ({ value: a, label: a }))),
+        error: () => {},
+      });
+
     this.orderLogsService.getAccessibleBranches()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -79,6 +86,8 @@ export class TalabatOrdersComponent {
   readonly toDate = signal<string>('');
   readonly sorting = signal<string>('');
   readonly branches = signal<{ value: string; label: string }[]>([]);
+  readonly aggregator = signal<string>('');
+  readonly aggregators = signal<{ value: string; label: string }[]>([]);
   readonly errorDialogVisible = signal<boolean>(false);
   readonly selectedErrorMessage = signal<string>('');
 
@@ -107,6 +116,7 @@ export class TalabatOrdersComponent {
     add('searchTerm', this.searchTerm());
     add('vendorCode', this.vendorCode());
     add('branchId', this.branchId());
+    add('aggregator', this.aggregator());
     add('customerName', this.customerName());
     add('customerPhone', this.customerPhone());
     add('status', this.status());
@@ -177,6 +187,7 @@ export class TalabatOrdersComponent {
       searchTerm: this.searchTerm().trim() || undefined,
       vendorCode: this.vendorCode().trim() || undefined,
       branchId: this.branchId() || undefined,
+      aggregator: this.aggregator() || undefined,
       customerName: this.customerName().trim() || undefined,
       customerPhone: this.customerPhone().trim() || undefined,
       status: this.status() || undefined,

@@ -14,4 +14,7 @@ public interface ITalabatOrderLogAppService : IApplicationService
     Task<RetryTalabatOrderLogsResultDto> RetryFailedAndEnqueuedAsync(RetryTalabatOrderLogsInput input);
     Task<string> EnqueueBackfillListingFieldsAsync();
     Task<List<BranchLookupDto>> GetAccessibleBranchesAsync();
+
+    /// <summary>Delivery platforms present in the caller's accessible branches.</summary>
+    Task<List<string>> GetAggregatorsAsync();
 }

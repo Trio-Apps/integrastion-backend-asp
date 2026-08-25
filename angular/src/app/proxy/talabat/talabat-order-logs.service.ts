@@ -56,5 +56,14 @@ export class TalabatOrderLogsService {
       { apiName: this.apiName, ...config }
     );
 
+  getAggregators = (config?: Partial<Rest.Config>) =>
+    this.restService.request<any, string[]>(
+      {
+        method: 'GET',
+        url: '/api/app/talabat-order-log/aggregators',
+      },
+      { apiName: this.apiName, ...config }
+    );
+
   constructor(private restService: RestService) {}
 }

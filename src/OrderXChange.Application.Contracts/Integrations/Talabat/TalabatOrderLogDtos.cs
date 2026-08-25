@@ -9,6 +9,9 @@ public class GetTalabatOrderLogsInput : PagedAndSortedResultRequestDto
     public string? SearchTerm { get; set; }
     public string? VendorCode { get; set; }
     public string? BranchId { get; set; }
+
+    /// <summary>Delivery platform to filter by, e.g. "Talabat".</summary>
+    public string? Aggregator { get; set; }
     public string? CustomerName { get; set; }
     public string? CustomerPhone { get; set; }
     public string? Status { get; set; }
@@ -22,6 +25,9 @@ public class TalabatOrderLogDto
     public Guid Id { get; set; }
     public Guid FoodicsAccountId { get; set; }
     public string? VendorCode { get; set; }
+
+    /// <summary>Delivery platform this order came from, e.g. "Talabat".</summary>
+    public string? Aggregator { get; set; }
     public string? PlatformRestaurantId { get; set; }
     public string? OrderToken { get; set; }
     public string? OrderCode { get; set; }
