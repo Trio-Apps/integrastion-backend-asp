@@ -100,6 +100,7 @@ public class OrderXChangeDbContext :
 
     // Phase 2 — branch-scoped authorization (role -> allowed Foodics branches)
     public DbSet<RoleBranch> RoleBranches { get; set; }
+    public DbSet<UserBranch> UserBranches { get; set; }
     public DbSet<OrderXChange.Availability.ItemAvailabilityState> ItemAvailabilityStates { get; set; }
     #endregion
 
@@ -194,6 +195,22 @@ public class OrderXChangeDbContext :
                 .HasDatabaseName("IX_RoleBranches_Tenant_Role_Account_Branch");
 
             b.HasIndex(x => x.RoleId).HasDatabaseName("IX_RoleBranches_RoleId");
+        });
+
+        builder.Entity<UserBranch>(b =>
+        {
+            b.ToTable(OrderXChangeConsts.DbTablePrefix + "UserBranches", OrderXChangeConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.FoodicsBranchId).IsRequired().HasMaxLength(64);
+            b.Property(x => x.FoodicsBranchName).HasMaxLength(256);
+
+            // One grant per (user, account, branch) within a tenant
+            b.HasIndex(x => new { x.TenantId, x.UserId, x.FoodicsAccountId, x.FoodicsBranchId })
+                .IsUnique()
+                .HasDatabaseName("IX_UserBranches_Tenant_User_Account_Branch");
+
+            b.HasIndex(x => x.UserId).HasDatabaseName("IX_UserBranches_UserId");
         });
 
         builder.Entity<OrderXChange.Availability.ItemAvailabilityState>(b =>

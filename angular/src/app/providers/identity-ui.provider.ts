@@ -2,29 +2,30 @@ import { RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { DialogService } from 'primeng/dynamicdialog';
 import { EntityAction } from '@abp/ng.components/extensible';
-import { IdentityRoleDto, IdentityUserDto } from '@abp/ng.identity/proxy';
-import { RoleBranchModalComponent } from '../identity/role-branch-modal/role-branch-modal.component';
+import { IdentityUserDto } from '@abp/ng.identity/proxy';
+import { UserBranchModalComponent } from '../identity/user-branch-modal/user-branch-modal.component';
 
-// Roles grid: "Branches" action → branch-scoped access dialog.
+// Users grid: "Branches" action → branch-scoped access dialog. Branches follow the person,
+// not their role, so two users sharing a role can still cover different branches.
 function branchesActionContributor(actionList: any) {
-  const actions = EntityAction.createMany<IdentityRoleDto>([
+  const actions = EntityAction.createMany<IdentityUserDto>([
     {
       text: 'Branches',
       action: data => {
         const dialogService = data.getInjected(DialogService);
-        const role = data.record;
-        dialogService.open(RoleBranchModalComponent, {
-          header: `Branch Access — ${role?.name ?? 'Role'}`,
+        const user = data.record;
+        dialogService.open(UserBranchModalComponent, {
+          header: `Branch Access — ${user?.userName ?? 'User'}`,
           width: '540px',
           data: {
-            roleId: role?.id,
-            roleName: role?.name,
+            userId: user?.id,
+            userName: user?.userName,
           },
           modal: true,
           closable: true,
         });
       },
-      permission: 'AbpIdentity.Roles.Update',
+      permission: 'AbpIdentity.Users.Update',
     },
   ]);
 
@@ -83,8 +84,11 @@ function hideRoleFlagsFormProp(propList: any) {
 // tokens at the lazy-route injector scope with the options you pass; providing them only at the
 // app root gets shadowed by that empty route-scope provider, so the contributors never run.
 export const IDENTITY_ENTITY_ACTION_CONTRIBUTORS_VALUE = {
-  'Identity.RolesComponent': [branchesActionContributor],
-  'Identity.UsersComponent': [removeUserPermissionsAction, resetLoginAttemptsContributor],
+  'Identity.UsersComponent': [
+    removeUserPermissionsAction,
+    branchesActionContributor,
+    resetLoginAttemptsContributor,
+  ],
 };
 
 export const IDENTITY_CREATE_FORM_PROP_CONTRIBUTORS_VALUE = {

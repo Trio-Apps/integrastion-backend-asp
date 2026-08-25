@@ -6,7 +6,6 @@ using OrderXChange.Permissions;
 using Volo.Abp.Authorization.Permissions;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
-using Volo.Abp.Identity;
 using Volo.Abp.Users;
 
 namespace OrderXChange.Authorization;
@@ -15,19 +14,16 @@ public class CurrentUserBranchProvider : ICurrentUserBranchProvider, ITransientD
 {
     private readonly ICurrentUser _currentUser;
     private readonly IPermissionChecker _permissionChecker;
-    private readonly IRepository<RoleBranch, Guid> _roleBranchRepository;
-    private readonly IIdentityUserRepository _identityUserRepository;
+    private readonly IRepository<UserBranch, Guid> _userBranchRepository;
 
     public CurrentUserBranchProvider(
         ICurrentUser currentUser,
         IPermissionChecker permissionChecker,
-        IRepository<RoleBranch, Guid> roleBranchRepository,
-        IIdentityUserRepository identityUserRepository)
+        IRepository<UserBranch, Guid> userBranchRepository)
     {
         _currentUser = currentUser;
         _permissionChecker = permissionChecker;
-        _roleBranchRepository = roleBranchRepository;
-        _identityUserRepository = identityUserRepository;
+        _userBranchRepository = userBranchRepository;
     }
 
     public async Task<UserBranchScope> GetScopeAsync()
@@ -44,16 +40,10 @@ public class CurrentUserBranchProvider : ICurrentUserBranchProvider, ITransientD
             return UserBranchScope.All();
         }
 
-        // Otherwise: the union of branches granted to the user's roles. Fail-closed:
-        // a user with no matching grants sees nothing.
-        var roles = await _identityUserRepository.GetRolesAsync(_currentUser.Id.Value);
-        var roleIds = roles.Select(r => r.Id).ToList();
-        if (roleIds.Count == 0)
-        {
-            return UserBranchScope.Restricted(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-        }
-
-        var rows = await _roleBranchRepository.GetListAsync(x => roleIds.Contains(x.RoleId));
+        // Otherwise: the branches granted to this user. Branches are assigned to the person
+        // rather than to their role, so two users sharing a role can cover different branches.
+        // Fail-closed: a user with no grants sees nothing.
+        var rows = await _userBranchRepository.GetListAsync(x => x.UserId == _currentUser.Id.Value);
         var branchIds = rows
             .Select(x => x.FoodicsBranchId)
             .Where(id => !string.IsNullOrWhiteSpace(id))

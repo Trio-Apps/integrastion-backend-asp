@@ -7,7 +7,7 @@ import {
   IDENTITY_ENTITY_ACTION_CONTRIBUTORS_VALUE,
   IDENTITY_CREATE_FORM_PROP_CONTRIBUTORS_VALUE,
   IDENTITY_EDIT_FORM_PROP_CONTRIBUTORS_VALUE,
-} from './providers/role-branch-action.provider';
+} from './providers/identity-ui.provider';
 
 export const APP_ROUTES: Routes = [
   {

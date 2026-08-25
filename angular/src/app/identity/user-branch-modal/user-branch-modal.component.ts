@@ -10,8 +10,8 @@ import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 
-import { RoleBranchService } from '../../proxy/role-branch/role-branch.service';
-import { RoleBranchDto } from '../../proxy/role-branch/models';
+import { UserBranchService } from '../../proxy/user-branch/user-branch.service';
+import { UserBranchDto } from '../../proxy/user-branch/models';
 import { FoodicsService } from '../../proxy/foodics/foodics.service';
 import { FoodicsBranchDto } from '../../proxy/application/integrations/foodics/models';
 
@@ -22,7 +22,7 @@ interface AccountGroup {
 }
 
 @Component({
-  selector: 'app-role-branch-modal',
+  selector: 'app-user-branch-modal',
   standalone: true,
   imports: [
     CommonModule,
@@ -32,18 +32,18 @@ interface AccountGroup {
     ToastModule,
   ],
   providers: [MessageService],
-  templateUrl: './role-branch-modal.component.html',
-  styleUrls: ['./role-branch-modal.component.scss'],
+  templateUrl: './user-branch-modal.component.html',
+  styleUrls: ['./user-branch-modal.component.scss'],
 })
-export class RoleBranchModalComponent implements OnInit {
-  private roleBranchService = inject(RoleBranchService);
+export class UserBranchModalComponent implements OnInit {
+  private userBranchService = inject(UserBranchService);
   private foodicsService = inject(FoodicsService);
   private messageService = inject(MessageService);
   private dialogRef = inject(DynamicDialogRef);
   private dialogConfig = inject(DynamicDialogConfig);
 
-  roleId: string = '';
-  roleName: string = '';
+  userId: string = '';
+  userName: string = '';
 
   loading = false;
   saving = false;
@@ -94,13 +94,13 @@ export class RoleBranchModalComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.roleId = this.dialogConfig.data?.roleId ?? '';
-    this.roleName = this.dialogConfig.data?.roleName ?? '';
+    this.userId = this.dialogConfig.data?.userId ?? '';
+    this.userName = this.dialogConfig.data?.userName ?? '';
     this.loadData();
   }
 
   private loadData(): void {
-    if (!this.roleId) return;
+    if (!this.userId) return;
 
     this.loading = true;
 
@@ -114,13 +114,13 @@ export class RoleBranchModalComponent implements OnInit {
         }
 
         const branchRequests = accountList.map(account =>
-          this.roleBranchService.getAvailableBranches(account.id!).pipe(
+          this.userBranchService.getAvailableBranches(account.id!).pipe(
             catchError(() => of([] as FoodicsBranchDto[]))
           )
         );
 
         forkJoin([
-          this.roleBranchService.getForRole(this.roleId).pipe(catchError(() => of([] as RoleBranchDto[]))),
+          this.userBranchService.getForUser(this.userId).pipe(catchError(() => of([] as UserBranchDto[]))),
           forkJoin(branchRequests),
         ]).subscribe({
           next: ([currentGrants, branchesPerAccount]) => {
@@ -172,7 +172,7 @@ export class RoleBranchModalComponent implements OnInit {
   save(): void {
     this.saving = true;
 
-    const branches: RoleBranchDto[] = [];
+    const branches: UserBranchDto[] = [];
     for (const k of this.selected) {
       const [accountId, branchId] = k.split('::');
       const group = this.accountGroups.find(g => g.accountId === accountId);
@@ -184,7 +184,7 @@ export class RoleBranchModalComponent implements OnInit {
       });
     }
 
-    this.roleBranchService.updateForRole(this.roleId, { branches }).subscribe({
+    this.userBranchService.updateForUser(this.userId, { branches }).subscribe({
       next: () => {
         this.messageService.add({ severity: 'success', summary: 'Saved', detail: 'Branch access updated.' });
         this.saving = false;
