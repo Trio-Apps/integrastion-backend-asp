@@ -1,3 +1,12 @@
+# Partners (Talabat included) store the base URL with a trailing slash, so their
+# callbacks arrive as "//api/talabat/webhooks/...". proxy_pass with a variable
+# upstream forwards $request_uri verbatim, ASP.NET Core routing 404s on the
+# doubled slash and the order is lost. Collapse repeated leading slashes first.
+map $request_uri $normalized_uri {
+    "~^/{2,}(?<rest>.*)$"  "/$rest";
+    default                $request_uri;
+}
+
 server {
     listen 80;
     server_name ${API_HOST};
@@ -19,7 +28,7 @@ server {
 
     location / {
         set $backend_upstream web_api:8080;
-        proxy_pass http://$backend_upstream;
+        proxy_pass http://$backend_upstream$normalized_uri;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
