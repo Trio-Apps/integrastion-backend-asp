@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text.Json;
@@ -12,6 +13,7 @@ using OrderXChange.Application.Integrations.Talabat;
 using OrderXChange.EntityFrameworkCore;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.EntityFrameworkCore;
+using Volo.Abp.Uow;
 
 namespace OrderXChange.BackgroundJobs;
 
@@ -19,21 +21,27 @@ namespace OrderXChange.BackgroundJobs;
 /// One-shot Hangfire job that backfills the listing columns
 /// (CustomerId, CustomerName, CustomerAddress, PaymentMethod, ExpeditionType, Channel,
 /// GrandTotal, DiscountTotal) for TalabatOrderSyncLog rows that were received before
-/// those columns were added.  Safe to enqueue multiple times — already-populated rows
-/// are skipped by the WHERE filter.
+/// those columns were added, and re-derives ExpeditionType as TGO/TMP on rows that still
+/// hold Talabat's raw "delivery" value (see <see cref="TalabatDeliveryModel"/>).
+/// Safe to enqueue multiple times — already-populated rows are skipped by the WHERE filter.
+/// Each batch runs in its own short unit of work so a large backlog (hundreds of thousands
+/// of rows) neither holds one long transaction nor accumulates tracked entities.
 /// </summary>
 public class BackfillOrderSyncLogListingFieldsJob : ITransientDependency
 {
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
 
     private readonly IDbContextProvider<OrderXChangeDbContext> _dbContextProvider;
+    private readonly IUnitOfWorkManager _unitOfWorkManager;
     private readonly ILogger<BackfillOrderSyncLogListingFieldsJob> _logger;
 
     public BackfillOrderSyncLogListingFieldsJob(
         IDbContextProvider<OrderXChangeDbContext> dbContextProvider,
+        IUnitOfWorkManager unitOfWorkManager,
         ILogger<BackfillOrderSyncLogListingFieldsJob> logger)
     {
         _dbContextProvider = dbContextProvider;
+        _unitOfWorkManager = unitOfWorkManager;
         _logger = logger;
     }
 
@@ -49,21 +57,27 @@ public class BackfillOrderSyncLogListingFieldsJob : ITransientDependency
     {
         _logger.LogInformation("BackfillOrderSyncLogListingFields started at {Timestamp}", DateTimeOffset.UtcNow);
 
-        var dbContext = await _dbContextProvider.GetDbContextAsync();
-
         // Collect all IDs across all tenants that still need backfilling.
         // A row needs backfilling when WebhookPayloadJson is present but
-        // none of the new listing fields have been written yet.
-        var pendingIds = await dbContext.TalabatOrderSyncLogs
-            .IgnoreQueryFilters()
-            .Where(x => x.WebhookPayloadJson != null
-                        && x.CustomerId == null
-                        && x.CustomerName == null
-                        && x.PaymentMethod == null
-                        && x.GrandTotal == null)
-            .OrderBy(x => x.CreationTime)
-            .Select(x => x.Id)
-            .ToListAsync(cancellationToken);
+        // none of the new listing fields have been written yet, or when its
+        // ExpeditionType is still Talabat's raw "delivery" (not yet TGO/TMP).
+        List<Guid> pendingIds;
+        using (var readUow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: false))
+        {
+            var readContext = await _dbContextProvider.GetDbContextAsync();
+            pendingIds = await readContext.TalabatOrderSyncLogs
+                .IgnoreQueryFilters()
+                .Where(x => x.WebhookPayloadJson != null
+                            && ((x.CustomerId == null
+                                 && x.CustomerName == null
+                                 && x.PaymentMethod == null
+                                 && x.GrandTotal == null)
+                                || x.ExpeditionType == "delivery"))
+                .OrderBy(x => x.CreationTime)
+                .Select(x => x.Id)
+                .ToListAsync(cancellationToken);
+            await readUow.CompleteAsync(cancellationToken);
+        }
 
         var total = pendingIds.Count;
         _logger.LogInformation("Found {Count} TalabatOrderSyncLog rows needing listing-field backfill", total);
@@ -79,7 +93,10 @@ public class BackfillOrderSyncLogListingFieldsJob : ITransientDependency
 
         for (var i = 0; i < pendingIds.Count; i += batchSize)
         {
-            var batchIds = pendingIds.Skip(i).Take(batchSize).ToList();
+            var batchIds = pendingIds.GetRange(i, Math.Min(batchSize, pendingIds.Count - i));
+
+            using var batchUow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true);
+            var dbContext = await _dbContextProvider.GetDbContextAsync();
 
             var batch = await dbContext.TalabatOrderSyncLogs
                 .IgnoreQueryFilters()
@@ -110,7 +127,7 @@ public class BackfillOrderSyncLogListingFieldsJob : ITransientDependency
                     row.CustomerPhone = BuildCustomerPhone(webhook.Customer);
                     row.CustomerAddress = BuildCustomerAddress(webhook.Delivery);
                     row.PaymentMethod = webhook.Payment?.Type;
-                    row.ExpeditionType = webhook.ExpeditionType;
+                    row.ExpeditionType = TalabatDeliveryModel.Resolve(webhook);
                     row.Channel = webhook.LocalInfo?.PlatformKey ?? webhook.LocalInfo?.Platform;
                     row.GrandTotal = ParseDecimal(webhook.Price?.GrandTotal);
                     row.DiscountTotal = ParseDecimal(webhook.Price?.DiscountAmountTotal);
@@ -128,6 +145,7 @@ public class BackfillOrderSyncLogListingFieldsJob : ITransientDependency
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);
+            await batchUow.CompleteAsync(cancellationToken);
 
             _logger.LogInformation(
                 "BackfillOrderSyncLogListingFields batch {BatchEnd}/{Total} saved",

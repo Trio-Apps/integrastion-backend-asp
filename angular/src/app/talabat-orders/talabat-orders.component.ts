@@ -374,12 +374,13 @@ export class TalabatOrdersComponent {
     return value.toFixed(2);
   }
 
+  // The backend stores TGO (Talabat rider delivers) / TMP (vendor delivers), or
+  // Talabat's own expedition type for anything else (e.g. "pickup").
   formatExpeditionType(type?: string | null): string {
     if (!type) return '-';
     const upper = type.toUpperCase();
-    if (upper === 'TMP' || upper.includes('TALABAT')) return 'TMP';
-    if (upper === 'TGO' || upper.includes('OWN') || upper.includes('VENDOR')) return 'TGO';
-    return type;
+    if (upper === 'TGO' || upper === 'TMP') return upper;
+    return type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
   }
 
   toggleAutoRefresh(): void {

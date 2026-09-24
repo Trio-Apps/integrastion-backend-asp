@@ -84,7 +84,7 @@ public class TalabatOrderSyncLog : FullAuditedAggregateRoot<Guid>, IMultiTenant
 	[MaxLength(100)]
 	public string? PaymentMethod { get; set; }
 
-	/// <summary>ExpeditionType from Talabat (e.g. "TMP" = platform delivery, "TGO" = vendor delivery).</summary>
+	/// <summary>Delivery model: "TGO" = Talabat rider delivers, "TMP" = vendor delivers; other Talabat expedition types (e.g. "pickup") as sent.</summary>
 	[MaxLength(100)]
 	public string? ExpeditionType { get; set; }
 

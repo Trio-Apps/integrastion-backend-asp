@@ -175,7 +175,7 @@ public class TalabatOrderWebhookProcessor : ITransientDependency
                         CustomerPhone = BuildCustomerPhone(webhook.Customer),
                         CustomerAddress = BuildCustomerAddress(webhook.Delivery),
                         PaymentMethod = webhook.Payment?.Type,
-                        ExpeditionType = webhook.ExpeditionType,
+                        ExpeditionType = TalabatDeliveryModel.Resolve(webhook),
                         Channel = webhook.LocalInfo?.PlatformKey ?? webhook.LocalInfo?.Platform,
                         GrandTotal = ParseDecimal(webhook.Price?.GrandTotal),
                         DiscountTotal = ParseDecimal(webhook.Price?.DiscountAmountTotal)
@@ -309,7 +309,7 @@ public class TalabatOrderWebhookProcessor : ITransientDependency
                 CustomerPhone = BuildCustomerPhone(webhook?.Customer),
                 CustomerAddress = BuildCustomerAddress(webhook?.Delivery),
                 PaymentMethod = webhook?.Payment?.Type,
-                ExpeditionType = webhook?.ExpeditionType,
+                ExpeditionType = TalabatDeliveryModel.Resolve(webhook),
                 Channel = webhook?.LocalInfo?.PlatformKey ?? webhook?.LocalInfo?.Platform,
                 GrandTotal = ParseDecimal(webhook?.Price?.GrandTotal),
                 DiscountTotal = ParseDecimal(webhook?.Price?.DiscountAmountTotal)

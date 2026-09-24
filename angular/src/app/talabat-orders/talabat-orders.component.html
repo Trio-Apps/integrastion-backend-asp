@@ -232,7 +232,7 @@
           <p-tag
             *ngIf="row.expeditionType"
             [value]="formatExpeditionType(row.expeditionType)"
-            [severity]="row.expeditionType?.toUpperCase() === 'TMP' ? 'info' : 'secondary'"
+            [severity]="row.expeditionType?.toUpperCase() === 'TGO' ? 'info' : 'secondary'"
           ></p-tag>
           <span *ngIf="!row.expeditionType">-</span>
         </td>
