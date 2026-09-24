@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using OrderXChange.Permissions;
@@ -39,11 +40,15 @@ public class FailedOrdersReportAppService : ApplicationService, IFailedOrdersRep
 
     public async Task<FailedOrdersReportSettingsDto> UpdateAsync(UpdateFailedOrdersReportSettingsInput input)
     {
-        var email = input.Email?.Trim() ?? string.Empty;
-        if (!string.IsNullOrEmpty(email) && !IsValidEmail(email))
+        var recipients = FailedOrdersReportService.SplitRecipients(input.Email);
+        var invalid = recipients.Where(x => !IsValidEmail(x)).ToList();
+        if (invalid.Count > 0)
         {
-            throw new UserFriendlyException("Enter a valid email address (or leave it empty to disable the report).");
+            throw new UserFriendlyException(
+                $"Not a valid email address: {string.Join(", ", invalid)}. Separate multiple addresses with commas (or leave it empty to disable the report).");
         }
+
+        var email = string.Join(", ", recipients);
 
         var time = (input.Time ?? string.Empty).Trim();
         if (!FailedOrdersReportService.TryParseTime(time, out _))

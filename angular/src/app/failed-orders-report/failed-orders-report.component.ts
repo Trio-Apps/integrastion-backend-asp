@@ -17,20 +17,20 @@ import { FailedOrdersReportService } from './failed-orders-report.service';
         <h1>Daily Failed Orders Report</h1>
         <p>
           Get an email at the end of each day listing orders that stayed <strong>Failed</strong>
-          after all {{ 3 }} retry attempts. Leave the email empty to turn the report off.
+          after all {{ 3 }} retry attempts. Leave the emails empty to turn the report off.
         </p>
       </div>
 
       <div class="fr-card">
         <div class="fr-fields">
-          <label class="grow">Report email
-            <input type="email" [ngModel]="email()" (ngModelChange)="email.set($event)" placeholder="ops@yourcompany.com" />
+          <label class="grow">Report emails
+            <input type="text" inputmode="email" [ngModel]="email()" (ngModelChange)="email.set($event)" placeholder="ops@yourcompany.com, manager@yourcompany.com" />
           </label>
           <label>Send at
             <input type="time" [ngModel]="time()" (ngModelChange)="time.set($event)" />
           </label>
         </div>
-        <div class="fr-tz muted">Time is in your timezone ({{ timeZone() }}).</div>
+        <div class="fr-tz muted">Separate multiple emails with commas. Time is in your timezone ({{ timeZone() }}).</div>
 
         <div class="fr-actions">
           <button class="btn primary" [disabled]="saving()" (click)="save()">{{ saving() ? 'Saving…' : 'Save' }}</button>

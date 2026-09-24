@@ -41,7 +41,8 @@ public class FailedOrdersReportService : ITransientDependency
     }
 
     /// <summary>
-    /// Sends the report for "today" (the tenant-local day up to now) to <paramref name="email"/>.
+    /// Sends the report for "today" (the tenant-local day up to now) to <paramref name="email"/>
+    /// (one address or several separated by commas).
     /// When there are no failed orders and <paramref name="sendIfEmpty"/> is false, nothing is sent.
     /// Returns the number of failed orders included.
     /// </summary>
@@ -70,7 +71,7 @@ public class FailedOrdersReportService : ITransientDependency
         var subject = $"Failed orders report — {dateLabel} ({orders.Count})";
         var html = BuildHtml(orders, timeZone, dateLabel);
 
-        await _mailSender.SendAsync(email, subject, html);
+        await _mailSender.SendAsync(string.Join(",", SplitRecipients(email)), subject, html);
 
         _logger.LogInformation(
             "Failed-orders report sent to {Email}. Date={Date}, FailedCount={Count}.",
@@ -171,6 +172,23 @@ public class FailedOrdersReportService : ITransientDependency
 
             return TimeZoneInfo.Utc;
         }
+    }
+
+    /// <summary>
+    /// Splits the report recipients setting ("a@x.com, b@y.com"; commas, semicolons or
+    /// whitespace) into distinct addresses, preserving order.
+    /// </summary>
+    public static List<string> SplitRecipients(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return new List<string>();
+        }
+
+        return value
+            .Split(new[] { ',', ';', ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     public static bool TryParseTime(string? value, out TimeSpan time)
