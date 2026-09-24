@@ -48,7 +48,7 @@ write_servers() {
   local out=${1:-} svc line
   : > "$SERVERS.new"
   for svc in "${INSTANCES[@]}"; do
-    line="server $svc:8080 resolve max_fails=1 fail_timeout=10s"
+    line="server $svc:8080 resolve max_fails=1 fail_timeout=30s"
     [ "$svc" = "$out" ] && line+=" down"
     echo "$line;" >> "$SERVERS.new"
   done

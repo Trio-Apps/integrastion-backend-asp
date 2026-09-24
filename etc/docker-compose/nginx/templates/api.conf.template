@@ -48,7 +48,7 @@ server {
         proxy_pass http://api_backend$normalized_uri;
         # If one instance cannot be reached, try the other. nginx never resends a POST that
         # already reached an instance, so an order webhook is not delivered twice.
-        proxy_connect_timeout 3s;
+        proxy_connect_timeout 1s;
         proxy_next_upstream error timeout http_502 http_503;
         proxy_next_upstream_tries 2;
         proxy_next_upstream_timeout 15s;
