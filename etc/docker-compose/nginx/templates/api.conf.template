@@ -10,7 +10,16 @@ map $request_uri $normalized_uri {
 server {
     listen 80;
     server_name ${API_HOST};
-    return 301 https://$host$request_uri;
+
+    # Let's Encrypt HTTP-01 challenges (certbot --webroot) so certs renew
+    # without stopping nginx. Everything else goes to HTTPS.
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
 }
 
 server {

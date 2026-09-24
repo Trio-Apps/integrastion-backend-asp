@@ -23,6 +23,7 @@ services:
     volumes:
       - ./nginx/templates:/etc/nginx/templates:ro
       - ./certs:/etc/nginx/certs:ro
+      - ./certbot-www:/var/www/certbot:ro
     restart: always
     networks:
       - abp-network
