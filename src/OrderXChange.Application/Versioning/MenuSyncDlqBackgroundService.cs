@@ -6,12 +6,15 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.DistributedLocking;
 
 namespace OrderXChange.Application.Versioning;
 
 /// <summary>
 /// Background service for automatic retry of transient DLQ failures
-/// Runs periodically to process failed menu sync operations
+/// Runs periodically to process failed menu sync operations.
+/// Every API instance hosts this service; a distributed lock makes only one of them
+/// process the DLQ in a given cycle, so a message is never retried twice at once.
 /// </summary>
 public class MenuSyncDlqBackgroundService : BackgroundService, ITransientDependency
 {
@@ -58,6 +61,16 @@ public class MenuSyncDlqBackgroundService : BackgroundService, ITransientDepende
     private async Task ProcessDlqMessagesAsync(CancellationToken cancellationToken)
     {
         using var scope = _serviceProvider.CreateScope();
+
+        var distributedLock = scope.ServiceProvider.GetRequiredService<IAbpDistributedLock>();
+        await using var cycleLock = await distributedLock.TryAcquireAsync(
+            "MenuSyncDlqProcessing", TimeSpan.Zero, cancellationToken);
+        if (cycleLock == null)
+        {
+            _logger.LogDebug("Another instance is processing the menu sync DLQ; skipping this cycle");
+            return;
+        }
+
         var dlqService = scope.ServiceProvider.GetRequiredService<IMenuSyncDlqService>();
 
         try

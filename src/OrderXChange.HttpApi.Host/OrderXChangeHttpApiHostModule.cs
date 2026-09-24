@@ -14,6 +14,13 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Hangfire;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Medallion.Threading;
+using Medallion.Threading.Redis;
+using StackExchange.Redis;
+using Volo.Abp.Caching;
+using Volo.Abp.Caching.StackExchangeRedis;
+using Volo.Abp.DistributedLocking;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Extensions.DependencyInjection;
@@ -72,7 +79,8 @@ namespace OrderXChange;
     typeof(AbpAccountWebOpenIddictModule),
     typeof(AbpAspNetCoreSerilogModule),
     typeof(AbpHangfireModule),
-    typeof(AbpEventBusKafkaModule)
+    typeof(AbpEventBusKafkaModule),
+    typeof(AbpCachingStackExchangeRedisModule)
     )]
 public class OrderXChangeHttpApiHostModule : AbpModule
 {
@@ -141,10 +149,33 @@ public class OrderXChangeHttpApiHostModule : AbpModule
         ConfigureHealthChecks(context);
         ConfigureKafka(context, configuration);
         ConfigureHangfire(context, configuration);
+        ConfigureRedis(context, configuration);
         ConfigureSwagger(context, configuration);
         ConfigureVirtualFileSystem(context);
         ConfigureCors(context, configuration);
         ConfigureFilters(context);
+    }
+
+    /// <summary>
+    /// Production runs two API instances side by side (etc/docker-compose), so the ABP cache
+    /// (settings, permissions, features) and cross-instance locks must live in Redis; otherwise a
+    /// change made through one instance is invisible to the other. With Redis:IsEnabled=false
+    /// (the appsettings.json default, used for local runs) AbpCachingStackExchangeRedisModule
+    /// stays inactive and ABP keeps its in-process cache and lock.
+    /// </summary>
+    private void ConfigureRedis(ServiceConfigurationContext context, IConfiguration configuration)
+    {
+        if (!configuration.GetValue<bool>("Redis:IsEnabled"))
+        {
+            return;
+        }
+
+        Configure<AbpDistributedCacheOptions>(options => options.KeyPrefix = "OrderXChange:");
+
+        var redis = ConnectionMultiplexer.Connect(configuration["Redis:Configuration"]!);
+        context.Services.AddSingleton<IDistributedLockProvider>(
+            _ => new RedisDistributedSynchronizationProvider(redis.GetDatabase()));
+        context.Services.Replace(ServiceDescriptor.Singleton<IAbpDistributedLock, MedallionAbpDistributedLock>());
     }
 
     private void ConfigureSettings(ServiceConfigurationContext context)

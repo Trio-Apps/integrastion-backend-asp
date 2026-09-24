@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
@@ -17,6 +16,7 @@ using OrderXChange.Application.Contracts.Integrations.Talabat;
 using OrderXChange.Application.Integrations.Foodics;
 using OrderXChange.Application.Staging;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.DistributedLocking;
 
 namespace OrderXChange.Application.Integrations.Talabat;
 
@@ -28,8 +28,9 @@ public class TalabatCatalogSyncService : ITransientDependency
 {
     private const string CatalogPayloadHashVersion = "talabat-v2-catalog-final-payload-v1";
 
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> FoodicsMenuDisplayLocks =
-        new(StringComparer.OrdinalIgnoreCase);
+    // Longest a menu_display fetch waits for another one on the same account/branch
+    // (one fetch with its rate-limit retries takes well under a minute).
+    private static readonly TimeSpan MenuDisplayLockWait = TimeSpan.FromMinutes(10);
 
     private static readonly JsonSerializerOptions CatalogPayloadJsonOptions = new()
     {
@@ -45,6 +46,7 @@ public class TalabatCatalogSyncService : ITransientDependency
     private readonly TalabatSyncStatusService _syncStatusService;
     private readonly IBackgroundJobClient _backgroundJobs;
     private readonly IConfiguration _configuration;
+    private readonly IAbpDistributedLock _distributedLock;
     private readonly ILogger<TalabatCatalogSyncService> _logger;
 
     public TalabatCatalogSyncService(
@@ -56,6 +58,7 @@ public class TalabatCatalogSyncService : ITransientDependency
         TalabatSyncStatusService syncStatusService,
         IBackgroundJobClient backgroundJobs,
         IConfiguration configuration,
+        IAbpDistributedLock distributedLock,
         ILogger<TalabatCatalogSyncService> logger)
     {
         _talabatCatalogClient = talabatCatalogClient;
@@ -66,6 +69,7 @@ public class TalabatCatalogSyncService : ITransientDependency
         _syncStatusService = syncStatusService;
         _backgroundJobs = backgroundJobs;
         _configuration = configuration;
+        _distributedLock = distributedLock;
         _logger = logger;
     }
 
@@ -933,44 +937,47 @@ public class TalabatCatalogSyncService : ITransientDependency
         Guid foodicsAccountId,
         CancellationToken cancellationToken)
     {
-        var lockKey = $"{foodicsAccountId:N}:{branchId ?? "<all>"}";
-        var menuDisplayLock = FoodicsMenuDisplayLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
-
-        await menuDisplayLock.WaitAsync(cancellationToken);
-        try
+        // One menu_display fetch per account/branch at a time, across API instances
+        // (a Redis lock in production, an in-process one locally).
+        var lockKey = $"FoodicsMenuDisplay:{foodicsAccountId:N}:{branchId ?? "all"}";
+        await using var menuDisplayLock = await _distributedLock.TryAcquireAsync(
+            lockKey, MenuDisplayLockWait, cancellationToken);
+        if (menuDisplayLock == null)
         {
-            var maxAttempts = Math.Max(1, _configuration.GetValue<int?>("Foodics:MenuDisplayRetryAttempts") ?? 4);
-            var baseDelayMs = Math.Max(250, _configuration.GetValue<int?>("Foodics:MenuDisplayRetryBaseDelayMs") ?? 1500);
-
-            for (var attempt = 1; attempt <= maxAttempts; attempt++)
-            {
-                try
-                {
-                    return await _foodicsMenuClient.GetMenuAsync(
-                        branchId,
-                        accessToken: accessToken,
-                        foodicsAccountId: foodicsAccountId,
-                        cancellationToken: cancellationToken);
-                }
-                catch (HttpRequestException ex) when (IsFoodicsRateLimit(ex) && attempt < maxAttempts)
-                {
-                    var delay = TimeSpan.FromMilliseconds(baseDelayMs * attempt);
-                    _logger.LogWarning(
-                        ex,
-                        "Foodics menu_display rate limited. Retrying after delay. FoodicsAccountId={FoodicsAccountId}, BranchId={BranchId}, Attempt={Attempt}/{MaxAttempts}, DelayMs={DelayMs}",
-                        foodicsAccountId,
-                        branchId ?? "<all>",
-                        attempt,
-                        maxAttempts,
-                        delay.TotalMilliseconds);
-
-                    await Task.Delay(delay, cancellationToken);
-                }
-            }
+            _logger.LogWarning(
+                "Foodics menu_display lock not acquired within {Wait}; fetching anyway. FoodicsAccountId={FoodicsAccountId}, BranchId={BranchId}",
+                MenuDisplayLockWait,
+                foodicsAccountId,
+                branchId ?? "<all>");
         }
-        finally
+
+        var maxAttempts = Math.Max(1, _configuration.GetValue<int?>("Foodics:MenuDisplayRetryAttempts") ?? 4);
+        var baseDelayMs = Math.Max(250, _configuration.GetValue<int?>("Foodics:MenuDisplayRetryBaseDelayMs") ?? 1500);
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            menuDisplayLock.Release();
+            try
+            {
+                return await _foodicsMenuClient.GetMenuAsync(
+                    branchId,
+                    accessToken: accessToken,
+                    foodicsAccountId: foodicsAccountId,
+                    cancellationToken: cancellationToken);
+            }
+            catch (HttpRequestException ex) when (IsFoodicsRateLimit(ex) && attempt < maxAttempts)
+            {
+                var delay = TimeSpan.FromMilliseconds(baseDelayMs * attempt);
+                _logger.LogWarning(
+                    ex,
+                    "Foodics menu_display rate limited. Retrying after delay. FoodicsAccountId={FoodicsAccountId}, BranchId={BranchId}, Attempt={Attempt}/{MaxAttempts}, DelayMs={DelayMs}",
+                    foodicsAccountId,
+                    branchId ?? "<all>",
+                    attempt,
+                    maxAttempts,
+                    delay.TotalMilliseconds);
+
+                await Task.Delay(delay, cancellationToken);
+            }
         }
 
         return null;

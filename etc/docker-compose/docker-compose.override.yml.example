@@ -18,7 +18,7 @@ services:
 
 # --- Any server using deploy-api.sh (zero-downtime deploys) ---
 # The OpenIddict signing cert is otherwise regenerated on every image build, which signs
-# everyone out on each deploy and differs between web_api and web_api_green mid-swap.
+# everyone out on each deploy and would differ between the two API instances.
 # Keep ONE cert per server outside the image (passphrase = AUTHSERVER_CERT_PASSPHRASE):
 #   mkdir -p secrets && docker cp web_api:/app/openiddict.pfx secrets/openiddict.pfx
 # then mount it on both API services:
@@ -26,6 +26,6 @@ services:
 #  web_api:
 #    volumes:
 #      - ./secrets/openiddict.pfx:/app/openiddict.pfx:ro
-#  web_api_green:
+#  web_api_2:
 #    volumes:
 #      - ./secrets/openiddict.pfx:/app/openiddict.pfx:ro

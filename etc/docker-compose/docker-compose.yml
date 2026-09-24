@@ -1,19 +1,20 @@
 services:
   nginx:
-    image: nginx:1.25-alpine
+    # 1.27.3+ is needed for "resolve" on upstream servers (see nginx/templates/api.conf.template).
+    image: nginx:1.28-alpine
     container_name: reverse_proxy
     depends_on:
       - angular
-    # nginx resolves backends per request (resolver + variables), so it needs neither the
-    # API nor the console up to start. The API backend is chosen by nginx/active/api-upstream.conf,
-    # which deploy-api.sh flips between web_api and web_api_green (zero-downtime deploys).
+    # nginx resolves backends at runtime, so it needs neither the API nor the console up to
+    # start. The API upstream lists web_api and web_api_2 from nginx/active/api-servers.conf,
+    # which deploy-api.sh edits to take one instance out while it is recreated.
     command:
       - /bin/sh
       - -c
       - >
         rm -f /etc/nginx/conf.d/default.conf;
         for t in /etc/nginx/templates/*.template; do envsubst '$$API_HOST $$CONSOLE_HOST' < "$$t" > "/etc/nginx/conf.d/$$(basename "$$t" .template)"; done;
-        [ -f /etc/nginx/active/api-upstream.conf ] || echo 'set $$backend_upstream web_api:8080;' > /etc/nginx/active/api-upstream.conf;
+        [ -f /etc/nginx/active/api-servers.conf ] || printf 'server web_api:8080 resolve max_fails=1 fail_timeout=10s;\nserver web_api_2:8080 resolve max_fails=1 fail_timeout=10s;\n' > /etc/nginx/active/api-servers.conf;
         exec nginx -g 'daemon off;'
     ports:
       - "80:80"
@@ -46,6 +47,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment: &web_api_environment
       - App__SelfUrl=https://${API_HOST}
       - App__AngularUrl=https://${CONSOLE_HOST}
@@ -74,6 +77,11 @@ services:
       - Hangfire__WorkerCount=20
       - Hangfire__QueuePollIntervalSeconds=15
       - Hangfire__SlidingInvisibilityTimeoutMinutes=5
+      # Per instance; two instances run, so ~the previous single-instance total.
+      - Hangfire__MenuWorkerCount=3
+      # Shared cache (settings, permissions) and distributed locks for the two API instances.
+      - Redis__IsEnabled=true
+      - Redis__Configuration=redis:6379,abortConnect=false
       # Background Jobs Configuration
       - BackgroundJobs__OrderSync__Cron=0 */1 * * *
       - BackgroundJobs__MenuSync__Cron=0 * * * *
@@ -161,18 +169,19 @@ services:
     volumes:
       - webapi-dp-keys:/root/.aspnet/DataProtection-Keys
 
-  # Temporary stand-in used only during deploy-api.sh: it serves traffic while web_api is
-  # recreated, then is removed. Same image and config as web_api; never run both for long
-  # (settings/permission caches are per process).
-  web_api_green:
+  # Second API instance, always running next to web_api: nginx spreads requests over both and
+  # retries a request on the other when one cannot be reached, and deploy-api.sh recreates them
+  # one at a time. Same image and config; caches and locks are shared through Redis.
+  web_api_2:
     image: orderxchangehttpapihost
-    container_name: web_api_green
-    profiles: ["green"]
+    container_name: web_api_2
     user: root
     depends_on:
       mariadb:
         condition: service_healthy
       kafka:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     environment: *web_api_environment
     restart: always
@@ -207,6 +216,20 @@ services:
     restart: always
     networks:
       - abp-network
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: redis
+    # Cache + locks only: nothing here needs to survive a restart.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+    restart: always
+    networks:
+      - abp-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   mariadb:
     container_name: mariadb
