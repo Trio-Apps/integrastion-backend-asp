@@ -154,13 +154,14 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
 
         var newMappings = new List<MenuItemMapping>();
         var updatedMappings = new List<MenuItemMapping>();
+        var verifiedMappingIds = new HashSet<Guid>();
 
         // Process products
         foreach (var product in products)
         {
             var productMapping = await ProcessEntityMapping(
                 foodicsAccountId, branchId, MenuMappingEntityType.Product, product.Id, product.Name,
-                existingMappingDict, newMappings, updatedMappings);
+                existingMappingDict, newMappings, updatedMappings, verifiedMappingIds);
             result[product.Id] = productMapping;
 
             // Process category
@@ -168,7 +169,7 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
             {
                 var categoryMapping = await ProcessEntityMapping(
                     foodicsAccountId, branchId, MenuMappingEntityType.Category, product.Category.Id, product.Category.Name,
-                    existingMappingDict, newMappings, updatedMappings);
+                    existingMappingDict, newMappings, updatedMappings, verifiedMappingIds);
                 result[product.Category.Id] = categoryMapping;
             }
 
@@ -182,7 +183,7 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
                 {
                     var modifierMapping = await ProcessEntityMapping(
                         foodicsAccountId, branchId, MenuMappingEntityType.Modifier, modifier.Id, modifier.Name,
-                        existingMappingDict, newMappings, updatedMappings);
+                        existingMappingDict, newMappings, updatedMappings, verifiedMappingIds);
                     result[modifier.Id] = modifierMapping;
 
                     // Process modifier options
@@ -193,7 +194,7 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
                         {
                             var optionMapping = await ProcessEntityMapping(
                                 foodicsAccountId, branchId, MenuMappingEntityType.ModifierOption, option.Id, option.Name,
-                                existingMappingDict, newMappings, updatedMappings, modifier.Id);
+                                existingMappingDict, newMappings, updatedMappings, verifiedMappingIds, modifier.Id);
                             result[option.Id] = optionMapping;
                         }
                     }
@@ -241,11 +242,59 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
             }
         }
 
+        verifiedMappingIds.ExceptWith(newMappings.Select(m => m.Id));
+        await MarkMappingsVerifiedAsync(verifiedMappingIds, cancellationToken);
+
         _logger.LogInformation(
-            "Bulk mapping completed. Created={Created}, Updated={Updated}, Total={Total}",
-            newMappings.Count, updatedMappings.Count, result.Count);
+            "Bulk mapping completed. Created={Created}, Updated={Updated}, Verified={Verified}, Total={Total}",
+            newMappings.Count, updatedMappings.Count, verifiedMappingIds.Count, result.Count);
 
         return result;
+    }
+
+    /// <summary>
+    /// Records that these mappings were seen in this sync (SyncCount + 1, LastVerifiedAt = now)
+    /// with a direct UPDATE instead of changing the tracked entities.
+    /// </summary>
+    /// <remarks>
+    /// Talabat vendors that share a Foodics branch (e.g. a TMP and a TGO vendor) share the same
+    /// mapping rows and are synced in parallel. Changing hundreds of tracked rows left them to be
+    /// saved when the vendor's unit of work completed, so one of the two vendors hit an
+    /// optimistic-concurrency conflict and its whole submission was reported as failed. An
+    /// atomic increment has no stale ConcurrencyStamp to conflict on, and this is bookkeeping
+    /// only, so a lock failure is logged and skipped.
+    /// </remarks>
+    private async Task MarkMappingsVerifiedAsync(IReadOnlyCollection<Guid> mappingIds, CancellationToken cancellationToken)
+    {
+        if (mappingIds.Count == 0)
+        {
+            return;
+        }
+
+        var verifiedAt = DateTime.UtcNow;
+        var dbSet = await _mappingRepository.GetDbSetAsync();
+
+        foreach (var chunk in mappingIds.Chunk(500))
+        {
+            try
+            {
+                await dbSet
+                    .IgnoreQueryFilters()
+                    .Where(m => chunk.Contains(m.Id))
+                    .ExecuteUpdateAsync(
+                        setters => setters
+                            .SetProperty(m => m.SyncCount, m => m.SyncCount + 1)
+                            .SetProperty(m => m.LastVerifiedAt, verifiedAt),
+                        cancellationToken);
+            }
+            catch (Exception ex) when (IsRecoverableMappingPersistenceFailure(ex))
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Could not record menu mapping verification for {Count} mappings; skipped (bookkeeping only).",
+                    chunk.Length);
+            }
+        }
     }
 
     private static void DetachPendingMappingChanges(DbContext dbContext)
@@ -608,6 +657,7 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
         Dictionary<string, MenuItemMapping> existingMappingDict,
         List<MenuItemMapping> newMappings,
         List<MenuItemMapping> updatedMappings,
+        HashSet<Guid> verifiedMappingIds,
         string? parentFoodicsId = null)
     {
         var key = $"{entityType}:{foodicsId}";
@@ -621,7 +671,7 @@ public class MenuMappingService : IMenuMappingService, ITransientDependency
                 updatedMappings.Add(existingMapping);
             }
 
-            existingMapping.RecordSuccessfulSync();
+            verifiedMappingIds.Add(existingMapping.Id);
             return existingMapping;
         }
 
