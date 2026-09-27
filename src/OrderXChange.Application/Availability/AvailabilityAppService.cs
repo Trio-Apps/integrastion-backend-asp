@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OrderXChange.Application.Integrations.Foodics;
 using OrderXChange.Authorization;
@@ -21,6 +23,7 @@ using Volo.Abp.SettingManagement;
 using Volo.Abp.Settings;
 using Volo.Abp.TenantManagement.Talabat;
 using Volo.Abp.Timing;
+using Volo.Abp.Uow;
 
 namespace OrderXChange.Availability;
 
@@ -37,6 +40,7 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
     private readonly ISettingManager _settingManager;
     private readonly TalabatAvailabilityPushService _talabatPush;
 
+    private const int DefaultTalabatPushParallelism = 8;
     private const string DefaultDayEndTime = "05:00";
     private const string DefaultTimeZone = "Asia/Kuwait";
 
@@ -424,34 +428,69 @@ public class AvailabilityAppService : ApplicationService, IAvailabilityAppServic
         // §5: push the change to Talabat so the item actually goes (un)available there.
         // Best-effort — a push failure must not fail the local toggle. For "for a day" we also
         // send availableAt so Talabat can auto-restore; a manual "mark in stock" pushes available=true.
-        foreach (var vendor in targets)
-        {
-            var pushIds = ownership.TryGetValue(vendor.AccountId, out var ownedForPush)
+        var pushes = targets
+            .Select(vendor => (Vendor: vendor, Ids: ownership.TryGetValue(vendor.AccountId, out var ownedForPush)
                 ? requestedIds.Where(ownedForPush.Contains).ToList()
-                : new List<string>();
+                : new List<string>()))
+            .Where(p => p.Ids.Count > 0)
+            .ToList();
 
-            if (pushIds.Count == 0)
-            {
-                continue;
-            }
+        if (pushes.Count == 0)
+        {
+            return;
+        }
 
+        // One branch after another took ~0.3 s each (~7 s for 22 branches) before the page
+        // answered. The first push logs in to Talabat and caches the token, so it goes alone
+        // (otherwise every branch would log in at once); the rest then run in parallel.
+        await PushToVendorAsync(pushes[0].Vendor, pushes[0].Ids, input.InStock, restoreAt, entityType);
+
+        var parallelism = Math.Max(1,
+            LazyServiceProvider.LazyGetRequiredService<IConfiguration>()
+                .GetValue<int?>("Talabat:AvailabilityPushParallelism") ?? DefaultTalabatPushParallelism);
+        using var throttle = new SemaphoreSlim(parallelism, parallelism);
+
+        await Task.WhenAll(pushes.Skip(1).Select(async push =>
+        {
+            await throttle.WaitAsync();
             try
             {
-                await _talabatPush.PushAsync(
-                    vendor.AccountId,
-                    vendor.BranchId,
-                    vendor.Code,
-                    vendor.ChainCode,
-                    vendor.PosVendorId,
-                    pushIds,
-                    input.InStock,
-                    input.InStock ? null : restoreAt,
-                    entityType);
+                await PushToVendorAsync(push.Vendor, push.Ids, input.InStock, restoreAt, entityType);
             }
-            catch (Exception ex)
+            finally
             {
-                Logger.LogWarning(ex, "Talabat availability push failed for vendor {VendorCode}.", vendor.Code);
+                throttle.Release();
             }
+        }));
+    }
+
+    // Each push reads mappings and credentials through EF, and a DbContext cannot serve
+    // concurrent calls, so every push gets its own unit of work (and with it, its own DbContext).
+    private async Task PushToVendorAsync(
+        VendorInfo vendor,
+        List<string> pushIds,
+        bool inStock,
+        DateTime? restoreAt,
+        string entityType)
+    {
+        try
+        {
+            using var uow = UnitOfWorkManager.Begin(requiresNew: true, isTransactional: false);
+            await _talabatPush.PushAsync(
+                vendor.AccountId,
+                vendor.BranchId,
+                vendor.Code,
+                vendor.ChainCode,
+                vendor.PosVendorId,
+                pushIds,
+                inStock,
+                inStock ? null : restoreAt,
+                entityType);
+            await uow.CompleteAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Talabat availability push failed for vendor {VendorCode}.", vendor.Code);
         }
     }
 
