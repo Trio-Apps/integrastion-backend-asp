@@ -39,6 +39,38 @@
 }
 @keyframes dash-spin { to { transform: rotate(360deg); } }
 
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.branch-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-card);
+  border-radius: 10px;
+  padding: 0 0.6rem;
+  color: var(--text-color-secondary);
+
+  &:focus-within { border-color: var(--brand); }
+
+  select {
+    border: none;
+    background: transparent;
+    color: var(--text-color);
+    font-size: 0.85rem;
+    padding: 0.5rem 0.2rem;
+    max-width: 320px;
+    outline: none;
+    cursor: pointer;
+  }
+}
+
 .card {
   background: var(--surface-card);
   border: 1px solid var(--surface-border);

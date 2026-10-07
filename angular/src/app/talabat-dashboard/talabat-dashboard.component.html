@@ -2,12 +2,28 @@
   <div class="dash-head">
     <div>
       <h1>Dashboard</h1>
-      <p>Foodics × Talabat integration overview</p>
+      <p>
+        Foodics × Talabat integration overview
+        @if (selectedBranch(); as b) { · <b>{{ b.name || b.vendorCode }}</b> }
+      </p>
     </div>
-    <button type="button" class="refresh" (click)="load()" [disabled]="loading()">
-      <i class="pi pi-refresh" [class.spin]="loading()"></i>
-      <span>Refresh</span>
-    </button>
+    <div class="head-actions">
+      @if (branches().length > 1) {
+        <label class="branch-filter">
+          <i class="pi pi-sitemap"></i>
+          <select [ngModel]="vendorCode()" (ngModelChange)="onBranchChange($event)" aria-label="Filter the dashboard by branch">
+            <option value="">All branches ({{ branches().length }})</option>
+            @for (b of branches(); track b.vendorCode) {
+              <option [value]="b.vendorCode">{{ branchLabel(b) }}</option>
+            }
+          </select>
+        </label>
+      }
+      <button type="button" class="refresh" (click)="load(); loadDayCount()" [disabled]="loading()">
+        <i class="pi pi-refresh" [class.spin]="loading()"></i>
+        <span>Refresh</span>
+      </button>
+    </div>
   </div>
 
   @if (data(); as d) {
@@ -50,7 +66,7 @@
       <div class="card metric" style="--c: #1d9e75">
         <div class="m-top"><span class="m-lbl">Products synced</span><span class="m-ic"><i class="pi pi-list"></i></span></div>
         <div class="m-val">{{ d.sync.productsSynced }}</div>
-        <div class="m-foot">staged for Talabat</div>
+        <div class="m-foot">{{ vendorCode() ? 'in the Foodics menu of this branch' : 'staged for Talabat' }}</div>
       </div>
       <div class="card metric" style="--c: #7c3aed">
         <div class="m-top"><span class="m-lbl">Talabat vendors</span><span class="m-ic"><i class="pi pi-shopping-bag"></i></span></div>

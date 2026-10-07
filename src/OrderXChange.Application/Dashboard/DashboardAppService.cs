@@ -48,47 +48,90 @@ public class DashboardAppService : ApplicationService, IDashboardAppService
         _clock = clock;
     }
 
-    public async Task<DashboardOverviewDto> GetOverviewAsync()
+    public async Task<DashboardOverviewDto> GetOverviewAsync(string? vendorCode = null)
     {
         // Host (no tenant) aggregates across all tenants, matching the existing dashboard.
         var isHost = CurrentTenant.Id == null;
         using (isHost ? _dataFilter.Disable<IMultiTenant>() : null)
         {
-            return await BuildOverviewAsync();
+            return await BuildOverviewAsync(NormalizeVendorCode(vendorCode));
         }
     }
 
-    public async Task<DashboardOrderCountDto> GetOrderCountAsync(DateTime? date = null)
+    public async Task<DashboardOrderCountDto> GetOrderCountAsync(DateTime? date = null, string? vendorCode = null)
     {
         var isHost = CurrentTenant.Id == null;
         using (isHost ? _dataFilter.Disable<IMultiTenant>() : null)
         {
-            return await BuildOrderCountAsync(date?.Date ?? _clock.Now.Date);
+            return await BuildOrderCountAsync(date?.Date ?? _clock.Now.Date, NormalizeVendorCode(vendorCode));
         }
     }
 
-    private async Task<DashboardOrderCountDto> BuildOrderCountAsync(DateTime day)
+    public async Task<List<DashboardBranchDto>> GetBranchesAsync()
+    {
+        var isHost = CurrentTenant.Id == null;
+        using (isHost ? _dataFilter.Disable<IMultiTenant>() : null)
+        {
+            var scope = await _branchProvider.GetScopeAsync();
+            if (!scope.AllBranches && scope.BranchIds.Count == 0)
+                return new List<DashboardBranchDto>();
+
+            var query = (await _talabatAccountRepo.GetQueryableAsync()).AsNoTracking()
+                .Where(a => a.IsActive);
+            if (!scope.AllBranches)
+                query = query.Where(a => a.FoodicsBranchId != null && scope.BranchIds.Contains(a.FoodicsBranchId));
+
+            return await query
+                .OrderBy(a => a.Name)
+                .ThenBy(a => a.VendorCode)
+                .Select(a => new DashboardBranchDto
+                {
+                    VendorCode = a.VendorCode,
+                    Name = a.Name,
+                    FoodicsBranchName = a.FoodicsBranchName,
+                })
+                .ToListAsync();
+        }
+    }
+
+    private static string? NormalizeVendorCode(string? vendorCode) =>
+        string.IsNullOrWhiteSpace(vendorCode) ? null : vendorCode.Trim();
+
+    /// <summary>
+    /// The vendor codes the dashboard may count: the user's branch scope, narrowed to
+    /// <paramref name="vendorCode"/> when one is picked. null = no restriction (all branches,
+    /// nothing picked); an empty list = nothing visible (fail-closed, incl. a branch outside the
+    /// user's scope).
+    /// </summary>
+    private async Task<List<string>?> ResolveVisibleVendorCodesAsync(string? vendorCode)
+    {
+        var scope = await _branchProvider.GetScopeAsync();
+        if (scope.AllBranches)
+            return vendorCode == null ? null : new List<string> { vendorCode };
+
+        // Fail-closed: a user with no branch grants sees nothing.
+        if (scope.BranchIds.Count == 0)
+            return new List<string>();
+
+        var accQ = await _talabatAccountRepo.GetQueryableAsync();
+        var allowed = await accQ
+            .Where(a => a.FoodicsBranchId != null && scope.BranchIds.Contains(a.FoodicsBranchId))
+            .Select(a => a.VendorCode)
+            .Distinct()
+            .ToListAsync();
+
+        return vendorCode == null
+            ? allowed
+            : allowed.Where(v => string.Equals(v, vendorCode, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    private async Task<DashboardOrderCountDto> BuildOrderCountAsync(DateTime day, string? vendorCode)
     {
         var result = new DashboardOrderCountDto { Date = day };
 
-        var scope = await _branchProvider.GetScopeAsync();
-        List<string>? allowedVendorCodes = null;
-        if (!scope.AllBranches)
-        {
-            // Fail-closed: a user with no branch grants counts nothing.
-            if (scope.BranchIds.Count == 0)
-                return result;
-
-            var accQ = await _talabatAccountRepo.GetQueryableAsync();
-            allowedVendorCodes = await accQ
-                .Where(a => a.FoodicsBranchId != null && scope.BranchIds.Contains(a.FoodicsBranchId))
-                .Select(a => a.VendorCode)
-                .Distinct()
-                .ToListAsync();
-
-            if (allowedVendorCodes.Count == 0)
-                return result;
-        }
+        var allowedVendorCodes = await ResolveVisibleVendorCodesAsync(vendorCode);
+        if (allowedVendorCodes is { Count: 0 })
+            return result;
 
         var dayEnd = day.AddDays(1);
         var query = (await _orderRepo.GetQueryableAsync()).AsNoTracking()
@@ -117,27 +160,13 @@ public class DashboardAppService : ApplicationService, IDashboardAppService
         return result;
     }
 
-    private async Task<DashboardOverviewDto> BuildOverviewAsync()
+    private async Task<DashboardOverviewDto> BuildOverviewAsync(string? vendorCode)
     {
-        var scope = await _branchProvider.GetScopeAsync();
-
-        // Restricted users are scoped to the VendorCodes of their granted branches (fail-closed).
-        List<string>? allowedVendorCodes = null;
-        if (!scope.AllBranches)
-        {
-            if (scope.BranchIds.Count == 0)
-                return new DashboardOverviewDto();
-
-            var accQ = await _talabatAccountRepo.GetQueryableAsync();
-            allowedVendorCodes = await accQ
-                .Where(a => a.FoodicsBranchId != null && scope.BranchIds.Contains(a.FoodicsBranchId))
-                .Select(a => a.VendorCode)
-                .Distinct()
-                .ToListAsync();
-
-            if (allowedVendorCodes.Count == 0)
-                return new DashboardOverviewDto();
-        }
+        // Restricted users are scoped to the VendorCodes of their granted branches, and a picked
+        // branch narrows that further (fail-closed).
+        var allowedVendorCodes = await ResolveVisibleVendorCodesAsync(vendorCode);
+        if (allowedVendorCodes is { Count: 0 })
+            return new DashboardOverviewDto();
 
         var now = _clock.Now;
         var today = now.Date;
@@ -204,8 +233,23 @@ public class DashboardAppService : ApplicationService, IDashboardAppService
             .ToListAsync();
 
         // ── Sync / catalog ────────────────────────────────────────
+        // Catalog pushes are per Talabat vendor. Staged products are per Foodics account (one menu
+        // shared by all of that account's branches), so a branch filter shows its account's menu.
         var stagingQ = await _stagingRepo.GetQueryableAsync();
         var catalogQ = await _catalogRepo.GetQueryableAsync();
+        List<Guid>? visibleAccountIds = null;
+        if (allowedVendorCodes != null)
+        {
+            catalogQ = catalogQ.Where(x => allowedVendorCodes.Contains(x.VendorCode));
+
+            visibleAccountIds = await (await _talabatAccountRepo.GetQueryableAsync())
+                .Where(a => allowedVendorCodes.Contains(a.VendorCode) && a.FoodicsAccountId != null)
+                .Select(a => a.FoodicsAccountId!.Value)
+                .Distinct()
+                .ToListAsync();
+            stagingQ = stagingQ.Where(x => visibleAccountIds.Contains(x.FoodicsAccountId));
+        }
+
         var lastSync = await catalogQ
             .OrderByDescending(x => x.CompletedAt ?? x.SubmittedAt)
             .Select(x => new { x.Status, x.CompletedAt, x.SubmittedAt })
@@ -229,7 +273,7 @@ public class DashboardAppService : ApplicationService, IDashboardAppService
 
         var setup = new DashboardSetupStatsDto
         {
-            FoodicsAccounts = await _foodicsAccountRepo.CountAsync(),
+            FoodicsAccounts = visibleAccountIds?.Count ?? await _foodicsAccountRepo.CountAsync(),
             TalabatVendors = await vendorQ.CountAsync(),
             ActiveBranches = await vendorQ.Where(x => x.FoodicsBranchId != null)
                 .Select(x => x.FoodicsBranchId).Distinct().CountAsync(),

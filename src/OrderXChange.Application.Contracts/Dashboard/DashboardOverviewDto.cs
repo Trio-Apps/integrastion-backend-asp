@@ -65,6 +65,14 @@ public class DashboardSetupStatsDto
     public int ActiveBranches { get; set; }
 }
 
+/// <summary>A Talabat branch (vendor) for the dashboard's branch filter.</summary>
+public class DashboardBranchDto
+{
+    public string VendorCode { get; set; } = string.Empty;
+    public string? Name { get; set; }
+    public string? FoodicsBranchName { get; set; }
+}
+
 public class DashboardRecentOrderDto
 {
     public Guid Id { get; set; }

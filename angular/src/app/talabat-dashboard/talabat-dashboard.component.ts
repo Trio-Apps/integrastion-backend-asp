@@ -4,7 +4,14 @@ import { RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { DashboardService, DashboardOverviewDto, DashboardOrderCountDto } from '../dashboard/dashboard.service';
+import {
+  DashboardBranchDto,
+  DashboardService,
+  DashboardOverviewDto,
+  DashboardOrderCountDto,
+} from '../dashboard/dashboard.service';
+
+const BRANCH_STORAGE_KEY = 'oxc.dashboard.vendorCode';
 
 @Component({
   selector: 'app-talabat-dashboard',
@@ -19,6 +26,13 @@ export class TalabatDashboardComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly data = signal<DashboardOverviewDto | null>(null);
+
+  // Branch filter: '' = all branches the user can see. Remembered per browser.
+  readonly branches = signal<DashboardBranchDto[]>([]);
+  readonly vendorCode = signal<string>(this.readSavedBranch());
+  readonly selectedBranch = computed(() =>
+    this.branches().find(b => b.vendorCode === this.vendorCode()) ?? null,
+  );
 
   // Order counter for a chosen day — defaults to today.
   readonly countDate = signal<string>(new Date().toLocaleDateString('en-CA'));
@@ -52,8 +66,53 @@ export class TalabatDashboardComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.loadBranches();
     this.load();
     this.loadDayCount();
+  }
+
+  onBranchChange(value: string): void {
+    this.vendorCode.set(value ?? '');
+    this.saveBranch(this.vendorCode());
+    this.load();
+    this.loadDayCount();
+  }
+
+  branchLabel(b: DashboardBranchDto): string {
+    return b.name ? `${b.name} (${b.vendorCode})` : b.vendorCode;
+  }
+
+  private loadBranches(): void {
+    this.svc
+      .getBranches()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: list => {
+          this.branches.set(list ?? []);
+          // A remembered branch the user can no longer see falls back to all branches.
+          if (this.vendorCode() && !this.branches().some(b => b.vendorCode === this.vendorCode())) {
+            this.onBranchChange('');
+          }
+        },
+        error: () => this.branches.set([]),
+      });
+  }
+
+  private readSavedBranch(): string {
+    try {
+      return localStorage.getItem(BRANCH_STORAGE_KEY) ?? '';
+    } catch {
+      return '';
+    }
+  }
+
+  private saveBranch(value: string): void {
+    try {
+      if (value) localStorage.setItem(BRANCH_STORAGE_KEY, value);
+      else localStorage.removeItem(BRANCH_STORAGE_KEY);
+    } catch {
+      /* storage unavailable: the filter just isn't remembered */
+    }
   }
 
   onCountDateChange(value: string): void {
@@ -65,7 +124,7 @@ export class TalabatDashboardComponent implements OnInit {
   loadDayCount(): void {
     this.countLoading.set(true);
     this.svc
-      .getOrderCount(this.countDate())
+      .getOrderCount(this.countDate(), this.vendorCode() || undefined)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         finalize(() => this.countLoading.set(false)),
@@ -80,7 +139,7 @@ export class TalabatDashboardComponent implements OnInit {
     this.loading.set(true);
     this.error.set(false);
     this.svc
-      .getOverview()
+      .getOverview(this.vendorCode() || undefined)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         finalize(() => this.loading.set(false)),

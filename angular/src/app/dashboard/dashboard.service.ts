@@ -52,6 +52,12 @@ export interface DashboardOrderCountDto {
   revenue: number;
 }
 
+export interface DashboardBranchDto {
+  vendorCode: string;
+  name?: string;
+  foodicsBranchName?: string;
+}
+
 export interface DashboardOverviewDto {
   orders: DashboardOrderStatsDto;
   ordersTrend: DashboardDailyCountDto[];
@@ -66,16 +72,28 @@ export class DashboardService {
 
   constructor(private restService: RestService) {}
 
-  getOverview = () =>
+  /** Omit vendorCode for all branches the user can see. */
+  getOverview = (vendorCode?: string) =>
     this.restService.request<any, DashboardOverviewDto>(
-      { method: 'GET', url: '/api/app/dashboard/overview' },
+      { method: 'GET', url: '/api/app/dashboard/overview', params: vendorCode ? { vendorCode } : {} },
       { apiName: this.apiName },
     );
 
-  /** Orders received on one calendar day. Omit the date for today. */
-  getOrderCount = (date?: string) =>
+  /** Orders received on one calendar day. Omit the date for today, vendorCode for all branches. */
+  getOrderCount = (date?: string, vendorCode?: string) =>
     this.restService.request<any, DashboardOrderCountDto>(
-      { method: 'GET', url: '/api/app/dashboard/order-count', params: date ? { date } : {} },
+      {
+        method: 'GET',
+        url: '/api/app/dashboard/order-count',
+        params: { ...(date ? { date } : {}), ...(vendorCode ? { vendorCode } : {}) },
+      },
+      { apiName: this.apiName },
+    );
+
+  /** Talabat branches the current user may filter the dashboard by. */
+  getBranches = () =>
+    this.restService.request<any, DashboardBranchDto[]>(
+      { method: 'GET', url: '/api/app/dashboard/branches' },
       { apiName: this.apiName },
     );
 }
