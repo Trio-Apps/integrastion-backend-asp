@@ -16,8 +16,8 @@ import { FailedOrdersReportService } from './failed-orders-report.service';
       <div class="fr-head">
         <h1>Daily Failed Orders Report</h1>
         <p>
-          Get an email at the end of each day listing orders that stayed <strong>Failed</strong>
-          after all {{ 3 }} retry attempts. Leave the emails empty to turn the report off.
+          Get an email at the end of each day listing orders that <strong>failed</strong> and did not
+          reach Foodics. Leave the emails empty to turn the report off.
         </p>
       </div>
 
@@ -39,8 +39,8 @@ import { FailedOrdersReportService } from './failed-orders-report.service';
           </button>
         </div>
         <div class="fr-note muted">
-          The report is sent once per day after the chosen time. It includes only orders received that day that
-          remained failed after retries. If there are none, no email is sent (a test always sends).
+          The report is sent once per day after the chosen time. It includes the orders received that day that
+          are still failed. If there are none, no email is sent (a test always sends).
         </div>
       </div>
     </div>

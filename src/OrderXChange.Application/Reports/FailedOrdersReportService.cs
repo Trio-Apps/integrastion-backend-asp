@@ -15,14 +15,19 @@ using Volo.Abp.Timing;
 namespace OrderXChange.Reports;
 
 /// <summary>
-/// Builds and sends the end-of-day report of orders that stayed Failed after all retries
-/// (Status = "Failed" and Attempts &gt;= the max of 3). Tenant-scoped: it queries the current
-/// tenant context, so callers set the tenant before invoking it.
+/// Builds and sends the end-of-day report of orders that are still Failed, i.e. never reached
+/// Foodics. Tenant-scoped: it queries the current tenant context, so callers set the tenant
+/// before invoking it.
 /// </summary>
+/// <remarks>
+/// Every Failed order counts, whatever its attempt count. A permanent error (e.g. Foodics 422
+/// "invalid data") goes straight to the DLQ after attempt 1, so the old "Attempts &gt;= 3" filter
+/// skipped exactly the failures that need a person, and the report stayed silent. A transient
+/// error is Failed only for the minutes before its next retry (1 then 5 minutes apart), so by
+/// the end of the day a Failed order has stopped being retried.
+/// </remarks>
 public class FailedOrdersReportService : ITransientDependency
 {
-    public const int TerminalAttempts = 3;
-
     private readonly IRepository<TalabatOrderSyncLog, Guid> _orderRepo;
     private readonly ISmtpMailSender _mailSender;
     private readonly IClock _clock;
@@ -56,7 +61,6 @@ public class FailedOrdersReportService : ITransientDependency
         var query = await _orderRepo.GetQueryableAsync();
         var orders = await query.AsNoTracking()
             .Where(x => x.Status == "Failed"
-                        && x.Attempts >= TerminalAttempts
                         && x.ReceivedAt >= localStartUtc
                         && x.ReceivedAt <= nowUtc)
             .OrderByDescending(x => x.ReceivedAt)
@@ -89,12 +93,12 @@ public class FailedOrdersReportService : ITransientDependency
 
         if (orders.Count == 0)
         {
-            sb.Append("<p style=\"font-size:14px;\">No orders remained failed after retries today. ✅</p>");
+            sb.Append("<p style=\"font-size:14px;\">No orders failed today. ✅</p>");
             sb.Append("</div>");
             return sb.ToString();
         }
 
-        sb.Append($"<p style=\"font-size:14px;\">{orders.Count} order(s) stayed <strong>Failed</strong> after {TerminalAttempts} attempts:</p>");
+        sb.Append($"<p style=\"font-size:14px;\">{orders.Count} order(s) <strong>failed</strong> and did not reach Foodics:</p>");
         sb.Append("<table style=\"border-collapse:collapse;width:100%;font-size:13px;\">");
         sb.Append("<thead><tr style=\"background:#276D64;color:#fff;text-align:left;\">");
         foreach (var h in new[] { "Order ID", "Short Code", "Vendor", "Customer", "Phone", "Received", "Attempts", "Last Error" })
