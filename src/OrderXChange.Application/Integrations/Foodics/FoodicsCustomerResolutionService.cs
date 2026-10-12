@@ -161,7 +161,11 @@ public class FoodicsCustomerResolutionService : ITransientDependency
             return false;
         }
 
-        return ex.ResponseBody?.Contains("same phone", StringComparison.OrdinalIgnoreCase) == true
+        // Foodics phrases the duplicate-phone 422 as "This phone number is already used
+        // by another user in your account." — match that alongside older/other wordings so
+        // the find-by-phone recovery fires (concurrent first orders from the same customer).
+        return ex.ResponseBody?.Contains("already used", StringComparison.OrdinalIgnoreCase) == true
+               || ex.ResponseBody?.Contains("same phone", StringComparison.OrdinalIgnoreCase) == true
                || ex.ResponseBody?.Contains("phone already exists", StringComparison.OrdinalIgnoreCase) == true;
     }
 

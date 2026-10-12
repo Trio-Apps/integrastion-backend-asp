@@ -10,7 +10,7 @@ using Volo.Abp.AspNetCore.Mvc;
 
 namespace OrderXChange.Controllers;
 
-[Authorize("OrderXChange.Dashboard.Tenant")]
+[Authorize("OrderXChange.CustomerMapping")]
 [Route("api/app/talabat-customer-mapping")]
 public class TalabatCustomerMappingController : AbpController
 {

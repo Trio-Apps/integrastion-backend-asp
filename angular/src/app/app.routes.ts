@@ -2,6 +2,12 @@ import { authGuard, permissionGuard } from '@abp/ng.core';
 import { Routes } from '@angular/router';
 import { GDPR_COOKIE_CONSENT_ROUTES } from './gdpr-cookie-consent/gdpr-cookie-consent.routes';
 import { passwordChangeRequiredGuard } from './guards/password-change-required.guard';
+import { landingGuard } from './guards/landing.guard';
+import {
+  IDENTITY_ENTITY_ACTION_CONTRIBUTORS_VALUE,
+  IDENTITY_CREATE_FORM_PROP_CONTRIBUTORS_VALUE,
+  IDENTITY_EDIT_FORM_PROP_CONTRIBUTORS_VALUE,
+} from './providers/identity-ui.provider';
 
 export const APP_ROUTES: Routes = [
   {
@@ -12,17 +18,19 @@ export const APP_ROUTES: Routes = [
   {
     path: 'dashboard',
     loadComponent: () => import('./dashboard/dashboard.component').then(c => c.DashboardComponent),
-    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
-    data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant',
-    },
+    canActivate: [authGuard, passwordChangeRequiredGuard, landingGuard],
+  },
+  {
+    path: 'no-access',
+    loadComponent: () => import('./account/no-access/no-access.component').then(c => c.NoAccessComponent),
+    canActivate: [authGuard],
   },
   {
     path: 'hangfire-monitoring',
     loadComponent: () => import('./hangfire-dashboard/hangfire-dashboard.component').then(c => c.HangfireDashboardComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.MenuSync',
     },
   },
   {
@@ -30,7 +38,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./menu-sync-diagnostics/menu-sync-diagnostics.component').then(c => c.MenuSyncDiagnosticsComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.SyncDiagnostics',
     },
   },
   {
@@ -38,7 +46,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./menu-sync-diagnostics/menu-sync-diagnostics.component').then(c => c.MenuSyncDiagnosticsComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Host || OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.SyncDiagnostics',
     },
   },
   {
@@ -54,7 +62,32 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./talabat-orders/talabat-orders.component').then(c => c.TalabatOrdersComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.Orders',
+    },
+  },
+  {
+    path: 'talabat-orders/:id',
+    loadComponent: () => import('./order-detail/order-detail.component').then(c => c.OrderDetailComponent),
+    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    data: {
+      requiredPolicy: 'OrderXChange.Orders',
+    },
+  },
+  {
+    path: 'availability',
+    loadComponent: () => import('./availability/availability.component').then(c => c.AvailabilityComponent),
+    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    data: {
+      requiredPolicy: 'OrderXChange.Availability',
+    },
+  },
+  {
+    path: 'failed-orders-report',
+    loadComponent: () =>
+      import('./failed-orders-report/failed-orders-report.component').then(c => c.FailedOrdersReportComponent),
+    canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
+    data: {
+      requiredPolicy: 'OrderXChange.DailyReport',
     },
   },
   {
@@ -62,7 +95,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./talabat-payment-methods/talabat-payment-methods.component').then(c => c.TalabatPaymentMethodsComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.PaymentMethods',
     },
   },
   {
@@ -70,7 +103,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./talabat-delivery-charges/talabat-delivery-charges.component').then(c => c.TalabatDeliveryChargesComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.DeliveryCharges',
     },
   },
   {
@@ -78,7 +111,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./talabat-customer-mapping/talabat-customer-mapping.component').then(c => c.TalabatCustomerMappingComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.CustomerMapping',
     },
   },
   {
@@ -86,7 +119,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./menu-demo/menu-demo.component').then(c => c.MenuDemoComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.Categories',
     },
   },
   {
@@ -121,7 +154,14 @@ export const APP_ROUTES: Routes = [
   },
   {
     path: 'identity',
-    loadChildren: () => import('@volo/abp.ng.identity').then(c => c.createRoutes()),
+    loadChildren: () =>
+      import('@abp/ng.identity').then(c =>
+        c.createRoutes({
+          entityActionContributors: IDENTITY_ENTITY_ACTION_CONTRIBUTORS_VALUE,
+          createFormPropContributors: IDENTITY_CREATE_FORM_PROP_CONTRIBUTORS_VALUE,
+          editFormPropContributors: IDENTITY_EDIT_FORM_PROP_CONTRIBUTORS_VALUE,
+        }),
+      ),
   },
   {
     path: 'language-management',
@@ -148,7 +188,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./saas/foodics-list.component/foodics-list.component').then(c => c.FoodicsListComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.FoodicsAccounts',
     },
   },
   {
@@ -156,7 +196,7 @@ export const APP_ROUTES: Routes = [
     loadComponent: () => import('./saas/talabat-list.component/talabat-list.component').then(c => c.TalabatListComponent),
     canActivate: [authGuard, passwordChangeRequiredGuard, permissionGuard],
     data: {
-      requiredPolicy: 'OrderXChange.Dashboard.Tenant',
+      requiredPolicy: 'OrderXChange.TalabatAccounts',
     },
   },
   {

@@ -119,6 +119,10 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             : $"Talabat Short Code: {shortCode}";
     }
 
+    // Foodics rejects the whole order (422 "may not be greater than 512 characters") when
+    // customer_notes / kitchen_notes are longer than this.
+    private const int FoodicsNotesMaxLength = 512;
+
     private static string? MergeNotes(string? primaryNote, string? existingNote)
     {
         var parts = new[] { primaryNote?.Trim(), existingNote?.Trim() }
@@ -128,7 +132,28 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
 
         return parts.Count == 0
             ? null
-            : string.Join(Environment.NewLine, parts);
+            : FitFoodicsNote(string.Join(Environment.NewLine, parts));
+    }
+
+    /// <summary>
+    /// Cuts a note to Foodics' limit, keeping its start (the Talabat order reference comes
+    /// first) and marking the cut with "…". Talabat allows ~500-character customer comments,
+    /// so with our reference line prepended they can exceed 512 and fail the order.
+    /// </summary>
+    private static string FitFoodicsNote(string note)
+    {
+        if (note.Length <= FoodicsNotesMaxLength)
+        {
+            return note;
+        }
+
+        var cut = FoodicsNotesMaxLength - 1; // room for the ellipsis
+        if (char.IsHighSurrogate(note[cut - 1]))
+        {
+            cut--; // never split an emoji / surrogate pair
+        }
+
+        return note[..cut].TrimEnd() + "…";
     }
 
     private List<FoodicsOrderProductRequest> MapProducts(List<TalabatOrderProduct> talabatProducts, int discountType)
@@ -157,7 +182,12 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
             var quantity = ParseInt(product.Quantity, 1);
             var paidPrice = ParseDecimal(product.PaidPrice);
             var baseUnitPrice = ParseDecimal(product.UnitPrice) ?? 0m;
-            var totalPrice = paidPrice ?? (baseUnitPrice * quantity);
+            var grossTotalPrice = paidPrice ?? (baseUnitPrice * quantity);
+            // doc-04: paidPrice is now the original (pre-discount) price; deduct line-level discounts to get the effective price.
+            var productDiscountTotal = SumDiscountAmounts(product.Discounts);
+            var totalPrice = productDiscountTotal.HasValue
+                ? Math.Max(0m, grossTotalPrice - productDiscountTotal.Value)
+                : grossTotalPrice;
             var unitPrice = quantity > 0
                 ? Math.Round(totalPrice / quantity, 3, MidpointRounding.AwayFromZero)
                 : baseUnitPrice;
@@ -233,8 +263,16 @@ public class TalabatOrderToFoodicsMapper : ITransientDependency
                 }
 
                 var quantity = topping.Quantity.GetValueOrDefault(1);
-                var unitPrice = ParseDecimal(topping.Price) ?? 0m;
-                var totalPrice = unitPrice * quantity;
+                // doc-04: topping.Price is the original price for the total quantity; deduct topping discounts first.
+                var rawTotalPrice = ParseDecimal(topping.Price) ?? 0m;
+                var toppingDiscountTotal = SumDiscountAmounts(topping.Discounts);
+                var effectiveTotalPrice = toppingDiscountTotal.HasValue
+                    ? Math.Max(0m, rawTotalPrice - toppingDiscountTotal.Value)
+                    : rawTotalPrice;
+                var unitPrice = quantity > 0
+                    ? Math.Round(effectiveTotalPrice / quantity, 3, MidpointRounding.AwayFromZero)
+                    : effectiveTotalPrice;
+                var totalPrice = effectiveTotalPrice;
 
                 optionsById[optionId] = new FoodicsOrderProductOptionRequest
                 {

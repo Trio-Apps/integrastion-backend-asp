@@ -8,7 +8,7 @@ using Volo.Abp.AspNetCore.Mvc;
 
 namespace OrderXChange.Controllers;
 
-[Authorize("OrderXChange.Dashboard.Tenant")]
+[Authorize("OrderXChange.DeliveryCharges")]
 [Route("api/app/talabat-delivery-charges")]
 public class TalabatDeliveryChargesController : AbpController
 {

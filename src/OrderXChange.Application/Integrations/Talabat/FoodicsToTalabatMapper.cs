@@ -836,7 +836,10 @@ public class FoodicsToTalabatMapper : ITransientDependency
             foodicsAccountId,
             branchId ?? "ALL");
 
-        var items = new List<TalabatItemAvailability>();
+        // NOTE: the Talabat schema carries a single availability decision for a list of item ids,
+        // so this maps only the AVAILABLE (active) products. For per-item out-of-stock control use
+        // TalabatAvailabilityPushService, which sends one call per (isAvailable, restore-time) group.
+        var remoteCodes = new List<string>();
 
         foreach (var product in productsList)
         {
@@ -844,7 +847,7 @@ public class FoodicsToTalabatMapper : ITransientDependency
             var productMapping = await _menuMappingService.GetMappingByFoodicsIdAsync(
                 foodicsAccountId, branchId, MenuMappingEntityType.Product, product.Id, cancellationToken);
 
-            if (productMapping == null)
+            if (productMapping == null || string.IsNullOrWhiteSpace(productMapping.TalabatRemoteCode))
             {
                 _logger.LogWarning(
                     "Product mapping not found for FoodicsId={ProductId}. Skipping availability update.",
@@ -852,20 +855,21 @@ public class FoodicsToTalabatMapper : ITransientDependency
                 continue;
             }
 
-            items.Add(new TalabatItemAvailability
+            if (product.IsActive ?? false)
             {
-                RemoteCode = productMapping.TalabatRemoteCode, // Use stable remote code
-                IsAvailable = product.IsActive ?? false
-            });
+                remoteCodes.Add(productMapping.TalabatRemoteCode); // Use stable remote code
+            }
         }
 
         _logger.LogInformation(
-            "Mapped {ItemCount} items for availability update using stable remote codes",
-            items.Count);
+            "Mapped {ItemCount} available items for availability update using stable remote codes",
+            remoteCodes.Count);
 
         return new TalabatUpdateItemAvailabilityRequest
         {
-            Items = items
+            Items = remoteCodes,
+            Type = "ITEM",
+            IsAvailable = true
         };
     }
 
@@ -881,11 +885,9 @@ public class FoodicsToTalabatMapper : ITransientDependency
 
         return new TalabatUpdateItemAvailabilityRequest
         {
-            Items = products.Select(p => new TalabatItemAvailability
-            {
-                RemoteCode = p.Id, // Direct Foodics ID (legacy behavior)
-                IsAvailable = p.IsActive ?? false
-            }).ToList()
+            Items = products.Where(p => p.IsActive ?? false).Select(p => p.Id).ToList(), // Direct Foodics ID (legacy behavior)
+            Type = "ITEM",
+            IsAvailable = true
         };
     }
 

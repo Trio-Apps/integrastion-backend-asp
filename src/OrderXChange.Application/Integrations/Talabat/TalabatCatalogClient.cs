@@ -911,6 +911,77 @@ public class TalabatCatalogClient : ITransientDependency
     }
 
     /// <summary>
+    /// Push per-item availability on the current V2 catalog contract.
+    /// PUT /v2/chains/{chainCode}/vendors/{posVendorId}/catalog/items/availability
+    /// </summary>
+    public async Task<TalabatBranchItemAvailabilityResponse> UpdateCatalogItemAvailabilityAsync(
+        string chainCode,
+        string posVendorId,
+        string vendorCode,
+        TalabatUpdateItemAvailabilityRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(chainCode))
+            throw new ArgumentException("Chain code is required", nameof(chainCode));
+        if (string.IsNullOrWhiteSpace(posVendorId))
+            throw new ArgumentException("POS vendor id is required", nameof(posVendorId));
+        if (string.IsNullOrWhiteSpace(vendorCode))
+            throw new ArgumentException("Vendor code is required", nameof(vendorCode));
+
+        await _authClient.PreFetchCredentialsAsync(vendorCode, cancellationToken);
+        var accessToken = await _authClient.GetAccessTokenAsync(vendorCode, cancellationToken);
+        // The {posVendorId} path segment is the POS-side vendor code (e.g. "PH-SIDDIQ-002"),
+        // exactly like the working menu-import-logs endpoint — NOT the numeric platform
+        // restaurant id (783216), which left the update unrouted ({"status":"Failed","details":[]}).
+        var url = $"v2/chains/{Uri.EscapeDataString(chainCode)}/vendors/{Uri.EscapeDataString(vendorCode)}/catalog/items/availability";
+
+        _logger.LogInformation(
+            "Pushing item availability to Talabat. ChainCode={ChainCode}, PosVendorId={PosVendorId}, VendorCode={VendorCode}, ItemCount={ItemCount}",
+            chainCode, posVendorId, vendorCode, request.Items?.Count ?? 0);
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Put, url);
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        var json = JsonSerializer.Serialize(request, new JsonSerializerOptions
+        {
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        });
+        httpRequest.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        // Log the exact body so we can align it with Talabat's schema without guessing.
+        _logger.LogInformation("Item availability request body -> {Body}", json);
+
+        var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError(
+                "Failed to push item availability. ChainCode={ChainCode}, PosVendorId={PosVendorId}, StatusCode={StatusCode}, Response={Response}",
+                chainCode, posVendorId, (int)response.StatusCode, responseBody);
+
+            return new TalabatBranchItemAvailabilityResponse
+            {
+                Success = false,
+                VendorCode = vendorCode,
+                Message = $"HTTP {(int)response.StatusCode}: {responseBody}"
+            };
+        }
+
+        _logger.LogInformation(
+            "✅ Item availability pushed to Talabat. ChainCode={ChainCode}, PosVendorId={PosVendorId}",
+            chainCode, posVendorId);
+
+        return TryParseResponse<TalabatBranchItemAvailabilityResponse>(responseBody)
+            ?? new TalabatBranchItemAvailabilityResponse
+            {
+                Success = true,
+                VendorCode = vendorCode,
+                Message = "Item availability updated successfully",
+                UpdatedCount = request.Items?.Count ?? 0
+            };
+    }
+
+    /// <summary>
     /// Update item availability across multiple branches in a single operation
     /// Iterates through branches and updates each one
     /// </summary>

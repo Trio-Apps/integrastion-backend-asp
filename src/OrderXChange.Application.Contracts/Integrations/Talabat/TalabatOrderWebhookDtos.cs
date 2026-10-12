@@ -94,6 +94,13 @@ public class TalabatOrderDiscount
 	public string? Name { get; set; }
 	public string? Amount { get; set; }
 	public string? Type { get; set; }
+	public List<TalabatOrderDiscountSponsorship>? Sponsorships { get; set; }
+}
+
+public class TalabatOrderDiscountSponsorship
+{
+	public string? Sponsor { get; set; }
+	public string? Amount { get; set; }
 }
 
 public class TalabatOrderLocalInfo
@@ -193,6 +200,7 @@ public class TalabatOrderTopping
 	public string? Id { get; set; }
 	public string? RemoteCode { get; set; }
 	public string? Type { get; set; }
+	public List<TalabatOrderDiscount>? Discounts { get; set; }
 }
 
 public class TalabatOrderChoice

@@ -57,7 +57,11 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
         var (accessToken, source) = await ResolveAccessTokenAsync(foodicsAccountId, cancellationToken);
         var paymentMethods = await GetPaymentMethodsWithCacheAsync(accessToken, foodicsAccountId, cancellationToken);
         var activePaymentMethodId = await GetActivePaymentMethodIdAsync();
+        // Resolve the active method's display from the full list (it may predate this filter).
         var activePaymentMethod = paymentMethods.FirstOrDefault(x => x.Id == activePaymentMethodId);
+
+        // Only type-7 methods are acceptable for Talabat orders, so only offer those for selection.
+        var selectable = paymentMethods.Where(x => x.Type == AcceptedPaymentMethodType).ToList();
 
         return new TalabatPaymentMethodSettingsDto
         {
@@ -65,9 +69,13 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
             ActivePaymentMethodName = activePaymentMethod?.Name,
             ActivePaymentMethodCode = activePaymentMethod?.Code,
             Source = source,
-            PaymentMethods = paymentMethods
+            PaymentMethods = selectable
         };
     }
+
+    /// <summary>Foodics payment-method type accepted for Talabat orders (configurable; default 7).</summary>
+    private int AcceptedPaymentMethodType =>
+        _configuration.GetValue<int?>("Foodics:AcceptedPaymentMethodType") ?? 7;
 
     public async Task<TalabatPaymentMethodSettingsDto> UpdateActivePaymentMethodAsync(
         UpdateTalabatActivePaymentMethodInput input,
@@ -77,11 +85,20 @@ public class TalabatPaymentMethodSettingsService : ITransientDependency
 
         if (!string.IsNullOrWhiteSpace(requestedPaymentMethodId))
         {
-            var current = await GetSettingsAsync(cancellationToken: cancellationToken);
-            var exists = current.PaymentMethods.Any(x => x.Id == requestedPaymentMethodId);
-            if (!exists)
+            // Validate against the full list so we can give a precise reason (missing vs wrong type).
+            var (accessToken, _) = await ResolveAccessTokenAsync(null, cancellationToken);
+            var allPaymentMethods = await GetPaymentMethodsWithCacheAsync(accessToken, null, cancellationToken);
+            var selected = allPaymentMethods.FirstOrDefault(x => x.Id == requestedPaymentMethodId);
+
+            if (selected == null)
             {
                 throw new UserFriendlyException("The selected payment method was not found in Foodics.");
+            }
+
+            if (selected.Type != AcceptedPaymentMethodType)
+            {
+                throw new UserFriendlyException(
+                    $"Only payment methods of type {AcceptedPaymentMethodType} can be used for Talabat orders.");
             }
         }
 

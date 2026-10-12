@@ -1,23 +1,26 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { finalize } from 'rxjs/operators';
+import { interval } from 'rxjs';
+import { filter, finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { LocalizationModule } from '@abp/ng.core';
-import { TableModule, TableLazyLoadEvent } from 'primeng/table';
+import { LocalizationModule, RestService } from '@abp/ng.core';
+import { TableModule, TableLazyLoadEvent, TableRowExpandEvent } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { DialogModule } from 'primeng/dialog';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
-import { TalabatOrderLogsService, TalabatOrderLogDto, GetTalabatOrderLogsInput } from '@proxy/talabat';
+import { TalabatOrderLogsService, TalabatOrderLogDto, TalabatOrderDetailsDto, GetTalabatOrderLogsInput } from '@proxy/talabat';
 
 @Component({
   selector: 'app-talabat-orders',
   standalone: true,
   imports: [
     CommonModule,
+    RouterModule,
     FormsModule,
     LocalizationModule,
     TableModule,
@@ -36,19 +39,61 @@ export class TalabatOrdersComponent {
   private readonly orderLogsService = inject(TalabatOrderLogsService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly messageService = inject(MessageService);
+  private readonly restService = inject(RestService);
+
+  private readonly POLL_INTERVAL_MS = 30_000;
 
   readonly loading = signal<boolean>(false);
   readonly bulkRetrying = signal<boolean>(false);
+  readonly exporting = signal<boolean>(false);
   readonly logs = signal<TalabatOrderLogDto[]>([]);
   readonly totalRecords = signal<number>(0);
   readonly rows = signal<number>(10);
   readonly first = signal<number>(0);
+  readonly autoRefreshEnabled = signal<boolean>(true);
+  readonly lastRefreshedAt = signal<Date | null>(null);
+
+  constructor() {
+    interval(this.POLL_INTERVAL_MS)
+      .pipe(
+        filter(() => this.autoRefreshEnabled() && !this.loading() && this.first() === 0),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => this.loadLogs({ first: 0, rows: this.rows() }));
+
+    this.orderLogsService.getAggregators()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: list => this.aggregators.set((list ?? []).map(a => ({ value: a, label: a }))),
+        error: () => {},
+      });
+
+    this.orderLogsService.getAccessibleBranches()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: list => this.branches.set(list.map(b => ({ value: b.branchId, label: b.branchName || b.branchId }))),
+        error: () => {},
+      });
+  }
 
   readonly searchTerm = signal<string>('');
   readonly vendorCode = signal<string>('');
   readonly status = signal<string>('');
+  readonly branchId = signal<string>('');
+  readonly customerName = signal<string>('');
+  readonly customerPhone = signal<string>('');
+  readonly fromDate = signal<string>('');
+  readonly toDate = signal<string>('');
+  readonly sorting = signal<string>('');
+  readonly branches = signal<{ value: string; label: string }[]>([]);
+  readonly aggregator = signal<string>('');
+  readonly aggregators = signal<{ value: string; label: string }[]>([]);
   readonly errorDialogVisible = signal<boolean>(false);
   readonly selectedErrorMessage = signal<string>('');
+
+  expandedRows: { [key: string]: boolean } = {};
+  private readonly detailsCache = new Map<string, TalabatOrderDetailsDto>();
+  private readonly detailsLoadingSet = new Set<string>();
 
   readonly statusOptions = [
     { label: 'All', value: '' },
@@ -62,6 +107,66 @@ export class TalabatOrdersComponent {
     this.loadLogs({ first: 0, rows: this.rows() });
   }
 
+  private buildExportParams(): Record<string, string> {
+    const params: Record<string, string> = {};
+    const add = (key: string, value: string) => {
+      const v = value.trim();
+      if (v) params[key] = v;
+    };
+    add('searchTerm', this.searchTerm());
+    add('vendorCode', this.vendorCode());
+    add('branchId', this.branchId());
+    add('aggregator', this.aggregator());
+    add('customerName', this.customerName());
+    add('customerPhone', this.customerPhone());
+    add('status', this.status());
+    add('fromDate', this.fromDate());
+    add('toDate', this.toDate());
+    add('sorting', this.sorting());
+    return params;
+  }
+
+  exportExcel(): void {
+    if (this.exporting()) {
+      return;
+    }
+    this.exporting.set(true);
+    this.restService
+      .request<null, Blob>(
+        {
+          method: 'GET',
+          url: '/api/app/talabat-order-log/export',
+          params: this.buildExportParams(),
+          responseType: 'blob',
+        },
+        { apiName: 'Default' },
+      )
+      .pipe(finalize(() => this.exporting.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: blob => this.downloadBlob(blob),
+        error: error => {
+          console.error('Failed to export orders', error);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Export failed',
+            detail: 'Could not export the orders. Please try again.',
+          });
+        },
+      });
+  }
+
+  private downloadBlob(blob: Blob): void {
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `talabat-orders-${stamp}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   loadLogs(event?: TableLazyLoadEvent): void {
     this.loading.set(true);
 
@@ -72,6 +177,8 @@ export class TalabatOrdersComponent {
     if (event?.sortField) {
       sorting = `${event.sortField} ${event.sortOrder === 1 ? 'asc' : 'desc'}`;
     }
+    // Remembered so an export can reproduce the order the user is looking at.
+    this.sorting.set(sorting);
 
     const input: GetTalabatOrderLogsInput = {
       skipCount,
@@ -79,7 +186,13 @@ export class TalabatOrdersComponent {
       sorting: sorting || undefined,
       searchTerm: this.searchTerm().trim() || undefined,
       vendorCode: this.vendorCode().trim() || undefined,
+      branchId: this.branchId() || undefined,
+      aggregator: this.aggregator() || undefined,
+      customerName: this.customerName().trim() || undefined,
+      customerPhone: this.customerPhone().trim() || undefined,
       status: this.status() || undefined,
+      fromDate: this.fromDate() || undefined,
+      toDate: this.toDate() || undefined,
     };
 
     this.orderLogsService
@@ -90,6 +203,7 @@ export class TalabatOrdersComponent {
           this.logs.set(result.items || []);
           this.totalRecords.set(result.totalCount || 0);
           this.first.set(skipCount);
+          this.lastRefreshedAt.set(new Date());
         },
         error: error => {
           console.error('Failed to load Talabat order logs', error);
@@ -233,10 +347,61 @@ export class TalabatOrdersComponent {
       });
   }
 
+  onRowExpand(event: TableRowExpandEvent): void {
+    const id: string | undefined = (event.data as TalabatOrderLogDto).id;
+    if (!id || this.detailsCache.has(id) || this.detailsLoadingSet.has(id)) return;
+
+    this.detailsLoadingSet.add(id);
+    this.orderLogsService.getDetails(id)
+      .pipe(finalize(() => this.detailsLoadingSet.delete(id)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: details => this.detailsCache.set(id, details),
+        error: err => console.error('Failed to load order details', err),
+      });
+  }
+
+  getOrderDetails(id?: string): TalabatOrderDetailsDto | null {
+    if (!id) return null;
+    return this.detailsCache.get(id) ?? null;
+  }
+
+  isDetailsLoading(id?: string): boolean {
+    return !!id && this.detailsLoadingSet.has(id);
+  }
+
+  formatCurrency(value?: number | null): string {
+    if (value == null) return '-';
+    return value.toFixed(2);
+  }
+
+  // The backend stores TGO (Talabat rider delivers) / TMP (vendor delivers), or
+  // Talabat's own expedition type for anything else (e.g. "pickup").
+  formatExpeditionType(type?: string | null): string {
+    if (!type) return '-';
+    const upper = type.toUpperCase();
+    if (upper === 'TGO' || upper === 'TMP') return upper;
+    return type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+  }
+
+  toggleAutoRefresh(): void {
+    this.autoRefreshEnabled.set(!this.autoRefreshEnabled());
+  }
+
+  formatLastRefreshed(): string {
+    const d = this.lastRefreshedAt();
+    if (!d) return '';
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+  }
+
   clearFilters(): void {
     this.searchTerm.set('');
     this.vendorCode.set('');
     this.status.set('');
+    this.branchId.set('');
+    this.customerName.set('');
+    this.customerPhone.set('');
+    this.fromDate.set('');
+    this.toDate.set('');
     this.refresh();
   }
 }

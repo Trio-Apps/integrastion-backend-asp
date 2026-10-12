@@ -17,12 +17,15 @@ using Volo.Abp.EntityFrameworkCore;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.TenantManagement;
 using Volo.Abp.TenantManagement.Talabat;
+using Microsoft.AspNetCore.Authorization;
+using OrderXChange.Permissions;
 
 namespace OrderXChange.Talabat;
 
 /// <summary>
 /// UPDATED: Now uses TalabatAccountService for multi-tenant platform configuration
 /// </summary>
+[Authorize(OrderXChangePermissions.Dashboard.Tenant)]
 public class TalabatDashboardAppService : ApplicationService, ITalabatDashboardAppService
 {
     private readonly IRepository<TalabatCatalogSyncLog, Guid> _syncLogRepository;

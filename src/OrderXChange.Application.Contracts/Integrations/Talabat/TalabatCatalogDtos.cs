@@ -837,10 +837,35 @@ public static class TalabatWebhookEventTypes
 /// <summary>
 /// Request for POST Update Item Availability
 /// </summary>
+// Matches Talabat/DeliveryHero POS-Middleware CatalogItemAvailabilityUpdateRequest:
+// PUT /v2/chains/{chainCode}/vendors/{posVendorId}/catalog/items/availability
+// One request carries a single (isAvailable, willBeAvailable) decision for a list of item ids.
 public class TalabatUpdateItemAvailabilityRequest
 {
+    /// <summary>Global entity of the platform, e.g. "TB_KW" for Talabat Kuwait.</summary>
+    [JsonPropertyName("globalEntityId")]
+    public string GlobalEntityId { get; set; } = string.Empty;
+
+    /// <summary>POS catalog item ids (the Talabat remote codes), NOT objects.</summary>
     [JsonPropertyName("items")]
-    public List<TalabatItemAvailability> Items { get; set; } = new();
+    public List<string> Items { get; set; } = new();
+
+    /// <summary>Catalog item type: "ITEM" (product) or "TOPPING" (modifier).</summary>
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "ITEM";
+
+    [JsonPropertyName("isAvailable")]
+    public bool IsAvailable { get; set; }
+
+    /// <summary>When disabling: "NEXT_BUSINESS_DAY" or "AT_TIMESTAMP". Omitted otherwise.</summary>
+    [JsonPropertyName("willBeAvailable")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WillBeAvailable { get; set; }
+
+    /// <summary>Required when WillBeAvailable == "AT_TIMESTAMP": when the item comes back.</summary>
+    [JsonPropertyName("atTimeStamp")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? AtTimeStamp { get; set; }
 }
 
 /// <summary>

@@ -89,6 +89,184 @@ namespace OrderXChange.Migrations
                     b.ToTable("FoodicsAccounts", (string)null);
                 });
 
+            modelBuilder.Entity("OrderXChange.Authorization.RoleBranch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid>("FoodicsAccountId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("FoodicsBranchId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<string>("FoodicsBranchName")
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RoleId")
+                        .HasDatabaseName("IX_RoleBranches_RoleId");
+
+                    b.HasIndex("TenantId", "RoleId", "FoodicsAccountId", "FoodicsBranchId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_RoleBranches_Tenant_Role_Account_Branch");
+
+                    b.ToTable("AppRoleBranches", (string)null);
+                });
+
+            modelBuilder.Entity("OrderXChange.Authorization.UserBranch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid>("FoodicsAccountId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("FoodicsBranchId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<string>("FoodicsBranchName")
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("TenantId");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_UserBranches_UserId");
+
+                    b.HasIndex("TenantId", "UserId", "FoodicsAccountId", "FoodicsBranchId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_UserBranches_Tenant_User_Account_Branch");
+
+                    b.ToTable("AppUserBranches", (string)null);
+                });
+
+            modelBuilder.Entity("OrderXChange.Availability.ItemAvailabilityState", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)")
+                        .HasDefaultValue("Product");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("longtext")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<Guid>("FoodicsAccountId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("FoodicsProductId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<bool>("IsInStock")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Mode")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<DateTime?>("RestoreAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("VendorCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "FoodicsAccountId", "EntityType", "FoodicsProductId", "VendorCode")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ItemAvailability_Tenant_Account_Product_Vendor");
+
+                    b.ToTable("AppItemAvailabilityStates", (string)null);
+                });
+
             modelBuilder.Entity("OrderXChange.Domain.Staging.DlqMessage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -655,6 +833,10 @@ namespace OrderXChange.Migrations
                     b.Property<int>("CategoriesCount")
                         .HasColumnType("int");
 
+                    b.Property<string>("Channel")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("datetime(6)");
 
@@ -677,6 +859,22 @@ namespace OrderXChange.Migrations
                         .HasColumnType("char(36)")
                         .HasColumnName("CreatorId");
 
+                    b.Property<string>("CustomerAddress")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("CustomerId")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("CustomerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("CustomerPhone")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
                     b.Property<Guid?>("DeleterId")
                         .HasColumnType("char(36)")
                         .HasColumnName("DeleterId");
@@ -685,12 +883,19 @@ namespace OrderXChange.Migrations
                         .HasColumnType("datetime(6)")
                         .HasColumnName("DeletionTime");
 
+                    b.Property<decimal?>("DiscountTotal")
+                        .HasColumnType("decimal(65,30)");
+
                     b.Property<string>("ErrorCode")
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
 
                     b.Property<string>("ErrorMessage")
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("ExpeditionType")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
 
                     b.Property<string>("ExtraProperties")
                         .IsRequired()
@@ -706,6 +911,9 @@ namespace OrderXChange.Migrations
 
                     b.Property<string>("FoodicsResponseJson")
                         .HasColumnType("LONGTEXT");
+
+                    b.Property<decimal?>("GrandTotal")
+                        .HasColumnType("decimal(65,30)");
 
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
@@ -735,6 +943,10 @@ namespace OrderXChange.Migrations
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("OrderToken")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("PaymentMethod")
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
 

@@ -1,0 +1,89 @@
+<p-toast></p-toast>
+
+<div class="rb-modal">
+  @if (loading) {
+    <div class="rb-empty">
+      <p-progressSpinner styleClass="w-3rem h-3rem" strokeWidth="4"></p-progressSpinner>
+    </div>
+  }
+
+  @if (!loading) {
+    @if (accountGroups.length === 0) {
+      <div class="rb-empty">
+        <i class="pi pi-building"></i>
+        <span>No Foodics branches are available.<br />Connect a Foodics account first.</span>
+      </div>
+    } @else {
+      <div class="rb-hint">
+        <i class="pi pi-info-circle"></i>
+        <span>
+          <strong>{{ userName }}</strong> will only see orders and items for the branches you
+          tick here.
+        </span>
+      </div>
+
+      <div class="rb-bar">
+        @if (totalBranches > 6) {
+          <div class="search-box">
+            <i class="pi pi-search"></i>
+            <input type="text" placeholder="Search branches…" [(ngModel)]="filter" />
+          </div>
+        }
+        <span class="count-pill">{{ selectedCount }} of {{ totalBranches }} selected</span>
+      </div>
+
+      <div class="rb-groups">
+        @for (group of visibleGroups; track group.accountId) {
+          <div>
+            <div class="rb-group-head">
+              <i class="pi pi-building"></i>
+              <span>{{ group.accountName }}</span>
+              <button type="button" class="link" (click)="toggleGroup(group)">
+                {{ allSelectedIn(group) ? 'Clear all' : 'Select all' }}
+              </button>
+            </div>
+
+            <div class="branch-list">
+              @for (branch of group.branches; track branch.id) {
+                <label class="check" [class.on]="isSelected(group.accountId, branch.id!)">
+                  <input
+                    type="checkbox"
+                    [checked]="isSelected(group.accountId, branch.id!)"
+                    (change)="toggle(group.accountId, branch.id!, $any($event.target).checked)" />
+                  <span class="b-name">{{ branch.name || branch.id }}</span>
+                  @if (branch.name_localized && branch.name_localized !== branch.name) {
+                    <span class="b-alt">{{ branch.name_localized }}</span>
+                  }
+                </label>
+              }
+            </div>
+          </div>
+        }
+
+        @if (visibleGroups.length === 0) {
+          <div class="rb-empty">
+            <i class="pi pi-search"></i>
+            <span>No branches match “{{ filter }}”.</span>
+          </div>
+        }
+      </div>
+    }
+  }
+
+  <div class="rb-actions">
+    <p-button
+      label="Cancel"
+      severity="secondary"
+      [outlined]="true"
+      (onClick)="cancel()"
+      [disabled]="saving">
+    </p-button>
+    <p-button
+      label="Save"
+      icon="pi pi-check"
+      (onClick)="save()"
+      [loading]="saving"
+      [disabled]="loading || accountGroups.length === 0">
+    </p-button>
+  </div>
+</div>

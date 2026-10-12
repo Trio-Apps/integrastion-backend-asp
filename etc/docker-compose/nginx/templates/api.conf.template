@@ -1,7 +1,34 @@
+# Partners (Talabat included) store the base URL with a trailing slash, so their
+# callbacks arrive as "//api/talabat/webhooks/...". proxy_pass with a variable
+# upstream forwards $request_uri verbatim, ASP.NET Core routing 404s on the
+# doubled slash and the order is lost. Collapse repeated leading slashes first.
+map $request_uri $normalized_uri {
+    "~^/{2,}(?<rest>.*)$"  "/$rest";
+    default                $request_uri;
+}
+
+# The two API instances. api-servers.conf (written by nginx on first start, then by
+# deploy-api.sh) lists web_api and web_api_2; "resolve" re-reads their addresses from Docker
+# DNS, so a recreated or stopped container never blocks nginx.
+upstream api_backend {
+    zone api_backend 64k;
+    resolver 127.0.0.11 valid=5s ipv6=off;
+    include /etc/nginx/active/api-servers.conf;
+}
+
 server {
     listen 80;
     server_name ${API_HOST};
-    return 301 https://$host$request_uri;
+
+    # Let's Encrypt HTTP-01 challenges (certbot --webroot) so certs renew
+    # without stopping nginx. Everything else goes to HTTPS.
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
 }
 
 server {
@@ -18,8 +45,13 @@ server {
     resolver 127.0.0.11 valid=10s ipv6=off;
 
     location / {
-        set $backend_upstream web_api:8080;
-        proxy_pass http://$backend_upstream;
+        proxy_pass http://api_backend$normalized_uri;
+        # If one instance cannot be reached, try the other. nginx never resends a POST that
+        # already reached an instance, so an order webhook is not delivered twice.
+        proxy_connect_timeout 1s;
+        proxy_next_upstream error timeout http_502 http_503;
+        proxy_next_upstream_tries 2;
+        proxy_next_upstream_timeout 15s;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

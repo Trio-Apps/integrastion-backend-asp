@@ -1,0 +1,98 @@
+<div class="od-page">
+  <a class="back" routerLink="/talabat-orders"><i class="pi pi-arrow-left"></i> Back to orders</a>
+
+  @if (loading()) {
+    <div class="od-card center muted">Loading…</div>
+  } @else if (error()) {
+    <div class="od-card center muted">Couldn't load this order.</div>
+  }
+
+  @if (order(); as o) {
+    <div class="od-head">
+      <div>
+        <h1>Order {{ o.orderCode || o.shortCode || '—' }}</h1>
+        <p>{{ o.vendorCode }} · received {{ o.receivedAt | date: 'MMM d, y, h:mm a' }}</p>
+      </div>
+      <span class="badge" [class]="statusClass(o.status)">{{ o.status }}</span>
+    </div>
+
+    @if (o.lastError) {
+      <div class="od-card error-banner"><i class="pi pi-exclamation-triangle"></i> {{ o.lastError }}</div>
+    }
+
+    <div class="od-grid">
+      <!-- Left: info -->
+      <div class="od-col">
+        <div class="od-card">
+          <div class="card-t">Customer</div>
+          <dl>
+            <dt>Name</dt><dd>{{ o.customerName || '—' }}</dd>
+            <dt>Phone</dt><dd>{{ o.customerPhone || '—' }}</dd>
+            <dt>Address</dt><dd>{{ o.customerAddress || '—' }}</dd>
+            <dt>Comment</dt><dd>{{ o.customerComment || '—' }}</dd>
+          </dl>
+        </div>
+        <div class="od-card">
+          <div class="card-t">Order</div>
+          <dl>
+            <dt>Vendor</dt><dd>{{ o.vendorCode || '—' }}</dd>
+            <dt>Channel</dt><dd>{{ o.channel || '—' }}</dd>
+            <dt>Expedition</dt><dd>{{ o.expeditionType || '—' }}</dd>
+            <dt>Payment</dt><dd>{{ o.paymentMethod || '—' }}</dd>
+            <dt>Order code</dt><dd class="mono">{{ o.orderCode || '—' }}</dd>
+            <dt>Token</dt><dd class="mono small">{{ o.orderToken || '—' }}</dd>
+            <dt>Created</dt><dd>{{ o.orderCreatedAt ? (o.orderCreatedAt | date: 'MMM d, y, h:mm a') : '—' }}</dd>
+            <dt>Attempts</dt><dd>{{ o.attempts }}</dd>
+            <dt>Foodics order</dt><dd class="mono">{{ o.foodicsOrderId || '—' }}</dd>
+          </dl>
+        </div>
+        <div class="od-card totals">
+          <div class="tot-row"><span>Discount</span><span>{{ o.discountTotal != null ? (o.discountTotal | number: '1.3-3') + ' KWD' : '—' }}</span></div>
+          <div class="tot-row grand"><span>Grand total</span><span>{{ o.grandTotal != null ? (o.grandTotal | number: '1.3-3') + ' KWD' : '—' }}</span></div>
+        </div>
+      </div>
+
+      <!-- Right: items -->
+      <div class="od-col">
+        <div class="od-card">
+          <div class="card-t">Items <span class="count" *ngIf="o.items.length">{{ o.items.length }}</span></div>
+          @if (!o.items.length) {
+            <div class="muted small pad">No line items parsed for this order.</div>
+          } @else {
+            @for (it of o.items; track $index) {
+              <div class="item">
+                <div class="item-h">
+                  <span class="qty">{{ it.quantity }}×</span>
+                  <span class="item-name">{{ it.name || '—' }}</span>
+                  <span class="item-price">{{ it.paidPrice != null ? (it.paidPrice | number: '1.3-3') : '' }}</span>
+                </div>
+                <div class="item-meta" *ngIf="it.categoryName || it.remoteCode">{{ it.categoryName }}<span *ngIf="it.remoteCode" class="mono"> · {{ it.remoteCode }}</span></div>
+                @for (m of it.modifiers; track $index) {
+                  <div class="mod">+ {{ m.quantity }}× {{ m.name }}<span class="mod-p" *ngIf="m.price">{{ m.price | number: '1.3-3' }}</span></div>
+                }
+              </div>
+            }
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Raw payload -->
+    <div class="od-card">
+      <div class="card-head">
+        <span class="card-t">Raw Talabat payload</span>
+        <div class="pl-actions">
+          <button class="mini" (click)="copyPayload(o.rawPayloadJson)" *ngIf="o.rawPayloadJson"><i class="pi pi-copy"></i> Copy</button>
+          <button class="mini" (click)="showPayload.set(!showPayload())">{{ showPayload() ? 'Hide' : 'Show' }}</button>
+        </div>
+      </div>
+      @if (showPayload()) {
+        @if (o.rawPayloadJson) {
+          <pre class="payload">{{ prettyPayload(o.rawPayloadJson) }}</pre>
+        } @else {
+          <div class="muted small pad">No raw payload stored for this order.</div>
+        }
+      }
+    </div>
+  }
+</div>

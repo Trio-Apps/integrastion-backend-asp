@@ -18,6 +18,8 @@ using Foodics;
 using Volo.Abp.TenantManagement.Talabat;
 using Hangfire;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Authorization;
+using OrderXChange.Permissions;
 
 namespace OrderXChange.BackgroundJobs;
 
@@ -25,6 +27,7 @@ namespace OrderXChange.BackgroundJobs;
 /// Menu sync service that builds menu structure directly from products endpoint.
 /// Uses /products?include=category,price_tags,tax_group,tags,branches,ingredients.branches,modifiers,modifiers.options,modifiers.options.branches,discounts,timed_events,groups
 /// </summary>
+[Authorize]
 public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITransientDependency
 {
     private readonly FoodicsCatalogClient _foodicsCatalogClient;
@@ -56,6 +59,7 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
     /// <summary>
     /// Manually trigger a menu sync for a specific account via Kafka
     /// </summary>
+    [Authorize(OrderXChangePermissions.MenuSync.Default)]
     public async Task TriggerMenuSyncAsync(
         Guid? foodicsAccountId = null,
         string? branchId = null,
@@ -76,6 +80,7 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
     /// <summary>
     /// Legacy method - kept for backward compatibility but delegates to GetAggregatedAsync
     /// </summary>
+    [Authorize(OrderXChangePermissions.Categories.Default)]
     public Task<FoodicsMenuDisplayResponseDto> GetAsync(string? branchId = null)
     {
         // Return empty menu display - this method is deprecated in favor of GetAggregatedAsync
@@ -88,6 +93,7 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
     /// </summary>
     /// <param name="branchId">Optional branch ID to filter products</param>
     /// <param name="foodicsAccountId">Optional FoodicsAccount ID. If not provided, uses current tenant's account or configuration token</param>
+    [Authorize(OrderXChangePermissions.Categories.Default)]
     public async Task<FoodicsAggregatedMenuDto> GetAggregatedAsync(string? branchId = null, Guid? foodicsAccountId = null)
     {
         // Get access token from FoodicsAccount or fallback to configuration
@@ -115,6 +121,7 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
     /// Shows categories, menu groups, and products breakdown for each branch.
     /// </summary>
     /// <param name="request">Request parameters for enhanced analysis</param>
+    [Authorize(OrderXChangePermissions.Categories.Default)]
     public async Task<FoodicsEnhancedAggregatedMenuDto> GetEnhancedAggregatedAsync(GetEnhancedAggregatedMenuRequest request)
     {
         // NEW: Load products from staging table (AppFoodicsProductStaging) instead of calling Foodics API
@@ -149,6 +156,7 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
         return result;
     }
 
+    [Authorize(OrderXChangePermissions.Categories.Default)]
     public async Task<List<StagingMenuGroupSummaryDto>> GetStagingMenuGroupSummaryAsync(GetStagingMenuGroupSummaryRequest request)
     {
         var foodicsAccountId = await ResolveFoodicsAccountIdAsync(request.FoodicsAccountId, CancellationToken.None);
@@ -560,6 +568,7 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
     /// Returns all branches from Foodics branch endpoint for the selected account.
     /// Used for dropdown selection when configuring TalabatAccount, regardless of product availability.
     /// </summary>
+    [Authorize(OrderXChangePermissions.TalabatAccounts.Default)]
     public async Task<List<FoodicsBranchDto>> GetBranchesForAccountAsync(Guid foodicsAccountId)
     {
         var accessToken = await _tokenService.GetAccessTokenWithFallbackAsync(foodicsAccountId, CancellationToken.None);
@@ -578,6 +587,7 @@ public class MenuSyncAppService : ApplicationService, IMenuSyncAppService, ITran
     /// This is used by the Talabat account create/edit dialog, so it must not silently
     /// hide groups that currently have zero visible products.
     /// </summary>
+    [Authorize(OrderXChangePermissions.TalabatAccounts.Default)]
     public async Task<List<FoodicsGroupWithProductCountDto>> GetGroupsForAccountAsync(Guid foodicsAccountId)
     {
         var accessToken = await _tokenService.GetAccessTokenWithFallbackAsync(foodicsAccountId, CancellationToken.None);

@@ -31,20 +31,29 @@ export class HangfireDashboardComponent implements OnInit {
   readonly syncing = signal<boolean>(false);
   readonly syncQueued = signal<boolean>(false);
   readonly hangfireUrl = environment.apis.default.url.replace(/\/+$/, '') + '/hangfire';
+  // Count only real menu-sync jobs (the filtered lists), so the tiles match what's shown
+  // below instead of the Hangfire-wide totals that were dominated by internal jobs.
   readonly metrics = computed(() => {
-    const dashboard = this.dashboardSignal();
-    if (!dashboard) {
+    if (!this.dashboardSignal()) {
       return [];
     }
-
-    const counts = dashboard.counts;
     return [
-      { label: this.l('::MenuSync.Metrics.Succeeded'), value: counts.succeeded ?? 0, tone: 'success' },
-      { label: this.l('::MenuSync.Metrics.Failed'), value: counts.failed ?? 0, tone: 'danger' },
-      { label: this.l('::MenuSync.Metrics.Enqueued'), value: counts.enqueued ?? 0, tone: 'primary' },
-      { label: this.l('::MenuSync.Metrics.Deleted'), value: counts.deleted ?? 0, tone: 'dark' },
+      { label: 'Successful (recent)', value: this.succeededJobs().length, icon: 'pi pi-check-circle', color: '#059669' },
+      { label: 'Failed', value: this.failedJobs().length, icon: 'pi pi-exclamation-triangle', color: '#dc2626' },
+      { label: 'Waiting in queue', value: this.enqueuedJobs().length, icon: 'pi pi-clock', color: '#2563eb' },
     ];
   });
+
+  // Hide internal maintenance jobs (watchdog sweeps, order-enqueue, recurring order sync)
+  // so the lists show only real menu-sync activity that non-technical users care about.
+  private readonly noiseJobs = ['watchdog', 'sweep', 'stuckenqueued', 'ordersyncrecurring', 'orderenqueue'];
+  private isNoise(job: unknown): boolean {
+    const s = JSON.stringify(job ?? '').toLowerCase();
+    return this.noiseJobs.some(n => s.includes(n));
+  }
+  readonly failedJobs = computed(() => ((this.dashboardSignal()?.failedJobs ?? []) as any[]).filter(j => !this.isNoise(j)));
+  readonly enqueuedJobs = computed(() => ((this.dashboardSignal()?.enqueuedJobs ?? []) as any[]).filter(j => !this.isNoise(j)));
+  readonly succeededJobs = computed(() => ((this.dashboardSignal()?.succeededJobs ?? []) as any[]).filter(j => !this.isNoise(j)));
 
   ngOnInit(): void {
     this.refresh();

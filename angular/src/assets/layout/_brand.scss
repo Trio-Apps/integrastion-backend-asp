@@ -1,0 +1,41 @@
+// ─────────────────────────────────────────────────────────────
+// BOON-IT brand layer — flush, full-height sidebar on the default
+// (light) theme. No coloured sidebar background.
+// ─────────────────────────────────────────────────────────────
+
+:root {
+  --brand-teal: #276d64;
+  --brand-accent: #00ebb5;
+}
+
+// Flush, full-height sidebar (removes the floating card gaps),
+// keeps the default light surface + text colours.
+.layout-sidebar {
+  top: 5rem;
+  left: 0;
+  height: calc(100vh - 5rem);
+  border-radius: 0;
+  border-right: 1px solid var(--surface-border);
+  box-shadow: none;
+  padding: 1rem 1rem;
+
+  .layout-menu .layout-root-menuitem > .layout-menuitem-root-text {
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    margin: 1.1rem 0 0.35rem;
+  }
+
+  .layout-menu ul a {
+    border-radius: 10px;
+    padding: 0.6rem 0.85rem;
+    margin-bottom: 2px;
+    font-size: 0.9rem;
+  }
+}
+
+// Content sits flush against the full-height sidebar (no 2rem gap).
+@media (min-width: 992px) {
+  .layout-wrapper.layout-static .layout-main-container {
+    margin-left: 20rem;
+  }
+}

@@ -17,6 +17,7 @@
     "@abp/ng.components": "~9.3.6",
     "@abp/ng.core": "~9.3.6",
     "@abp/ng.feature-management": "~9.3.6",
+    "@abp/ng.identity": "~9.3.6",
     "@abp/ng.oauth": "~9.3.6",
     "@abp/ng.setting-management": "~9.3.6",
     "@abp/ng.theme.lepton-x": "~4.3.6",
